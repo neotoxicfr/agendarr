@@ -5,5 +5,5 @@ import "embed"
 
 // FS holds templates/ and static/.
 //
-//go:embed templates static
+//go:embed templates static locales
 var FS embed.FS

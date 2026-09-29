@@ -1,6 +1,17 @@
 {{define "header"}}<header class="topbar">
-  <a class="brand" href="/" aria-label="agendarr, accueil">
+  <a class="brand" href="/" aria-label="{{index .T "nav.home_aria"}}">
     <img src="/static/icons/icon.svg?v={{.Version}}" alt="" width="28" height="28">
     <span>agendarr</span>
   </a>
+  {{with .User}}
+  <nav class="nav" aria-label="{{index $.T "nav.main_aria"}}">
+    <a href="/" {{if eq $.Path "/"}}aria-current="page"{{end}}>{{index $.T "nav.calendar"}}</a>
+    {{if .IsAdmin}}<a href="/admin" {{if hasPrefix $.Path "/admin"}}aria-current="page"{{end}}>{{index $.T "nav.admin"}}</a>{{end}}
+  </nav>
+  <div class="me">
+    {{if .Thumb}}<img class="avatar" src="{{.Thumb}}" alt="" width="32" height="32" referrerpolicy="no-referrer">{{end}}
+    <span class="me-name">{{.Username}}</span>
+    <form method="post" action="/logout"><button class="btn btn-ghost" type="submit">{{index $.T "auth.logout"}}</button></form>
+  </div>
+  {{end}}
 </header>{{end}}

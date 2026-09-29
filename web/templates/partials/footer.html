@@ -1,0 +1,6 @@
+{{define "footer"}}<footer class="footer">
+  <a href="/privacy">{{index .T "footer.privacy"}}</a>
+  <form method="post" action="/lang" class="lang" aria-label="{{index .T "footer.language"}}">
+    {{range .Langs}}<button type="submit" name="lang" value="{{.}}" lang="{{.}}" {{if eq . $.Lang}}aria-pressed="true"{{end}}>{{index $.T (print "lang." .)}}</button>{{end}}
+  </form>
+</footer>{{end}}

@@ -1,9 +1,10 @@
 {{define "layout"}}<!doctype html>
-<html lang="fr">
+<html lang="{{.Lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>{{if ne .Title "agendarr"}}{{.Title}} · {{end}}agendarr</title>
+<title>{{with .Title}}{{index $.T .}} · {{end}}agendarr</title>
+<meta name="description" content="{{index .T "meta.description"}}">
 <meta name="theme-color" content="#11131c" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#f6f5f1" media="(prefers-color-scheme: light)">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -13,9 +14,12 @@
 <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png?v={{.Version}}">
 <link rel="stylesheet" href="/static/css/app.css?v={{.Version}}">
 <script src="/static/js/app.js?v={{.Version}}" defer></script>
+<script type="application/json" id="i18n">{{.JS}}</script>
 </head>
 <body>
+<a class="skip" href="#main">{{index .T "a11y.skip"}}</a>
 {{template "header" .}}
-<main id="main">{{template "content" .}}</main>
+<main id="main" tabindex="-1">{{template "content" .}}</main>
+{{template "footer" .}}
 </body>
 </html>{{end}}

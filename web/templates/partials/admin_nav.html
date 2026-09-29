@@ -1,0 +1,3 @@
+{{define "admin_nav"}}<nav class="tabs" aria-label="{{index .T "admin.tabs_aria"}}">
+  <a href="/admin/users" {{if eq .Path "/admin/users"}}aria-current="page"{{end}}>{{index .T "admin.tab_users"}}</a>
+</nav>{{end}}

@@ -86,6 +86,8 @@ func run(log *slog.Logger) error {
 		WriteTimeout:      60 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
+	go srv.RunAccessChecks(ctx)
+
 	errc := make(chan error, 1)
 	go func() {
 		log.Info("listening", "addr", cfg.Listen, "version", server.Version)

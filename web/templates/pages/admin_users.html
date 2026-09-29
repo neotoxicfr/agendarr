@@ -1,0 +1,29 @@
+{{define "content"}}<div class="page">
+  <h1>{{index .T "title.admin"}}</h1>
+  {{template "admin_nav" .}}
+  <p class="lead">{{printf (index .T "admin.users_lead") .Data.Server}}</p>
+  <ul class="rows">
+    {{range .Data.Users}}
+    <li class="row">
+      {{if .Thumb}}<img class="avatar" src="{{.Thumb}}" alt="" width="40" height="40" referrerpolicy="no-referrer">{{else}}<span class="avatar avatar-empty" aria-hidden="true"></span>{{end}}
+      <div class="row-main">
+        <span class="row-title">{{.Username}}
+          {{if .IsOwner}}<span class="tag tag-accent">{{index $.T "admin.tag_owner"}}</span>{{else if .IsAdmin}}<span class="tag">{{index $.T "admin.tag_admin"}}</span>{{end}}
+          {{if .Disabled}}<span class="tag tag-danger">{{index $.T "admin.tag_revoked"}}</span>{{end}}
+        </span>
+        <span class="row-meta">{{with .Email}}{{.}} · {{end}}{{if .LastLogin.IsZero}}{{index $.T "admin.never_logged"}}{{else}}{{printf (index $.T "admin.last_login") (date $.T .LastLogin)}}{{end}}</span>
+      </div>
+      {{if and (not .IsOwner) (ne .ID $.User.ID)}}
+      <div class="row-actions">
+        {{if .IsAdmin}}
+        <form method="post" action="/admin/users/{{.ID}}/demote"><button class="btn btn-sm" type="submit">{{index $.T "admin.demote"}}</button></form>
+        {{else}}
+        <form method="post" action="/admin/users/{{.ID}}/promote"><button class="btn btn-sm" type="submit">{{index $.T "admin.promote"}}</button></form>
+        {{end}}
+        <form method="post" action="/admin/users/{{.ID}}/delete" data-confirm="{{printf (index $.T "admin.delete_confirm") .Username}}"><button class="btn btn-sm btn-danger" type="submit">{{index $.T "admin.delete"}}</button></form>
+      </div>
+      {{end}}
+    </li>
+    {{end}}
+  </ul>
+</div>{{end}}
