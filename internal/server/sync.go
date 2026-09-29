@@ -44,7 +44,7 @@ func (s *Server) feedLinks(r *http.Request, u *store.User) (*syncLinks, error) {
 		HTTPS:   feed,
 		Webcal:  webcal,
 		Google:  "https://calendar.google.com/calendar/r?cid=" + url.QueryEscape(webcal),
-		Outlook: "https://outlook.live.com/calendar/0/addfromweb?name=agendarr&url=" + url.QueryEscape(feed),
+		Outlook: "https://outlook.live.com/calendar/0/addfromweb?name=Agendarr&url=" + url.QueryEscape(feed),
 		Created: created,
 	}, nil
 }
@@ -138,7 +138,7 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 	}
 	T := s.i18n.Map(lang)
 	labels := ics.Labels{
-		CalName: "agendarr",
+		CalName: "Agendarr",
 		Release: map[string]string{
 			calendar.ReleaseCinema:   T["cal.release_cinema"],
 			calendar.ReleaseDigital:  T["cal.release_digital"],

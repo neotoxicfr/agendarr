@@ -194,7 +194,7 @@
     el("span", { class: "card-meta" },
       timeOf(e) ? el("span", { class: "card-time", text: timeOf(e) }) : null,
       ...tagsOf(e).map((x) => el("span", { class: "pill", text: x })),
-      size === "sm" ? null : statusEl(e))));
+      statusEl(e))));
 
   // --- views -------------------------------------------------------------------
   function range() {
@@ -444,7 +444,10 @@
     if (state.view === "agenda") observeMore();
     if (refocus) body.querySelector(refocus)?.focus({ preventScroll: true });
     else if (!keepScroll && state.view === "agenda") {
-      body.querySelector(`[data-agenda-day="${todayKey()}"]`)?.scrollIntoView({ block: "start" });
+      // Only when today is below the fold: otherwise the toolbar would
+      // scroll away for nothing.
+      const td = body.querySelector(`[data-agenda-day="${todayKey()}"]`);
+      if (td && td.getBoundingClientRect().top > window.innerHeight * 0.6) td.scrollIntoView({ block: "start" });
     }
   }
 

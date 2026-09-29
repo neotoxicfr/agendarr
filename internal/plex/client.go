@@ -15,7 +15,7 @@ import (
 
 // Product is the X-Plex-Product header value, shown in the user's Plex
 // "Authorized devices" list.
-const Product = "agendarr"
+const Product = "Agendarr"
 
 // ErrUnauthorized is returned when plex.tv rejects the token.
 var ErrUnauthorized = errors.New("plex: unauthorized")

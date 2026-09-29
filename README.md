@@ -1,6 +1,6 @@
-# agendarr
+# Agendarr
 
-A self-hosted release calendar for a Plex household. agendarr merges the
+A self-hosted release calendar for a Plex household. Agendarr merges the
 calendars of your Radarr and Sonarr instances, knows from Seerr who asked for
 what, and lets each person sign in with their Plex account to see everything —
 or only what concerns them.
@@ -54,15 +54,15 @@ services:
 ```
 
 The full example is [`deploy/compose.yml.example`](deploy/compose.yml.example).
-Put agendarr behind your reverse proxy over HTTPS: the PWA only installs over
+Put Agendarr behind your reverse proxy over HTTPS: the PWA only installs over
 HTTPS, and calendar apps need a public URL to subscribe.
 
 ### First run
 
-1. Open agendarr and **sign in with the Plex account that owns the server**.
+1. Open Agendarr and **sign in with the Plex account that owns the server**.
    It becomes the administrator; if it owns several servers, pick one.
 2. In *Admin › Instances*, add **Seerr**, then click **Import Radarr and
-   Sonarr**: agendarr copies the servers Seerr knows, keys included. Or add
+   Sonarr**: Agendarr copies the servers Seerr knows, keys included. Or add
    Radarr and Sonarr by hand (*Settings › General* in each app for the API
    key). **Test connection** checks each one before saving.
 3. Share the URL with your Plex users: they sign in with Plex, nothing to
@@ -75,14 +75,14 @@ HTTPS, and calendar apps need a public URL to subscribe.
 | `AGENDARR_LISTEN` | `:8080` | HTTP listen address |
 | `AGENDARR_DATA_DIR` | `/data` (image), `./data` | Database, encryption key, poster cache |
 | `AGENDARR_BASE_URL` | derived from requests | Public URL, used for the Plex sign-in return and iCal links. Set it behind a proxy. |
-| `AGENDARR_PLEX_SERVER_URL` | advertised connections | How agendarr reaches Plex for the history-based filters, e.g. `http://plex:32400` on a shared Docker network |
+| `AGENDARR_PLEX_SERVER_URL` | advertised connections | How Agendarr reaches Plex for the history-based filters, e.g. `http://plex:32400` on a shared Docker network |
 | `AGENDARR_SECURE_COOKIES` | `true` when the base URL is https | Force the `Secure` cookie flag |
 
 ## How it works
 
 - Radarr and Sonarr calendars are read with their API keys and cached per
   month for five minutes; an unreachable instance keeps its last known dates
-  and is named in a warning. Posters go through agendarr
+  and is named in a warning. Posters go through Agendarr
   (`/api/v3/mediacover`), so API keys never reach the browser.
 - Seerr requests are indexed every ten minutes. Plex history is read on your
   server with the owner's token and resolved to TMDB/TVDB/IMDb ids once.

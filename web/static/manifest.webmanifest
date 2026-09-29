@@ -1,6 +1,6 @@
 {
-  "name": "agendarr",
-  "short_name": "agendarr",
+  "name": "Agendarr",
+  "short_name": "Agendarr",
   "description": "Calendrier des sorties Radarr, Sonarr et Seerr",
   "lang": "fr",
   "start_url": "/",

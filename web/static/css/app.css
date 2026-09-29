@@ -160,7 +160,7 @@ main { padding: var(--gap) max(var(--gap), env(safe-area-inset-right)) calc(var(
 /* --- admin ---------------------------------------------------------------- */
 .page { max-width: 64rem; margin: 0 auto; }
 .lead { color: var(--text-2); max-width: 46rem; }
-.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin: 8px 0 16px; overflow-x: auto; }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--line); margin: 8px 0 16px; }
 .tabs a {
   display: inline-flex; align-items: center; min-height: var(--tap); padding: 0 14px;
   color: var(--text-2); text-decoration: none; font-weight: 550; border-bottom: 2px solid transparent; margin-bottom: -1px;
@@ -307,10 +307,9 @@ main:has(.cal) { padding-top: 0; }
   display: grid; grid-template-columns: 232px minmax(0, 1fr); gap: 28px;
   max-width: 1680px; margin: 0 auto;
 }
-.cal-side {
-  position: sticky; top: var(--topbar-h); align-self: start;
-  max-height: calc(100dvh - var(--topbar-h)); overflow: auto; padding: 20px 0;
-}
+/* The sidebar scrolls with the page: a sticky panel taller than the
+   window would need its own scrollbar. */
+.cal-side { align-self: start; padding: 20px 0; }
 .side-head { display: flex; align-items: center; justify-content: space-between; }
 .side-head h2 { margin: 0; font-size: var(--fs-2); text-transform: uppercase; letter-spacing: .06em; color: var(--text-2); }
 .side-close { display: none; }
@@ -480,7 +479,7 @@ main:has(.cal) { padding-top: 0; }
   .cal { grid-template-columns: minmax(0, 1fr); }
   .filters-btn { display: inline-flex; }
   .cal-side {
-    position: fixed; z-index: 40; top: 0; bottom: 0; left: 0; width: min(320px, 88vw); max-height: none;
+    position: fixed; z-index: 40; top: 0; bottom: 0; left: 0; width: min(320px, 88vw); overflow-y: auto; overscroll-behavior: contain;
     padding: calc(16px + env(safe-area-inset-top)) 20px 20px max(20px, env(safe-area-inset-left));
     background: var(--surface); border-right: 1px solid var(--line); box-shadow: 12px 0 40px rgb(0 0 0 / .25);
     transform: translateX(-105%); visibility: hidden; transition: transform .2s ease, visibility 0s .2s;
@@ -587,3 +586,7 @@ main:has(.cal) { padding-top: 0; }
 .sync-limits ul { margin: 0; padding-left: 20px; color: var(--text-2); }
 .sync-limits li + li { margin-top: 6px; }
 @media (max-width: 720px) { .sync-qr { display: none; } }
+
+/* Week status: a badge on the big desktop posters, in the meta line on phones. */
+@media (min-width: 721px) { .week .card-meta .status { display: none; } }
+@media (max-width: 720px) { .poster-badge { display: none; } }
