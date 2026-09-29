@@ -1,0 +1,50 @@
+name: Bug report
+description: Something misbehaves
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please redact tokens, passwords and personal data from logs before
+        pasting them.
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Release tag, image tag or commit
+      placeholder: "v1.0.0 / dev"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happens
+    attributes:
+      label: What happens
+      description: What you observed, and what you expected instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Relevant output. Redact first.
+      render: text
+
+  - type: input
+    id: deployment
+    attributes:
+      label: Deployment
+      placeholder: "docker compose, amd64, TrueNAS"
