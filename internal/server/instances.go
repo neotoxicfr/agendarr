@@ -38,6 +38,7 @@ func (s *Server) handleAdminInstances(w http.ResponseWriter, r *http.Request) {
 		"Kinds":  []string{store.KindRadarr, store.KindSonarr, store.KindSeerr},
 		"Groups": groups,
 		"Names":  kindNames,
+		"Empty":  len(list) == 0,
 	}})
 }
 
@@ -234,7 +235,12 @@ func (s *Server) handleSeerrImport(w http.ResponseWriter, r *http.Request) {
 	sonarrs, err2 := c.Sonarrs(ctx)
 	if err := errors.Join(err1, err2); err != nil {
 		s.log.Warn("seerr import", "err", err)
-		s.flash(r, "inst.import_failed", inst.Name)
+		T := s.i18n.Map(s.i18n.Pick(r))
+		why := describeErr(T, err)
+		if errors.Is(err, httpx.ErrUnauthorized) {
+			why = T["inst.import_needs_admin"]
+		}
+		s.flash(r, "inst.import_failed", inst.Name, why)
 		http.Redirect(w, r, "/admin/instances", http.StatusSeeOther)
 		return
 	}
@@ -272,7 +278,14 @@ func (s *Server) handleSeerrImport(w http.ResponseWriter, r *http.Request) {
 	add(store.KindRadarr, radarrs)
 	add(store.KindSonarr, sonarrs)
 	s.instancesChanged()
-	s.flash(r, "inst.imported", strconv.Itoa(added), strconv.Itoa(disabled))
+	switch {
+	case added == 0:
+		s.flash(r, "inst.import_none", inst.Name)
+	case disabled > 0:
+		s.flash(r, "inst.imported", strconv.Itoa(added), strconv.Itoa(disabled))
+	default:
+		s.flash(r, "inst.imported_ok", strconv.Itoa(added))
+	}
 	http.Redirect(w, r, "/admin/instances", http.StatusSeeOther)
 }
 

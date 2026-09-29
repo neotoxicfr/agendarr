@@ -60,7 +60,51 @@ func (s *Server) handleCalendarAPI(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, res)
+	out := calendarResponse{Result: res, Personal: map[string]string{}}
+	// Who asked for it, from Seerr (cached index; nil when Seerr is absent).
+	if idx := s.personal.RequestIndex(r.Context()); idx != nil {
+		for i := range out.Events {
+			out.Events[i].RequestedBy = requesters(idx, out.Events[i].Keys)
+		}
+	}
+	// ?mine=seerr,watching,... keeps what matches any of the sources.
+	if mine := cleanSources(strings.Split(r.URL.Query().Get("mine"), ",")); len(mine) > 0 {
+		pr := s.personal.For(r.Context(), *currentUser(r), mine)
+		out.Personal = pr.Errors
+		kept := out.Events[:0]
+		for _, e := range out.Events {
+			for _, k := range e.Keys {
+				if pr.Keys[k] {
+					kept = append(kept, e)
+					break
+				}
+			}
+		}
+		out.Events = kept
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+type calendarResponse struct {
+	calendar.Result
+	// Personal maps a personal source to the error that left it incomplete.
+	Personal map[string]string `json:"personal"`
+}
+
+func requesters(idx map[string][]string, keys []string) []string {
+	var out []string
+	for _, k := range keys {
+		for _, n := range idx[k] {
+			dup := false
+			for _, o := range out {
+				dup = dup || o == n
+			}
+			if !dup {
+				out = append(out, n)
+			}
+		}
+	}
+	return out
 }
 
 // Posters are cached on disk for a week: they rarely change, and a calendar

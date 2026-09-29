@@ -48,6 +48,8 @@ type Event struct {
 	Keys []string `json:"keys"`
 	// Group identifies the movie or series across events.
 	Group string `json:"group"`
+	// RequestedBy lists the Seerr users who requested it (set per response).
+	RequestedBy []string `json:"requestedBy,omitempty"`
 }
 
 // sortKey orders events within a day: timed episodes by air time, then

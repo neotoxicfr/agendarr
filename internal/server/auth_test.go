@@ -20,7 +20,7 @@ import (
 // fakePlex serves plex.tv for a set of accounts keyed by token.
 type fakePlex struct {
 	mu       sync.Mutex
-	nextPin  string // token the next PIN resolves to
+	nextPin  string            // token the next PIN resolves to
 	accounts map[string]string // token -> user JSON
 	servers  map[string]string // token -> resources JSON
 }

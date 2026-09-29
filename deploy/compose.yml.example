@@ -11,6 +11,10 @@ services:
       AGENDARR_BASE_URL: https://agenda.example.com
       # Optional: only this Plex username or email may complete the first setup.
       # AGENDARR_SETUP_PLEX_USER: me@example.com
+      # Optional: how agendarr reaches the Plex server, for the "shows I'm
+      # watching" and "watched" filters. By default the addresses advertised
+      # by plex.tv are tried, local ones first.
+      # AGENDARR_PLEX_SERVER_URL: http://plex:32400
     volumes:
       - ./data:/data
     ports:

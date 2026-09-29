@@ -22,6 +22,7 @@ import (
 	"github.com/neotoxicfr/agendarr/internal/calendar"
 	"github.com/neotoxicfr/agendarr/internal/config"
 	"github.com/neotoxicfr/agendarr/internal/i18n"
+	"github.com/neotoxicfr/agendarr/internal/personal"
 	"github.com/neotoxicfr/agendarr/internal/plex"
 	"github.com/neotoxicfr/agendarr/internal/secret"
 	"github.com/neotoxicfr/agendarr/internal/store"
@@ -48,6 +49,8 @@ type Server struct {
 
 	onInstancesChanged func()
 	cal                *calendar.Service
+	personal           *personal.Service
+	plexConn           plexConn
 	posterSF           singleflight.Group
 }
 
@@ -85,6 +88,7 @@ func New(cfg config.Config, st *store.Store, box *secret.Box, log *slog.Logger) 
 	}
 
 	s.cal = calendar.New(s.calendarSources, log)
+	s.personal = s.newPersonal()
 	s.onInstancesChanged = s.cal.Invalidate
 
 	gob.Register([]string(nil)) // flash messages
@@ -127,6 +131,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /{$}", s.requireUser(s.handleHome))
 	mux.HandleFunc("GET /api/calendar", s.requireUser(s.handleCalendarAPI))
 	mux.HandleFunc("GET /img/{inst}/{id}", s.requireUser(s.handlePoster))
+	mux.HandleFunc("GET /api/prefs", s.requireUser(s.handlePrefsGet))
+	mux.HandleFunc("PUT /api/prefs", s.requireUser(s.handlePrefsPut))
 
 	mux.HandleFunc("GET /admin", s.requireAdmin(s.handleAdmin))
 	mux.HandleFunc("GET /admin/users", s.requireAdmin(s.handleAdminUsers))

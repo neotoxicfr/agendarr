@@ -53,6 +53,8 @@
     view: ["agenda", "week", "month"].includes(params.get("view")) ? params.get("view") : store.get("view", wide.matches ? "month" : "agenda"),
     anchor: /^\d{4}-\d{2}-\d{2}$/.test(params.get("date") || "") ? parseKey(params.get("date")) : new Date(),
     filters: Object.assign({ movies: true, episodes: true, hideDownloaded: false, hideUnmonitored: false, instances: {} }, store.get("filters", {})),
+    mine: store.get("mine", []),
+    shortcuts: store.get("shortcuts", true),
     agendaWeeks: 5,
     selected: null, // phone month view: selected day key
   };
@@ -82,11 +84,12 @@
   const cache = new Map();
   let inflight = null;
   async function load(from, to) {
-    const key = `${keyOf(from)}_${keyOf(to)}`;
+    const mine = state.mine.join(",");
+    const key = `${keyOf(from)}_${keyOf(to)}_${mine}`;
     if (cache.has(key)) return cache.get(key);
     if (inflight) inflight.abort();
     inflight = new AbortController();
-    const res = await fetch(`/api/calendar?from=${keyOf(from)}&to=${keyOf(to)}`, { signal: inflight.signal });
+    const res = await fetch(`/api/calendar?from=${keyOf(from)}&to=${keyOf(to)}${mine ? "&mine=" + mine : ""}`, { signal: inflight.signal });
     if (res.status === 401) { location.assign("/login"); throw new Error("signed out"); }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
@@ -107,7 +110,7 @@
   };
   const activeFilterCount = () => {
     const f = state.filters;
-    return (!f.movies) + (!f.episodes) + f.hideDownloaded + f.hideUnmonitored + Object.values(f.instances).filter((v) => v === false).length;
+    return (!f.movies) + (!f.episodes) + f.hideDownloaded + f.hideUnmonitored + Object.values(f.instances).filter((v) => v === false).length + state.mine.length;
   };
   const knownInstances = new Set();
   function syncInstanceFilters(events) {
@@ -159,7 +162,7 @@
   // --- items -------------------------------------------------------------------
   // Compact chip for month cells.
   const chip = (e) => el("button", {
-    type: "button", class: `chip is-${e.kind} is-${statusOf(e)}`, "aria-label": describe(e), title: describe(e),
+    type: "button", class: `chip is-${e.kind} is-${statusOf(e)}`, "aria-label": describe(e), title: describe(e), "data-id": e.id,
     onclick: () => openDetail(e),
   },
   el("span", { class: "chip-dot", "aria-hidden": "true" }),
@@ -168,11 +171,18 @@
   e.bundle ? el("span", { class: "chip-code", text: `×${e.bundle.length}` }) : null);
 
   // Card with poster for week and agenda.
+  const statusEl = (e) => el("span", { class: `status status-${statusOf(e)}`, text: t("cal.status_" + statusOf(e)) });
   const card = (e, size) => el("button", {
-    type: "button", class: `card card-${size} is-${e.kind} is-${statusOf(e)}`, "aria-label": describe(e),
+    type: "button", class: `card card-${size} is-${e.kind} is-${statusOf(e)}`, "aria-label": describe(e), "data-id": e.id,
     onclick: () => openDetail(e),
   },
-  poster(e, "poster-sm", 250),
+  (() => {
+    const p = poster(e, "poster-sm", 250);
+    // Week columns are narrow: the status sits on the poster so every
+    // card keeps the same height.
+    if (size === "sm") p.append(el("span", { class: "poster-badge" }, statusEl(e)));
+    return p;
+  })(),
   el("span", { class: "card-body" },
     el("span", { class: "card-title", text: e.title }),
     el("span", { class: "card-sub" },
@@ -184,7 +194,7 @@
     el("span", { class: "card-meta" },
       timeOf(e) ? el("span", { class: "card-time", text: timeOf(e) }) : null,
       ...tagsOf(e).map((x) => el("span", { class: "pill", text: x })),
-      el("span", { class: `status status-${statusOf(e)}`, text: t("cal.status_" + statusOf(e)) }))));
+      size === "sm" ? null : statusEl(e))));
 
   // --- views -------------------------------------------------------------------
   function range() {
@@ -256,7 +266,7 @@
     // Selected day (phone): kept if in this month, else today, else the 1st.
     const inMonth = (k) => k && parseKey(k).getMonth() === month && parseKey(k).getFullYear() === state.anchor.getFullYear();
     const selectedKey = inMonth(state.selected) ? state.selected : inMonth(today) ? today : keyOf(startOfMonth(state.anchor));
-    const table = el("table", { class: "month", role: "grid", "aria-labelledby": "cal-title" });
+    const table = el("table", { class: "month", "aria-labelledby": "cal-title" });
     const head = el("tr");
     for (let i = 0; i < 7; i++) {
       const d = addDays(from, i);
@@ -284,7 +294,8 @@
           },
           el("span", { class: "day-num", text: String(day.getDate()), "aria-current": k === today ? "date" : false }),
           el("span", { class: "day-dots", "aria-hidden": "true" },
-            ...list.slice(0, 4).map((e) => el("span", { class: `dot is-${e.kind}` })))));
+            ...list.slice(0, list.length > 4 ? 3 : 4).map((e) => el("span", { class: `dot is-${e.kind} is-${statusOf(e)}` })),
+            list.length > 4 ? el("span", { class: "dot-more", text: `+${list.length - 3}` }) : null)));
         } else {
           cell.append(el("span", { class: "day-num", "aria-hidden": "true", text: String(day.getDate()) }),
             el("span", { class: "sr-only", text: label }));
@@ -308,7 +319,7 @@
     const sel = parseKey(selectedKey);
     const list = days.get(selectedKey) || [];
     return el("div", { class: "month-phone" }, table,
-      el("section", { class: "month-day", "aria-live": "polite", "aria-label": fDayFull.format(sel) },
+      el("section", { class: "month-day", "aria-label": fDayFull.format(sel) },
         el("h2", { class: "agenda-head" }, el("span", { class: "agenda-date", text: fDayLong.format(sel) })),
         list.length
           ? el("ul", { class: "agenda-list" }, list.map((e) => el("li", {}, card(e, "lg"))))
@@ -325,8 +336,8 @@
       const list = days.get(k) || [];
       ol.append(el("li", { class: `week-day${k === today ? " is-today" : ""}${list.length ? "" : " is-empty"}` },
         el("h2", { class: "week-head" },
-          el("span", { class: "week-name", text: fWeekday.format(day) }),
-          el("span", { class: "week-num", text: String(day.getDate()), "aria-current": k === today ? "date" : false }),
+          el("span", { class: "week-name", text: fWeekday.format(day), "aria-hidden": "true" }),
+          el("span", { class: "week-num", text: String(day.getDate()), "aria-hidden": "true", "data-today": k === today ? "" : false }),
           el("span", { class: "sr-only", text: fDayFull.format(day) })),
         el("ul", { class: "week-list" }, list.map((e) => el("li", {}, card(e, "sm"))))));
     }
@@ -340,12 +351,15 @@
     for (let d = from; d <= to; d = addDays(d, 1)) {
       const k = keyOf(d);
       const list = days.get(k);
-      if (!list) continue;
-      wrap.append(el("section", { class: `agenda-day${k === today ? " is-today" : ""}`, "aria-label": fDayFull.format(d) },
+      // Today always gets its section, even empty, so "tonight" is findable.
+      if (!list && k !== today) continue;
+      wrap.append(el("section", { class: `agenda-day${k === today ? " is-today" : ""}`, "aria-label": fDayFull.format(d), "data-agenda-day": k },
         el("h2", { class: "agenda-head" },
           el("span", { class: "agenda-date", text: fDayLong.format(d) }),
           k === today ? el("span", { class: "pill pill-accent", text: t("cal.today") }) : null),
-        el("ul", { class: "agenda-list" }, list.map((e) => el("li", {}, card(e, "lg"))))));
+        list
+          ? el("ul", { class: "agenda-list" }, list.map((e) => el("li", {}, card(e, "lg"))))
+          : el("p", { class: "cal-empty-inline", text: t("cal.today_empty") })));
     }
     return wrap;
   }
@@ -364,32 +378,47 @@
     const count = activeFilterCount();
     const badge = $("[data-filters-count]");
     badge.hidden = count === 0;
-    badge.textContent = String(count);
+    badge.replaceChildren(el("span", { "aria-hidden": "true", text: String(count) }),
+      el("span", { class: "sr-only", text: ", " + t("cal.filters_active", { n: count }) }));
+    // Remember what had the focus, to put it back after the re-render.
+    const active = document.activeElement;
+    const refocus = active && body.contains(active)
+      ? (active.dataset.id && `[data-id="${CSS.escape(active.dataset.id)}"]`) ||
+        (active.dataset.day && `[data-day="${active.dataset.day}"]`) ||
+        (active.hasAttribute("data-load-more") && "[data-load-more]") || null
+      : null;
 
     const { from, to } = range();
     body.setAttribute("aria-busy", "true");
     if (!keepScroll) body.classList.add("is-loading");
     let data;
+    // Syncing a long Plex history the first time takes a few seconds: say so.
+    const slow = state.mine.length ? setTimeout(() => { warning.hidden = false; warning.textContent = t("cal.mine_loading"); }, 1500) : 0;
     try {
       data = await load(from, to);
     } catch (err) {
+      clearTimeout(slow);
       if (err.name === "AbortError" || seq !== renderSeq) return;
-      body.replaceChildren(el("div", { class: "cal-empty" },
+      body.replaceChildren(el("div", { class: "cal-empty", role: "alert" },
         el("p", { text: t("cal.error") }),
         el("button", { type: "button", class: "btn", onclick: () => render(), text: t("cal.retry") })));
       body.setAttribute("aria-busy", "false");
       body.classList.remove("is-loading");
       return;
     }
+    clearTimeout(slow);
     if (seq !== renderSeq) return;
     body.classList.remove("is-loading");
     body.setAttribute("aria-busy", "false");
 
-    warning.hidden = data.failing.length === 0;
-    warning.textContent = t("cal.failing", { names: data.failing.join(", ") });
+    const notes = [];
+    if (data.failing.length) notes.push(t("cal.failing", { names: data.failing.join(", ") }));
+    for (const [src, code] of Object.entries(data.personal || {})) notes.push(t("cal.mine_error_" + src, { why: t("cal.why_" + code) }));
+    warning.hidden = notes.length === 0;
+    warning.replaceChildren(...notes.map((n) => el("p", { text: n })));
 
     if (!data.configured) {
-      body.replaceChildren(el("div", { class: "cal-empty" },
+      body.replaceChildren(el("div", { class: "cal-empty", role: "status" },
         el("p", { text: t(isAdmin ? "cal.no_instances_admin" : "cal.no_instances_user") }),
         isAdmin ? el("a", { class: "btn btn-primary", href: "/admin/instances", text: t("cal.no_instances_admin_link") }) : null));
       return;
@@ -413,6 +442,10 @@
     }
     body.replaceChildren(...nodes);
     if (state.view === "agenda") observeMore();
+    if (refocus) body.querySelector(refocus)?.focus({ preventScroll: true });
+    else if (!keepScroll && state.view === "agenda") {
+      body.querySelector(`[data-agenda-day="${todayKey()}"]`)?.scrollIntoView({ block: "start" });
+    }
   }
 
   // Infinite scroll in the agenda: load the next weeks as the button nears.
@@ -464,15 +497,42 @@
     if (x.name === "view") setView(x.value);
     else if (x.dataset.filter) { state.filters[x.dataset.filter] = x.checked; saveFilters(); }
     else if (x.dataset.instance) { state.filters.instances[x.dataset.instance] = x.checked; saveFilters(); }
+    else if (x.dataset.mine) {
+      state.mine = [...root.querySelectorAll("[data-mine]:checked")].map((c) => c.dataset.mine);
+      saveFilters();
+    } else if (x.hasAttribute("data-shortcuts")) { state.shortcuts = x.checked; syncControls(); savePrefs(); }
   });
   function saveFilters() {
     store.set("filters", state.filters);
+    store.set("mine", state.mine);
+    savePrefs();
     render({ keepScroll: true });
   }
-  root.querySelectorAll("[data-filter]").forEach((x) => { x.checked = !!state.filters[x.dataset.filter]; });
+  // Preferences live on the server (the iCal feed uses them); localStorage
+  // only makes the first paint instant.
+  let saveTimer = 0;
+  function savePrefs() {
+    store.set("shortcuts", state.shortcuts);
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      fetch("/api/prefs", {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mine: state.mine, filters: state.filters, shortcuts: state.shortcuts }),
+      }).catch(() => {});
+    }, 400);
+  }
+  function syncControls() {
+    root.querySelectorAll("[data-filter]").forEach((x) => { x.checked = !!state.filters[x.dataset.filter]; });
+    root.querySelectorAll("[data-mine]").forEach((x) => { x.checked = state.mine.includes(x.dataset.mine); });
+    const sc = $("[data-shortcuts]");
+    sc.checked = state.shortcuts;
+    $("[data-shortcuts-note]").hidden = !state.shortcuts;
+  }
+  syncControls();
 
   document.addEventListener("keydown", (ev) => {
-    if (ev.defaultPrevented || ev.altKey || ev.ctrlKey || ev.metaKey || dialog.open) return;
+    if (!state.shortcuts || ev.defaultPrevented || ev.altKey || ev.ctrlKey || ev.metaKey || dialog.open) return;
+    if (root.classList.contains("filters-open")) return;
     if (ev.target.closest("input, textarea, select, [contenteditable]")) return;
     const k = ev.key;
     if (k === "ArrowLeft") step(-1);
@@ -501,17 +561,28 @@
   }, { passive: true });
 
   // --- filters panel (drawer on phones) --------------------------------------------
+  // Below 1100px the filters are a drawer: modal while open (the rest of the
+  // page is inert, a scrim closes it, Escape works from anywhere).
   const side = $("[data-cal-filters]");
   const openBtn = $("[data-filters-open]");
+  const scrim = $("[data-scrim]");
+  const behind = () => [$(".cal-main"), document.querySelector(".topbar"), document.querySelector(".footer"), document.querySelector(".nav")].filter(Boolean);
   const setDrawer = (open) => {
     root.classList.toggle("filters-open", open);
     openBtn.setAttribute("aria-expanded", String(open));
+    scrim.hidden = !open;
+    behind().forEach((n) => { n.inert = open; });
     if (open) side.querySelector("input, button")?.focus();
     else openBtn.focus();
   };
   openBtn.addEventListener("click", () => setDrawer(!root.classList.contains("filters-open")));
   $("[data-filters-close]").addEventListener("click", () => setDrawer(false));
-  side.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && root.classList.contains("filters-open")) setDrawer(false); });
+  scrim.addEventListener("click", () => setDrawer(false));
+  document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && root.classList.contains("filters-open")) setDrawer(false); });
+  // Growing past the breakpoint with the drawer open: undo the modal state.
+  window.matchMedia("(min-width: 1101px)").addEventListener("change", (m) => {
+    if (m.matches && root.classList.contains("filters-open")) setDrawer(false);
+  });
 
   // --- detail sheet --------------------------------------------------------------------
   function show(content) {
@@ -540,6 +611,7 @@
       el("dl", { class: "detail-facts" },
         el("dt", { text: t("cal.detail_date") }), el("dd", { text: when }),
         e.runtime ? [el("dt", { text: t("cal.detail_duration") }), el("dd", { text: t("cal.detail_runtime", { n: e.runtime }) })] : null,
+        e.requestedBy?.length ? [el("dt", { text: t("cal.requested_by") }), el("dd", { text: e.requestedBy.join(", ") })] : null,
         el("dt", { text: t("cal.detail_sources") }), el("dd", { text: e.instances.join(", ") })),
       e.bundle
         ? el("ol", { class: "detail-episodes" }, e.bundle.map((x) => el("li", {},
@@ -557,5 +629,16 @@
 
   // Re-render when crossing the phone/desktop breakpoint (month cells change shape).
   wide.addEventListener("change", () => render({ keepScroll: true }));
+  fetch("/api/prefs").then((r) => (r.ok ? r.json() : null)).then((p) => {
+    if (!p) return;
+    const before = JSON.stringify([state.mine, state.filters]);
+    state.mine = p.mine || [];
+    state.filters = Object.assign(state.filters, p.filters || {});
+    if (typeof p.shortcuts === "boolean") state.shortcuts = p.shortcuts;
+    store.set("filters", state.filters);
+    store.set("mine", state.mine);
+    syncControls();
+    if (JSON.stringify([state.mine, state.filters]) !== before) render({ keepScroll: true });
+  }).catch(() => {});
   render();
 })();

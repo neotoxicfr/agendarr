@@ -100,7 +100,9 @@ type Request struct {
 	ID          int64  `json:"id"`
 	Type        string `json:"type"` // movie | tv
 	RequestedBy struct {
-		ID int64 `json:"id"`
+		ID          int64  `json:"id"`
+		DisplayName string `json:"displayName"`
+		PlexID      int64  `json:"plexId"`
 	} `json:"requestedBy"`
 	Media struct {
 		TmdbID    int64  `json:"tmdbId"`
@@ -150,6 +152,30 @@ func (c *Client) RequestsBy(ctx context.Context, userID int64) ([]Request, error
 			return out, nil
 		}
 	}
+}
+
+// AllRequests lists every request (a household has a few hundred), which
+// serves both "my requests" and "requested by" without a call per user.
+func (c *Client) AllRequests(ctx context.Context) ([]Request, error) {
+	var out []Request
+	for skip := 0; skip < 20000; {
+		var page struct {
+			PageInfo struct {
+				Results int `json:"results"`
+			} `json:"pageInfo"`
+			Results []Request `json:"results"`
+		}
+		q := url.Values{"take": {"100"}, "skip": {strconv.Itoa(skip)}, "filter": {"all"}, "sort": {"added"}}
+		if err := c.Get(ctx, "/api/v1/request", q, &page); err != nil {
+			return nil, err
+		}
+		out = append(out, page.Results...)
+		skip += len(page.Results)
+		if len(page.Results) == 0 || skip >= page.PageInfo.Results {
+			break
+		}
+	}
+	return out, nil
 }
 
 // ArrServer is a Radarr or Sonarr server configured in Seerr.

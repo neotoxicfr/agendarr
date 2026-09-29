@@ -2,6 +2,13 @@
   <h1>{{index .T "title.admin"}}</h1>
   {{template "admin_nav" .}}
   <p class="lead">{{index .T "inst.lead"}}</p>
+  {{if .Data.Empty}}
+  <div class="welcome" role="note">
+    <h2>{{index .T "inst.welcome_title"}}</h2>
+    <p>{{index .T "inst.welcome"}}</p>
+    <a class="btn btn-primary" href="/admin/instances/new?kind=seerr">{{printf (index .T "inst.add") "Seerr"}}</a>
+  </div>
+  {{end}}
   {{range $kind := .Data.Kinds}}
   {{$name := index $.Data.Names $kind}}
   <section class="group" aria-labelledby="h-{{$kind}}">
@@ -19,10 +26,11 @@
             {{if .Enabled}}<span class="tag tag-ok">{{index $.T "inst.enabled"}}</span>{{else}}<span class="tag">{{index $.T "inst.disabled"}}</span>{{end}}
           </span>
           <span class="row-meta">{{.URL}}</span>
+          {{if eq .Kind "seerr"}}<span class="row-meta">{{index $.T "inst.import_help"}}</span>{{end}}
         </div>
         <div class="row-actions">
           {{if eq .Kind "seerr"}}
-          <form method="post" action="/admin/instances/{{.ID}}/import"><button class="btn btn-sm" type="submit" title="{{index $.T "inst.import_help"}}">{{index $.T "inst.import"}}</button></form>
+          <form method="post" action="/admin/instances/{{.ID}}/import"><button class="btn btn-sm" type="submit">{{index $.T "inst.import"}}</button></form>
           {{end}}
           <a class="btn btn-sm" href="/admin/instances/{{.ID}}" aria-label="{{printf (index $.T "inst.edit_aria") .Name}}">{{index $.T "inst.edit"}}</a>
           <form method="post" action="/admin/instances/{{.ID}}/delete" data-confirm="{{printf (index $.T "inst.delete_confirm") .Name}}"><button class="btn btn-sm btn-danger" type="submit">{{index $.T "inst.delete"}}</button></form>

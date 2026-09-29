@@ -1,7 +1,7 @@
 {{define "content"}}{{$f := .Data.Form}}<div class="page">
   <h1>{{index .T "title.admin"}}</h1>
   {{template "admin_nav" .}}
-  <form class="form" method="post" action="{{if $f.ID}}/admin/instances/{{$f.ID}}{{else}}/admin/instances/new{{end}}" data-instance-form novalidate>
+  <form class="form" method="post" action="{{if $f.ID}}/admin/instances/{{$f.ID}}{{else}}/admin/instances/new{{end}}" data-instance-form novalidate{{if $f.Errors}} data-has-errors{{end}}>
     <h2>{{if $f.ID}}{{printf (index .T "inst.edit_title") $f.Name}}{{else}}{{index .T "inst.new_title"}}{{end}}</h2>
     {{if $f.ID}}<input type="hidden" name="id" value="{{$f.ID}}">{{end}}
 

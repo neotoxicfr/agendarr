@@ -22,6 +22,10 @@ type Config struct {
 	// username or email, so a freshly exposed instance cannot be claimed by
 	// someone else.
 	SetupPlexUser string
+	// PlexServerURL forces the address of the Plex Media Server (for example
+	// http://plex:32400 on a shared Docker network). Optional: by default the
+	// connections advertised by plex.tv are tried, local ones first.
+	PlexServerURL string
 	// PlexTVURL replaces https://plex.tv and https://clients.plex.tv. Only
 	// for test benches running a fake plex.tv; never set it in production.
 	PlexTVURL string
@@ -38,6 +42,7 @@ func Load() (Config, error) {
 		BaseURL:       strings.TrimRight(os.Getenv("AGENDARR_BASE_URL"), "/"),
 		SetupPlexUser: strings.TrimSpace(os.Getenv("AGENDARR_SETUP_PLEX_USER")),
 		PlexTVURL:     strings.TrimRight(os.Getenv("AGENDARR_PLEX_TV_URL"), "/"),
+		PlexServerURL: strings.TrimRight(os.Getenv("AGENDARR_PLEX_SERVER_URL"), "/"),
 	}
 	if c.BaseURL != "" {
 		u, err := url.Parse(c.BaseURL)
@@ -45,6 +50,11 @@ func Load() (Config, error) {
 			return c, fmt.Errorf("AGENDARR_BASE_URL: want an absolute http(s) URL, got %q", c.BaseURL)
 		}
 		c.SecureCookies = u.Scheme == "https"
+	}
+	if c.PlexServerURL != "" {
+		if u, err := url.Parse(c.PlexServerURL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			return c, fmt.Errorf("AGENDARR_PLEX_SERVER_URL: want an absolute http(s) URL, got %q", c.PlexServerURL)
+		}
 	}
 	switch v := strings.ToLower(os.Getenv("AGENDARR_SECURE_COOKIES")); v {
 	case "":
