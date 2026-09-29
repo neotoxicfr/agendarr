@@ -69,7 +69,10 @@ func (s *Server) client() *http.Client {
 // *.plex.direct names with valid certificates, and a URL set by the admin
 // inside a Docker network is typically plain http://plex:32400. Relaxing the
 // check would expose the owner's token to anyone on the LAN.
-var defaultServerClient = &http.Client{Timeout: 30 * time.Second}
+// Redirects are not followed, so the owner's X-Plex-Token cannot be carried
+// to another host.
+var defaultServerClient = &http.Client{Timeout: 30 * time.Second,
+	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 
 func (s *Server) get(ctx context.Context, path string, q url.Values, out any) error {
 	u := strings.TrimRight(s.BaseURL, "/") + path

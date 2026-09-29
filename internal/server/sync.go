@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"html/template"
 	"net/http"
 	"net/url"
 	"strings"
@@ -24,8 +25,11 @@ const (
 )
 
 type syncLinks struct {
-	HTTPS, Webcal, Google, Outlook string
-	Created                        time.Time
+	HTTPS, Google, Outlook string
+	// Webcal is built here from our own base URL; html/template would
+	// otherwise replace the unknown webcal: scheme with #ZgotmplZ.
+	Webcal  template.URL
+	Created time.Time
 }
 
 // feedLinks returns the subscription URLs for the user's token, if any.
@@ -42,7 +46,7 @@ func (s *Server) feedLinks(r *http.Request, u *store.User) (*syncLinks, error) {
 	webcal := "webcal://" + strings.TrimPrefix(strings.TrimPrefix(feed, "https://"), "http://")
 	return &syncLinks{
 		HTTPS:   feed,
-		Webcal:  webcal,
+		Webcal:  template.URL(webcal), //nolint:gosec // our own URL, see syncLinks
 		Google:  "https://calendar.google.com/calendar/r?cid=" + url.QueryEscape(webcal),
 		Outlook: "https://outlook.live.com/calendar/0/addfromweb?name=Agendarr&url=" + url.QueryEscape(feed),
 		Created: created,
@@ -86,7 +90,7 @@ func (s *Server) handleSyncQR(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	code, err := qr.Encode(links.Webcal, qr.M)
+	code, err := qr.Encode(string(links.Webcal), qr.M)
 	if err != nil {
 		s.fail(w, r, err)
 		return

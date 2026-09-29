@@ -114,7 +114,9 @@ func (s *Server) parseInstance(r *http.Request, existing *store.Instance) (insta
 	case key != "":
 		plainKey = key
 		f.APIKey = s.box.Seal(key)
-	case f.HasKey:
+	case f.HasKey && existing != nil && f.URL == existing.URL:
+		// The stored key is only reused for the address it was given for:
+		// otherwise an admin could send it to a host of their choosing.
 		plainKey, _ = s.box.Open(f.APIKey)
 	default:
 		f.Errors["api_key"] = "inst.err_key"

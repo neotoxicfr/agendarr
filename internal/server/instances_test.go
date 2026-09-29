@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/neotoxicfr/agendarr/internal/config"
@@ -111,6 +112,23 @@ func TestInstances(t *testing.T) {
 	if tr["ok"] != true {
 		t.Fatalf("stored key test: %v", tr)
 	}
+	// Pointing the instance elsewhere without retyping the key must not
+	// send the stored key to the new host.
+	var sawKey atomicBool
+	evil := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Api-Key") != "" {
+			sawKey.set()
+		}
+	}))
+	defer evil.Close()
+	res = h.form(owner, "/admin/instances/test", url.Values{"id": {id}, "kind": {"radarr"}, "url": {evil.URL}})
+	json.NewDecoder(res.Body).Decode(&tr)
+	res.Body.Close()
+	res = h.form(owner, "/admin/instances/"+id, url.Values{"name": {"x"}, "url": {evil.URL}})
+	res.Body.Close()
+	if sawKey.get() || tr["ok"] != false || res.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("stored key reused for a new URL: saw=%v test=%v save=%d", sawKey.get(), tr, res.StatusCode)
+	}
 	inst, _ := h.srv.store.Instance(ctx, list[0].ID)
 	if inst.Name != "Radarr HD" || inst.Enabled {
 		t.Fatalf("edit: %+v", inst)
@@ -168,3 +186,8 @@ func TestDescribeErr(t *testing.T) {
 		t.Errorf("html page: %q", got)
 	}
 }
+
+type atomicBool struct{ v atomic.Bool }
+
+func (a *atomicBool) set()      { a.v.Store(true) }
+func (a *atomicBool) get() bool { return a.v.Load() }

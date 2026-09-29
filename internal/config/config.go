@@ -25,17 +25,19 @@ type Config struct {
 	// PlexTVURL replaces https://plex.tv and https://clients.plex.tv. Only
 	// for test benches running a fake plex.tv; never set it in production.
 	PlexTVURL string
-	// SecureCookies forces the Secure flag on cookies. Defaults to true when
-	// BaseURL is https.
+	// SecureCookies sets the Secure flag on cookies: on, unless BaseURL is
+	// plain http.
 	SecureCookies bool
 }
 
 // Load reads the AGENDARR_* environment variables.
 func Load() (Config, error) {
 	c := Config{
-		Listen:        env("AGENDARR_LISTEN", ":8080"),
-		DataDir:       env("AGENDARR_DATA_DIR", "./data"),
-		BaseURL:       strings.TrimRight(os.Getenv("AGENDARR_BASE_URL"), "/"),
+		Listen:  env("AGENDARR_LISTEN", ":8080"),
+		DataDir: env("AGENDARR_DATA_DIR", "./data"),
+		BaseURL: strings.TrimRight(os.Getenv("AGENDARR_BASE_URL"), "/"),
+		// Secure unless the public URL is explicitly plain http.
+		SecureCookies: true,
 		PlexTVURL:     strings.TrimRight(os.Getenv("AGENDARR_PLEX_TV_URL"), "/"),
 		PlexServerURL: strings.TrimRight(os.Getenv("AGENDARR_PLEX_SERVER_URL"), "/"),
 	}

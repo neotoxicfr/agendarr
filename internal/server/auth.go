@@ -26,6 +26,7 @@ const (
 // Session keys.
 const (
 	sessUserID      = "uid"
+	sessPlexID      = "pid" // guards against a reused users.id
 	sessPinID       = "pin_id"
 	sessSetupUserID = "setup_uid"
 )
@@ -53,6 +54,12 @@ func (s *Server) loadUser(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if id := s.sessions.GetInt64(r.Context(), sessUserID); id != 0 {
 			u, err := s.store.UserByID(r.Context(), id)
+			// users.id values are reused after a deletion: the session must
+			// also name the same Plex account, or a deleted user's cookie
+			// would open the next account created.
+			if err == nil && u.PlexID != s.sessions.GetInt64(r.Context(), sessPlexID) {
+				err = store.ErrNotFound
+			}
 			switch {
 			case err == nil && !u.Disabled:
 				r = r.WithContext(context.WithValue(r.Context(), userKey, &u))
@@ -143,6 +150,12 @@ func (s *Server) baseURL(r *http.Request) string {
 // a popup (desktop, and mobile tabs) that lands on a "you can close this"
 // page, and a full redirect used when the popup is blocked.
 func (s *Server) handlePinStart(w http.ResponseWriter, r *http.Request) {
+	// Anyone can call this; a flood would get our client id throttled by
+	// plex.tv and lock everybody out, so PIN creation is rate limited.
+	if !s.pinLimit.allow(time.Now()) {
+		writeJSON(w, http.StatusTooManyRequests, map[string]string{"redirect": "/login?e=plex"})
+		return
+	}
 	pin, err := s.plex.CreatePin(r.Context())
 	if err != nil {
 		s.log.Error("create pin", "err", err)
@@ -280,6 +293,9 @@ func (s *Server) signIn(r *http.Request, userID int64) {
 	}
 	s.sessions.Remove(ctx, sessSetupUserID)
 	s.sessions.Put(ctx, sessUserID, userID)
+	if u, err := s.store.UserByID(ctx, userID); err == nil {
+		s.sessions.Put(ctx, sessPlexID, u.PlexID)
+	}
 }
 
 func (s *Server) claim(ctx context.Context, userID int64, res plex.Resource) error {
@@ -387,7 +403,7 @@ func (s *Server) handleLang(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	back := "/"
-	if u, err := url.Parse(r.Referer()); err == nil && u.Host == r.Host && strings.HasPrefix(u.Path, "/") {
+	if u, err := url.Parse(r.Referer()); err == nil && u.Host == r.Host && strings.HasPrefix(u.Path, "/") && !strings.HasPrefix(u.Path, "//") {
 		back = u.Path
 	}
 	http.Redirect(w, r, back, http.StatusSeeOther)

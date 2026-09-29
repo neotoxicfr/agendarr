@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 )
 
 // handleAdmin opens on the instances until at least one exists, since that
@@ -71,6 +72,10 @@ func (s *Server) handleAdminUserAction(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) fail(w http.ResponseWriter, r *http.Request, err error) {
-	s.log.Error("request failed", "path", r.URL.Path, "err", err)
+	path := r.URL.Path
+	if strings.HasPrefix(path, "/ics/") {
+		path = "/ics/…" // the feed token is a credential: keep it out of logs
+	}
+	s.log.Error("request failed", "path", path, "err", err)
 	http.Error(w, "internal error", http.StatusInternalServerError)
 }

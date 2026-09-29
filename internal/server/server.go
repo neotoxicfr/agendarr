@@ -47,6 +47,7 @@ type Server struct {
 	plex       *plex.Client
 	ownerKnown atomic.Bool // setup completed; never goes back to false
 
+	pinLimit           limiter
 	onInstancesChanged func()
 	cal                *calendar.Service
 	personal           *personal.Service

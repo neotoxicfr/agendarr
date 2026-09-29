@@ -24,7 +24,12 @@ var ErrNotAPI = errors.New("not the expected API")
 // DefaultClient is used when none is given. The timeout is generous: a Sonarr
 // calendar over four months with series included can take a few seconds on
 // a NAS.
-var DefaultClient = &http.Client{Timeout: 20 * time.Second}
+//
+// Redirects are not followed: Go keeps custom headers such as X-Api-Key
+// when a redirect crosses to another host, and none of these APIs needs one.
+var DefaultClient = &http.Client{Timeout: 20 * time.Second, CheckRedirect: noRedirect}
+
+func noRedirect(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 
 // Client calls one instance of an *arr-style API.
 type Client struct {

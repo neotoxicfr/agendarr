@@ -31,8 +31,16 @@ func TestICSFeed(t *testing.T) {
 	res := h.form(friend, "/sync/new", nil)
 	res.Body.Close()
 	fu, err := h.srv.feedLinks(httptestRequest(h), mustUser(t, h, 2))
-	if err != nil || fu == nil || !strings.HasPrefix(fu.Webcal, "webcal://") || !strings.Contains(fu.Google, "cid=webcal") {
+	if err != nil || fu == nil || !strings.HasPrefix(string(fu.Webcal), "webcal://") || !strings.Contains(fu.Google, "cid=webcal") {
 		t.Fatalf("links: %+v %v", fu, err)
+	}
+	// The Apple Calendar button keeps its webcal:// link (html/template
+	// would turn an unknown scheme into #ZgotmplZ).
+	page, _ := friend.Get(h.http.URL + "/sync")
+	pb, _ := io.ReadAll(page.Body)
+	page.Body.Close()
+	if !strings.Contains(string(pb), `href="webcal://`) {
+		t.Fatal("webcal link lost in the sync page")
 	}
 	// The database holds the hash, never the token.
 	token := strings.TrimSuffix(strings.SplitN(strings.TrimPrefix(fu.HTTPS, h.http.URL+"/ics/"), "?", 2)[0], ".ics")

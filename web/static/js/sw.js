@@ -41,6 +41,9 @@ async function put(name, req, res, max) {
 self.addEventListener("fetch", (e) => {
   const req = e.request;
   const url = new URL(req.url);
+  // Signing out (a POST navigation) drops cached calendar data, so the next
+  // person on a shared device never sees it offline.
+  if (url.origin === location.origin && url.pathname === "/logout") { e.waitUntil(caches.delete(API)); return; }
   if (req.method !== "GET" || url.origin !== location.origin) return;
   // Never cache auth flows or the iCal feed.
   if (url.pathname.startsWith("/auth/") || url.pathname.startsWith("/ics/")) return;

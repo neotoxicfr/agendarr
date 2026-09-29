@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -232,3 +233,30 @@ func TestAccessCheckRevokes(t *testing.T) {
 }
 
 func timeNowPlusDays(d int) time.Time { return time.Now().Add(time.Duration(d) * 24 * time.Hour) }
+
+// users.id values are reused after a deletion: a deleted user's cookie must
+// not open the account created next.
+func TestDeletedUserCookieDoesNotOpenNextAccount(t *testing.T) {
+	h := newHarness(t, config.Config{})
+	owner, _ := h.signIn("owner")
+	friend, _ := h.signIn("friend")
+	if code := h.status(friend, "/"); code != 200 {
+		t.Fatalf("friend: %d", code)
+	}
+	f, err := h.srv.store.UserByPlexID(context.Background(), 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res := h.form(owner, "/admin/users/"+itoa(f.ID)+"/delete", nil)
+	res.Body.Close()
+	h.fp.accounts["newbie"] = `{"id":5,"username":"newbie"}`
+	h.fp.servers["newbie"] = "[" + owned(srvA, false) + "]"
+	h.signIn("newbie")
+	n, _ := h.srv.store.UserByPlexID(context.Background(), 5)
+	if n.ID != f.ID {
+		t.Skipf("id not reused (%d vs %d): scenario not reproduced", n.ID, f.ID)
+	}
+	if code := h.status(friend, "/"); code != http.StatusSeeOther {
+		t.Fatalf("deleted user's cookie opened the new account: %d", code)
+	}
+}
