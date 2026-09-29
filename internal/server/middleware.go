@@ -10,10 +10,11 @@ import (
 
 // securityHeaders sets a strict baseline on every response. Scripts and styles
 // only come from our own origin; images from our poster proxy and from
-// plex.tv (account avatars, which redirect to assets.plex.tv).
+// plex.tv (account avatars, which redirect to secure.gravatar.com or
+// *.plex.tv; CSP also applies to the redirect target).
 func securityHeaders(next http.Handler) http.Handler {
 	const csp = "default-src 'self'; script-src 'self'; style-src 'self'; " +
-		"img-src 'self' https://plex.tv https://*.plex.tv; connect-src 'self'; font-src 'self'; " +
+		"img-src 'self' https://plex.tv https://*.plex.tv https://secure.gravatar.com; connect-src 'self'; font-src 'self'; " +
 		"manifest-src 'self'; worker-src 'self'; frame-ancestors 'none'; " +
 		"base-uri 'self'; form-action 'self'"
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
