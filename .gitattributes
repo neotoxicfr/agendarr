@@ -1,0 +1,12 @@
+# Normalise text files to LF in the index *and* in the working tree, so Windows
+# checkouts (core.autocrlf) match the Linux build containers.
+* text=auto eol=lf
+
+*.sh text eol=lf
+Makefile text eol=lf
+
+# Binary assets: never touch line endings, never diff.
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary
