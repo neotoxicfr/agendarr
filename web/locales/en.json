@@ -214,5 +214,10 @@
   "sync.revoked": "Subscription link deleted.",
   "sync.created_on": "Created on %s.",
   "sync.feed_requested_by": "Requested by:",
-  "err.setup_taken": "The first-time setup was just completed by another Plex owner account."
+  "err.setup_taken": "The first-time setup was just completed by another Plex owner account.",
+  "inst.test_no_host": "Address not found: “%s”. On a Docker network it is the container name (for example seerr, radarr, sonarr).",
+  "inst.test_refused": "The machine answers, but nothing listens on that port: check the port (Radarr 7878, Sonarr 8989, Seerr 5055).",
+  "inst.test_timeout": "No answer in time: the address is not reachable from agendarr.",
+  "inst.test_tls": "The HTTPS certificate is not valid for this address: use the internal http:// URL.",
+  "inst.test_not_api": "The address answers, but not with the expected API: check the path (URL base) and that no login page sits in front."
 }

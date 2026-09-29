@@ -143,3 +143,28 @@ func TestInstances(t *testing.T) {
 func itoa(i int64) string { return strconv.FormatInt(i, 10) }
 
 func config0() config.Config { return config.Config{} }
+
+func TestDescribeErr(t *testing.T) {
+	T := map[string]string{"inst.test_no_host": "nohost %s", "inst.test_refused": "refused", "inst.test_not_api": "notapi",
+		"inst.test_unreachable": "other %s", "inst.test_timeout": "timeout"}
+	ctx := context.Background()
+	cases := map[string]string{
+		"http://seer.invalid:5055": "nohost seer.invalid",
+		"http://127.0.0.1:1":       "refused",
+	}
+	for u, want := range cases {
+		_, err := testInstance(ctx, "seerr", u, "k")
+		if got := describeErr(T, err); got != want {
+			t.Errorf("%s: got %q want %q (%v)", u, got, want, err)
+		}
+	}
+	html := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		io.WriteString(w, "<html>login</html>")
+	}))
+	defer html.Close()
+	_, err := testInstance(ctx, "radarr", html.URL, "k")
+	if got := describeErr(T, err); got != "notapi" {
+		t.Errorf("html page: %q", got)
+	}
+}

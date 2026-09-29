@@ -11,8 +11,10 @@
   --text-2: #a6a9b8;
   --accent: #ffb454;
   --accent-ink: #1a1206;
-  --movie: #7cc4ff;
-  --episode: #b99cff;
+  /* Brand hues: movies = Radarr gold, episodes = Sonarr blue, Seerr indigo. */
+  --movie: #ffc230;
+  --episode: #35c5f4;
+  --seerr-hue: #8b8ff8;
   --ok: #5fd39a;
   --warn: #ffb454;
   --danger: #ff7a7a;
@@ -39,8 +41,10 @@
     --text-2: #5c5f6d;
     --accent: #9a4f00;
     --accent-ink: #ffffff;
-    --movie: #0b6fb8;
-    --episode: #6a43c9;
+    /* darker variants keep 3:1 against the light background (WCAG 1.4.11) */
+    --movie: #8f6200;
+    --episode: #0a74a3;
+    --seerr-hue: #4f46e5;
     --ok: #0b6a3d;
     --warn: #a35a00;
     --danger: #c02f2f;
@@ -111,16 +115,17 @@ main { padding: var(--gap) max(var(--gap), env(safe-area-inset-right)) calc(var(
 .btn-danger { color: var(--danger); }
 .btn-danger:hover { border-color: var(--danger); }
 
+/* Compact: one line, targets of 28px (WCAG 2.5.8 asks for 24). */
 .footer {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 20px;
-  padding: 24px max(var(--gap), env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) max(var(--gap), env(safe-area-inset-left));
-  border-top: 1px solid var(--line); color: var(--text-2); font-size: var(--fs-1);
+  display: flex; flex-wrap: wrap; align-items: center; gap: 2px 16px;
+  padding: 6px max(var(--gap), env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(var(--gap), env(safe-area-inset-left));
+  border-top: 1px solid var(--line); color: var(--text-2); font-size: 0.75rem;
 }
-.footer a { color: inherit; min-height: var(--tap); display: inline-flex; align-items: center; }
+.footer a { color: inherit; min-height: 28px; display: inline-flex; align-items: center; }
 .footer a:hover { color: var(--text); }
-.lang { margin: 0 0 0 auto; display: flex; gap: 4px; }
+.lang { margin: 0 0 0 auto; display: flex; gap: 2px; }
 .lang button {
-  min-height: var(--tap); padding: 0 10px; border: 1px solid transparent; border-radius: var(--radius-sm);
+  min-height: 28px; padding: 0 8px; border: 1px solid transparent; border-radius: var(--radius-sm);
   background: none; color: inherit; font: inherit; cursor: pointer;
 }
 .lang button:hover { color: var(--text); }
@@ -223,7 +228,7 @@ main { padding: var(--gap) max(var(--gap), env(safe-area-inset-right)) calc(var(
 main:focus { outline: none; }
 
 /* --- instances & forms ---------------------------------------------------- */
-:root { --radarr: var(--movie); --sonarr: var(--episode); --seerr: var(--accent); }
+:root { --radarr: var(--movie); --sonarr: var(--episode); --seerr: var(--seerr-hue); }
 .muted { color: var(--text-2); }
 .flash {
   padding: 10px 14px; border-radius: var(--radius); margin: 0 0 16px;

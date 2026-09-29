@@ -214,5 +214,10 @@
   "sync.revoked": "Lien d'abonnement supprimé.",
   "sync.created_on": "Créé le %s.",
   "sync.feed_requested_by": "Demandé par :",
-  "err.setup_taken": "La configuration initiale vient d'être faite par un autre compte Plex propriétaire."
+  "err.setup_taken": "La configuration initiale vient d'être faite par un autre compte Plex propriétaire.",
+  "inst.test_no_host": "Adresse introuvable : « %s ». Sur le réseau Docker, c'est le nom du conteneur (par exemple seerr, radarr, sonarr).",
+  "inst.test_refused": "La machine répond, mais rien n'écoute sur ce port : vérifie le port (Radarr 7878, Sonarr 8989, Seerr 5055).",
+  "inst.test_timeout": "Pas de réponse à temps : l'adresse n'est pas joignable depuis agendarr.",
+  "inst.test_tls": "Le certificat HTTPS n'est pas valide pour cette adresse : utilise l'URL http:// interne.",
+  "inst.test_not_api": "L'adresse répond, mais ce n'est pas l'API attendue : vérifie le chemin (URL de base) et qu'il n'y a pas de page de connexion devant."
 }

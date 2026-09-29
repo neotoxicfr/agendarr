@@ -17,6 +17,10 @@ import (
 // ErrUnauthorized means the API key was rejected.
 var ErrUnauthorized = errors.New("API key rejected")
 
+// ErrNotAPI means something answered, but not the expected API: a wrong
+// path or URL base (404), or an HTML page such as a proxy login.
+var ErrNotAPI = errors.New("not the expected API")
+
 // DefaultClient is used when none is given. The timeout is generous: a Sonarr
 // calendar over four months with series included can take a few seconds on
 // a NAS.
@@ -55,13 +59,15 @@ func (c *Client) Get(ctx context.Context, path string, q url.Values, out any) er
 	switch {
 	case res.StatusCode == http.StatusUnauthorized || res.StatusCode == http.StatusForbidden:
 		return ErrUnauthorized
+	case res.StatusCode == http.StatusNotFound:
+		return fmt.Errorf("GET %s: HTTP 404: %w", path, ErrNotAPI)
 	case res.StatusCode < 200 || res.StatusCode > 299:
 		body, _ := io.ReadAll(io.LimitReader(res.Body, 256))
 		return fmt.Errorf("GET %s: HTTP %d: %s", path, res.StatusCode, strings.TrimSpace(string(body)))
 	}
 	if ct := res.Header.Get("Content-Type"); !strings.Contains(ct, "json") {
 		// A reverse proxy login page or the wrong port answers HTML.
-		return fmt.Errorf("GET %s: expected JSON, got %q", path, ct)
+		return fmt.Errorf("GET %s: got %q instead of JSON: %w", path, ct, ErrNotAPI)
 	}
 	if err := json.NewDecoder(io.LimitReader(res.Body, 64<<20)).Decode(out); err != nil {
 		return fmt.Errorf("GET %s: decode: %w", path, err)

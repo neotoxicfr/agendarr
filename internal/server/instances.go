@@ -2,12 +2,15 @@ package server
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/neotoxicfr/agendarr/internal/arr"
@@ -201,7 +204,20 @@ func testInstance(ctx context.Context, kind, baseURL, key string) (string, error
 var errWrongApp = errors.New("wrong application")
 
 func describeErr(T map[string]string, err error) string {
+	var dns *net.DNSError
+	var netErr net.Error
+	var certErr *tls.CertificateVerificationError
 	switch {
+	case errors.As(err, &dns) && dns.IsNotFound:
+		return fmt.Sprintf(T["inst.test_no_host"], dns.Name)
+	case errors.Is(err, syscall.ECONNREFUSED):
+		return T["inst.test_refused"]
+	case errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &netErr) && netErr.Timeout()):
+		return T["inst.test_timeout"]
+	case errors.As(err, &certErr):
+		return T["inst.test_tls"]
+	case errors.Is(err, httpx.ErrNotAPI):
+		return T["inst.test_not_api"]
 	case errors.Is(err, httpx.ErrUnauthorized):
 		return T["inst.test_unauthorized"]
 	case errors.Is(err, errWrongApp):
