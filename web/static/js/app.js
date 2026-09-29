@@ -120,3 +120,18 @@ if (instForm) {
     }
   });
 }
+
+// Copy buttons (sync page).
+document.querySelectorAll("[data-copy]").forEach((btn) => {
+  btn.addEventListener("click", async () => {
+    const input = document.querySelector(btn.dataset.copy);
+    const status = document.querySelector("[data-copy-status]");
+    try {
+      await navigator.clipboard.writeText(input.value);
+      if (status) status.textContent = t("js.copied");
+    } catch {
+      input.select();
+      if (status) status.textContent = t("js.copy_failed");
+    }
+  });
+});

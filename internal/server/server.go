@@ -131,6 +131,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /{$}", s.requireUser(s.handleHome))
 	mux.HandleFunc("GET /api/calendar", s.requireUser(s.handleCalendarAPI))
 	mux.HandleFunc("GET /img/{inst}/{id}", s.requireUser(s.handlePoster))
+	mux.HandleFunc("GET /sync", s.requireUser(s.handleSync))
+	mux.HandleFunc("POST /sync/new", s.requireUser(s.handleSyncNew))
+	mux.HandleFunc("POST /sync/revoke", s.requireUser(s.handleSyncRevoke))
+	mux.HandleFunc("GET /sync/qr.png", s.requireUser(s.handleSyncQR))
+	mux.HandleFunc("GET /ics/{file}", s.handleFeed)
 	mux.HandleFunc("GET /api/prefs", s.requireUser(s.handlePrefsGet))
 	mux.HandleFunc("PUT /api/prefs", s.requireUser(s.handlePrefsPut))
 

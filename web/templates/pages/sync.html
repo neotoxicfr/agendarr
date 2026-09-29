@@ -1,0 +1,65 @@
+{{define "content"}}<div class="page">
+  <h1>{{index .T "title.sync"}}</h1>
+  <p class="lead">{{index .T "sync.lead"}}</p>
+  {{with .Flash}}<p class="flash" role="status">{{.}}</p>{{end}}
+  {{with .Data}}
+  <div class="sync-url">
+    <label for="feed-url">{{index $.T "sync.url_label"}}</label>
+    <div class="copy-row">
+      <input id="feed-url" type="text" readonly value="{{.HTTPS}}" spellcheck="false">
+      <button class="btn" type="button" data-copy="#feed-url">{{index $.T "sync.copy"}}</button>
+    </div>
+    <p class="help" data-copy-status role="status">{{printf (index $.T "sync.created_on") (date $.T .Created)}}</p>
+  </div>
+
+  <div class="sync-grid">
+    <section class="sync-card">
+      <h2>{{index $.T "sync.ios_h"}}</h2>
+      <p>{{index $.T "sync.ios_body"}}</p>
+      <a class="btn btn-primary" href="{{.Webcal}}">{{index $.T "sync.ios_btn"}}</a>
+    </section>
+    <section class="sync-card">
+      <h2>{{index $.T "sync.google_h"}}</h2>
+      <p>{{index $.T "sync.google_body"}}</p>
+      <a class="btn" href="{{.Google}}" target="_blank" rel="noopener noreferrer">{{index $.T "sync.google_btn"}}</a>
+    </section>
+    <section class="sync-card">
+      <h2>{{index $.T "sync.outlook_h"}}</h2>
+      <p>{{index $.T "sync.outlook_body"}}</p>
+      <a class="btn" href="{{.Outlook}}" target="_blank" rel="noopener noreferrer">{{index $.T "sync.outlook_btn"}}</a>
+    </section>
+    <section class="sync-card sync-qr">
+      <h2>{{index $.T "sync.qr_h"}}</h2>
+      <p>{{index $.T "sync.qr_body"}}</p>
+      <img src="/sync/qr.png" width="200" height="200" alt="{{index $.T "sync.qr_alt"}}">
+    </section>
+  </div>
+
+  <section class="sync-limits">
+    <h2>{{index $.T "sync.limits_h"}}</h2>
+    <ul>
+      <li>{{index $.T "sync.limit_readonly"}}</li>
+      <li>{{index $.T "sync.limit_filters"}}</li>
+      <li>{{index $.T "sync.limit_refresh"}}</li>
+      <li>{{index $.T "sync.limit_secret"}}</li>
+    </ul>
+  </section>
+  <div class="form-actions">
+    <form method="post" action="/sync/new" data-confirm="{{index $.T "sync.regenerate_confirm"}}"><button class="btn" type="submit">{{index $.T "sync.regenerate"}}</button></form>
+    <form method="post" action="/sync/revoke" data-confirm="{{index $.T "sync.revoke_confirm"}}"><button class="btn btn-danger" type="submit">{{index $.T "sync.revoke"}}</button></form>
+  </div>
+  {{else}}
+  <div class="welcome">
+    <p>{{index .T "sync.none"}}</p>
+    <form method="post" action="/sync/new"><button class="btn btn-primary" type="submit">{{index .T "sync.create"}}</button></form>
+  </div>
+  <section class="sync-limits">
+    <h2>{{index .T "sync.limits_h"}}</h2>
+    <ul>
+      <li>{{index .T "sync.limit_readonly"}}</li>
+      <li>{{index .T "sync.limit_refresh"}}</li>
+      <li>{{index .T "sync.limit_secret"}}</li>
+    </ul>
+  </section>
+  {{end}}
+</div>{{end}}

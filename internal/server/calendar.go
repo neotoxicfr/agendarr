@@ -71,16 +71,7 @@ func (s *Server) handleCalendarAPI(w http.ResponseWriter, r *http.Request) {
 	if mine := cleanSources(strings.Split(r.URL.Query().Get("mine"), ",")); len(mine) > 0 {
 		pr := s.personal.For(r.Context(), *currentUser(r), mine)
 		out.Personal = pr.Errors
-		kept := out.Events[:0]
-		for _, e := range out.Events {
-			for _, k := range e.Keys {
-				if pr.Keys[k] {
-					kept = append(kept, e)
-					break
-				}
-			}
-		}
-		out.Events = kept
+		out.Events = keepKeys(out.Events, pr.Keys)
 	}
 	writeJSON(w, http.StatusOK, out)
 }

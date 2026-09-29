@@ -190,8 +190,7 @@ main { padding: var(--gap) max(var(--gap), env(safe-area-inset-right)) calc(var(
   /* backdrop-filter would make the top bar the containing block of the
      fixed tab bar inside it, pinning the tab bar to the top. */
   .topbar { backdrop-filter: none; background: var(--bg); }
-  .nav-single { display: none !important; }
-  body:has(.nav:not(.nav-single)) { padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom)); }
+  body:has(.nav) { padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom)); }
   .me-name, .logout-label { display: none; }
   .btn-logout { width: var(--tap); padding: 0; }
   .btn-logout .nav-icon { display: block; }
@@ -565,3 +564,21 @@ main:has(.cal) { padding-top: 0; }
 .dot.is-episode { --c: var(--episode); }
 .dot.is-downloaded { background: var(--c); }
 .dot-more { font-size: 0.625rem; font-weight: 700; line-height: 6px; color: var(--text-2); }
+
+/* --- sync ----------------------------------------------------------------- */
+.sync-url { max-width: 46rem; margin: 20px 0 24px; }
+.sync-url label { display: block; font-weight: 600; margin-bottom: 6px; }
+.copy-row { display: flex; gap: 8px; }
+.copy-row input {
+  flex: 1; min-width: 0; min-height: var(--tap); padding: 0 12px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--bg); color: var(--text); font: 0.875rem/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.sync-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); gap: 12px; }
+.sync-card { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.sync-card h2 { font-size: var(--fs-2); margin: 0; }
+.sync-card p { margin: 0 0 12px; color: var(--text-2); font-size: var(--fs-1); flex: 1; }
+.sync-qr img { image-rendering: pixelated; border-radius: var(--radius-sm); background: #fff; padding: 8px; width: 160px; height: 160px; }
+.sync-limits { margin: 28px 0 20px; max-width: 46rem; }
+.sync-limits ul { margin: 0; padding-left: 20px; color: var(--text-2); }
+.sync-limits li + li { margin-top: 6px; }
+@media (max-width: 720px) { .sync-qr { display: none; } }
