@@ -33,7 +33,7 @@ const (
 // signInErrors are the error codes carried in /login?e=; each has an
 // "err.<code>" label.
 var signInErrors = map[string]bool{
-	"no_owned_server": true, "setup_denied": true, "no_access": true,
+	"no_owned_server": true, "setup_taken": true, "no_access": true,
 	"expired": true, "pending": true, "plex": true,
 }
 
@@ -233,10 +233,6 @@ func (s *Server) completeSignIn(r *http.Request, token string) (next, code strin
 	profile := store.Profile{PlexID: acc.ID, Username: acc.DisplayName(), Email: acc.Email, Thumb: acc.Thumb, PlexToken: s.box.Seal(token)}
 
 	if !s.setupDone(ctx) {
-		if want := s.cfg.SetupPlexUser; want != "" && !strings.EqualFold(want, acc.Username) && !strings.EqualFold(want, acc.Email) {
-			s.log.Warn("setup denied", "plex_user", acc.Username)
-			return "", "setup_denied"
-		}
 		owned := ownedServers(servers)
 		if len(owned) == 0 {
 			return "", "no_owned_server"
@@ -252,7 +248,7 @@ func (s *Server) completeSignIn(r *http.Request, token string) (next, code strin
 		}
 		if err := s.claim(ctx, u.ID, owned[0]); err != nil {
 			s.log.Error("claim owner", "err", err)
-			return "", "setup_denied"
+			return "", "setup_taken"
 		}
 		s.signIn(r, u.ID)
 		return "/admin", ""
@@ -364,7 +360,7 @@ func (s *Server) handleSetupServer(w http.ResponseWriter, r *http.Request) {
 		}
 		if err := s.claim(ctx, u.ID, res); err != nil {
 			s.log.Error("claim owner", "err", err)
-			http.Redirect(w, r, "/login?e=setup_denied", http.StatusSeeOther)
+			http.Redirect(w, r, "/login?e=setup_taken", http.StatusSeeOther)
 			return
 		}
 		s.signIn(r, u.ID)

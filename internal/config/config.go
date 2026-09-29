@@ -18,10 +18,6 @@ type Config struct {
 	// BaseURL is the public URL of the app, used for Plex forwardUrl and iCal
 	// links. Optional: when empty it is derived from each request.
 	BaseURL string
-	// SetupPlexUser, when set, restricts the first-run setup to this Plex
-	// username or email, so a freshly exposed instance cannot be claimed by
-	// someone else.
-	SetupPlexUser string
 	// PlexServerURL forces the address of the Plex Media Server (for example
 	// http://plex:32400 on a shared Docker network). Optional: by default the
 	// connections advertised by plex.tv are tried, local ones first.
@@ -40,7 +36,6 @@ func Load() (Config, error) {
 		Listen:        env("AGENDARR_LISTEN", ":8080"),
 		DataDir:       env("AGENDARR_DATA_DIR", "./data"),
 		BaseURL:       strings.TrimRight(os.Getenv("AGENDARR_BASE_URL"), "/"),
-		SetupPlexUser: strings.TrimSpace(os.Getenv("AGENDARR_SETUP_PLEX_USER")),
 		PlexTVURL:     strings.TrimRight(os.Getenv("AGENDARR_PLEX_TV_URL"), "/"),
 		PlexServerURL: strings.TrimRight(os.Getenv("AGENDARR_PLEX_SERVER_URL"), "/"),
 	}

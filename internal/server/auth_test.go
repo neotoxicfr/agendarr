@@ -219,17 +219,6 @@ func TestSetupSeveralServers(t *testing.T) {
 	}
 }
 
-func TestSetupRestrictedUser(t *testing.T) {
-	h := newHarness(t, config.Config{SetupPlexUser: "someone@else"})
-	if _, next := h.signIn("owner"); next != "/login?e=setup_denied" {
-		t.Fatalf("restricted setup: %q", next)
-	}
-	h2 := newHarness(t, config.Config{SetupPlexUser: "NEO@x"})
-	if _, next := h2.signIn("owner"); next != "/admin" {
-		t.Fatalf("allowed setup: %q", next)
-	}
-}
-
 func TestAccessCheckRevokes(t *testing.T) {
 	h := newHarness(t, config.Config{})
 	h.signIn("owner")

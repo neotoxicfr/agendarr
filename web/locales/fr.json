@@ -23,7 +23,6 @@
   "login.failed": "La connexion n'a pas abouti. Réessaie.",
   "login.timeout": "Délai dépassé. Relance la connexion.",
   "err.no_owned_server": "Ce compte Plex ne possède aucun serveur. Le premier compte à se connecter doit être celui du propriétaire du serveur Plex.",
-  "err.setup_denied": "La configuration initiale est réservée à un autre compte Plex (AGENDARR_SETUP_PLEX_USER).",
   "err.no_access": "Ce compte Plex n'a pas accès au serveur Plex de cet agendarr. Demande au propriétaire de te partager sa bibliothèque.",
   "err.expired": "La connexion Plex a expiré. Recommence.",
   "err.pending": "Plex n'a pas encore confirmé la connexion. Recommence.",
@@ -214,5 +213,6 @@
   "sync.created": "Ton lien d'abonnement est prêt.",
   "sync.revoked": "Lien d'abonnement supprimé.",
   "sync.created_on": "Créé le %s.",
-  "sync.feed_requested_by": "Demandé par :"
+  "sync.feed_requested_by": "Demandé par :",
+  "err.setup_taken": "La configuration initiale vient d'être faite par un autre compte Plex propriétaire."
 }

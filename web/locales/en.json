@@ -23,7 +23,6 @@
   "login.failed": "Sign-in did not complete. Try again.",
   "login.timeout": "Timed out. Start signing in again.",
   "err.no_owned_server": "This Plex account owns no server. The first account to sign in must be the owner of the Plex server.",
-  "err.setup_denied": "The first-time setup is reserved for another Plex account (AGENDARR_SETUP_PLEX_USER).",
   "err.no_access": "This Plex account has no access to this agendarr's Plex server. Ask the owner to share their library with you.",
   "err.expired": "The Plex sign-in expired. Start again.",
   "err.pending": "Plex has not confirmed the sign-in yet. Start again.",
@@ -214,5 +213,6 @@
   "sync.created": "Your subscription link is ready.",
   "sync.revoked": "Subscription link deleted.",
   "sync.created_on": "Created on %s.",
-  "sync.feed_requested_by": "Requested by:"
+  "sync.feed_requested_by": "Requested by:",
+  "err.setup_taken": "The first-time setup was just completed by another Plex owner account."
 }

@@ -43,7 +43,6 @@ services:
     environment:
       TZ: Europe/Paris
       AGENDARR_BASE_URL: https://agenda.example.com
-      AGENDARR_SETUP_PLEX_USER: me@example.com
     volumes:
       - ./data:/data
     ports:
@@ -76,7 +75,6 @@ HTTPS, and calendar apps need a public URL to subscribe.
 | `AGENDARR_LISTEN` | `:8080` | HTTP listen address |
 | `AGENDARR_DATA_DIR` | `/data` (image), `./data` | Database, encryption key, poster cache |
 | `AGENDARR_BASE_URL` | derived from requests | Public URL, used for the Plex sign-in return and iCal links. Set it behind a proxy. |
-| `AGENDARR_SETUP_PLEX_USER` | — | Plex username or email allowed to complete the first-run setup. Recommended if the instance is reachable before you set it up. |
 | `AGENDARR_PLEX_SERVER_URL` | advertised connections | How agendarr reaches Plex for the history-based filters, e.g. `http://plex:32400` on a shared Docker network |
 | `AGENDARR_SECURE_COOKIES` | `true` when the base URL is https | Force the `Secure` cookie flag |
 

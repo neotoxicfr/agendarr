@@ -20,9 +20,7 @@ involved, and a way to reproduce.
 ## Security model
 
 - Access always requires a Plex account that can reach the configured Plex
-  server; the server owner becomes the administrator on first run. Set
-  `AGENDARR_SETUP_PLEX_USER` if the instance is reachable before you finish
-  the setup.
+  server; the server owner becomes the administrator on first run.
 - Plex tokens and Radarr/Sonarr/Seerr API keys are encrypted at rest with
   AES-256-GCM. The key is `secret.key` in the data directory: treat the whole
   data volume as a secret.
