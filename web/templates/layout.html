@@ -1,0 +1,21 @@
+{{define "layout"}}<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{if ne .Title "agendarr"}}{{.Title}} · {{end}}agendarr</title>
+<meta name="theme-color" content="#11131c" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f6f5f1" media="(prefers-color-scheme: light)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/static/icons/icon.svg?v={{.Version}}" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png?v={{.Version}}">
+<link rel="stylesheet" href="/static/css/app.css?v={{.Version}}">
+<script src="/static/js/app.js?v={{.Version}}" defer></script>
+</head>
+<body>
+{{template "header" .}}
+<main id="main">{{template "content" .}}</main>
+</body>
+</html>{{end}}

@@ -1,0 +1,32 @@
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+    - ineffassign
+    - bodyclose
+    - noctx
+
+  settings:
+    errcheck:
+      exclude-functions:
+        # defer Close is idiomatic; nothing useful to do on error
+        - (*os.File).Close
+        - (io.ReadCloser).Close
+        - (*database/sql.DB).Close
+        - (*database/sql.Rows).Close
+        - (*github.com/neotoxicfr/agendarr/internal/store.Store).Close
+
+  exclusions:
+    paths:
+      - .github
+      - .claude
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+          - noctx

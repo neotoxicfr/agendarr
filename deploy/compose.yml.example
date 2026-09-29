@@ -1,0 +1,21 @@
+# Copy to docker-compose.yml and adjust. Put agendarr behind your reverse proxy
+# (HTTPS is required for the PWA to install and for Secure cookies).
+services:
+  agendarr:
+    image: ghcr.io/neotoxicfr/agendarr:latest
+    container_name: agendarr
+    restart: unless-stopped
+    environment:
+      TZ: Europe/Paris
+      # Public URL, used for the Plex sign-in return and for iCal links.
+      AGENDARR_BASE_URL: https://agenda.example.com
+      # Optional: only this Plex username or email may complete the first setup.
+      # AGENDARR_SETUP_PLEX_USER: me@example.com
+    volumes:
+      - ./data:/data
+    ports:
+      - "8080:8080"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true

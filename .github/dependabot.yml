@@ -1,6 +1,5 @@
 version: 2
 updates:
-  # Add the language ecosystem (gomod, pip, npm, docker...) once the stack is chosen.
   - package-ecosystem: "github-actions"
     directory: "/"
     target-branch: "dev"
@@ -12,3 +11,20 @@ updates:
       github-actions:
         patterns:
           - "*"
+
+  - package-ecosystem: "docker"
+    directory: "/"
+    target-branch: "dev"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore(deps)"
+
+  - package-ecosystem: "gomod"
+    directory: "/"
+    target-branch: "dev"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
