@@ -1,5 +1,6 @@
 # Copy to docker-compose.yml and adjust. Put agendarr behind your reverse proxy
-# (HTTPS is required for the PWA to install and for Secure cookies).
+# (HTTPS is required for the PWA to install and for Secure cookies). Response
+# compression is left to the proxy (Traefik compress middleware, Caddy encode…).
 services:
   agendarr:
     image: ghcr.io/neotoxicfr/agendarr:latest

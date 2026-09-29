@@ -159,7 +159,7 @@ func (s *Server) Handler() http.Handler {
 	bare.HandleFunc("GET /sw.js", s.serveServiceWorker)
 	bare.HandleFunc("GET /healthz", s.handleHealth)
 	bare.Handle("/", app)
-	return s.recoverer(securityHeaders(gzipHandler(bare)))
+	return s.recoverer(securityHeaders(bare))
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
