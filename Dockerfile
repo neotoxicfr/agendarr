@@ -4,7 +4,7 @@
 
 # Digest-pinned: the tag alone follows Alpine releases. Dependabot bumps both.
 FROM --platform=$BUILDPLATFORM golang:1.27.1-alpine@sha256:8a5910f31396cd4d89662f56c68b3ae31d374308270a1c3bd96672ee5ed43414 AS build
-ARG TARGETOS TARGETARCH VERSION=dev
+ARG TARGETOS TARGETARCH VERSION=dev REVISION=
 WORKDIR /src
 
 COPY go.mod go.sum ./
@@ -13,8 +13,11 @@ RUN go mod download
 COPY cmd/ ./cmd/
 COPY internal/ ./internal/
 COPY web/ ./web/
-RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath \
-      -ldflags="-s -w -X github.com/neotoxicfr/agendarr/internal/server.Version=${VERSION}" \
+# The version stamps asset URLs (?v=) and the service worker caches: a :dev
+# build must change it on every commit, or browsers keep last week's CSS.
+RUN V="$VERSION"; [ "$V" = dev ] && [ -n "$REVISION" ] && V="dev-$(echo "$REVISION" | cut -c1-7)"; \
+    CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath \
+      -ldflags="-s -w -X github.com/neotoxicfr/agendarr/internal/server.Version=${V}" \
       -o /out/agendarr ./cmd/agendarr \
     && mkdir -p /out/data
 

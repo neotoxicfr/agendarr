@@ -82,20 +82,43 @@
 
   // --- data --------------------------------------------------------------------
   const cache = new Map();
-  let inflight = null;
-  async function load(from, to) {
+  async function load(from, to, signal) {
     const mine = state.mine.join(",");
     const key = `${keyOf(from)}_${keyOf(to)}_${mine}`;
     if (cache.has(key)) return cache.get(key);
-    if (inflight) inflight.abort();
-    inflight = new AbortController();
-    const res = await fetch(`/api/calendar?from=${keyOf(from)}&to=${keyOf(to)}${mine ? "&mine=" + mine : ""}`, { signal: inflight.signal });
+    const res = await fetch(`/api/calendar?from=${keyOf(from)}&to=${keyOf(to)}${mine ? "&mine=" + mine : ""}`, { signal });
     if (res.status === 401) { location.assign("/login"); throw new Error("signed out"); }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     cache.set(key, data);
     setTimeout(() => cache.delete(key), 60_000);
     return data;
+  }
+
+  // The API serves at most 62 days. The growing agenda is fetched in 35-day
+  // slices aligned on its first day, so loading more weeks only asks for
+  // the new slice; the others come from the cache.
+  const SLICE = 35;
+  let inflight = null;
+  async function loadRange(from, to) {
+    if (inflight) inflight.abort();
+    inflight = new AbortController();
+    const parts = [];
+    for (let a = from; a <= to; a = addDays(a, SLICE)) {
+      const b = addDays(a, SLICE - 1);
+      parts.push(load(a, b < to ? b : to, inflight.signal));
+    }
+    const all = await Promise.all(parts);
+    if (all.length === 1) return all[0];
+    const seen = new Set();
+    const out = { events: [], failing: [], personal: {}, configured: false };
+    for (const d of all) {
+      out.configured ||= d.configured;
+      for (const e of d.events) if (!seen.has(e.id)) { seen.add(e.id); out.events.push(e); }
+      for (const f of d.failing) if (!out.failing.includes(f)) out.failing.push(f);
+      Object.assign(out.personal, d.personal || {});
+    }
+    return out;
   }
 
   // --- filters -----------------------------------------------------------------
@@ -395,7 +418,7 @@
     // Syncing a long Plex history the first time takes a few seconds: say so.
     const slow = state.mine.length ? setTimeout(() => { warning.hidden = false; warning.textContent = t("cal.mine_loading"); }, 1500) : 0;
     try {
-      data = await load(from, to);
+      data = await loadRange(from, to);
     } catch (err) {
       clearTimeout(slow);
       if (err.name === "AbortError" || seq !== renderSeq) return;
@@ -441,7 +464,13 @@
       })));
     }
     body.replaceChildren(...nodes);
-    if (state.view === "agenda") observeMore();
+    if (state.view === "agenda") {
+      // Stop loading by itself once the last slice came back empty (nothing
+      // scheduled that far out); the button still loads more on demand.
+      const tail = keyOf(addDays(to, -(SLICE - 1)));
+      if (events.some((e) => dayOf(e) >= tail)) observeMore();
+      else if (observer) observer.disconnect();
+    }
     if (refocus) body.querySelector(refocus)?.focus({ preventScroll: true });
     else if (!keepScroll && state.view === "agenda") {
       // Only when today is below the fold: otherwise the toolbar would

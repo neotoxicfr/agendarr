@@ -45,7 +45,7 @@ type Event struct {
 	Instances []string   `json:"instances"`
 	// Keys are the external ids of the movie or series ("tmdb:1", "tvdb:2",
 	// "imdb:tt3"), used by the personal filters.
-	Keys []string `json:"keys"`
+	Keys []string `json:"-"` // server-side only: the browser never reads them
 	// Group identifies the movie or series across events.
 	Group string `json:"group"`
 	// RequestedBy lists the Seerr users who requested it (set per response).

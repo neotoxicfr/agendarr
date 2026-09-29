@@ -58,6 +58,7 @@ var (
 	ErrNoSeerrUser   = errors.New("no Seerr account linked to this Plex account")
 	ErrNoPlexServer  = errors.New("plex server unreachable")
 	ErrPlexSignedOut = errors.New("plex token expired, sign in again")
+	ErrSyncing       = errors.New("first sync still running")
 )
 
 // Deps are provided by the server.
@@ -79,9 +80,11 @@ type Service struct {
 	now func() time.Time
 	sf  singleflight.Group
 
-	mu        sync.Mutex
-	seerrIdx  *seerrIndex
-	seerrTime time.Time
+	mu         sync.Mutex
+	seerrIdx   *seerrIndex
+	seerrTime  time.Time
+	seerrErr   error
+	seerrErrAt time.Time
 }
 
 // New returns a Service.
@@ -125,86 +128,108 @@ func (s *Service) RequestIndex(ctx context.Context) map[string][]string {
 	return idx.byKey
 }
 
+// seerr returns the requests index. A stale index is served at once and
+// refreshed behind; after a failure Seerr is left alone for a minute, so a
+// hung Seerr does not stall every calendar request.
 func (s *Service) seerr(ctx context.Context) (*seerrIndex, error) {
 	s.mu.Lock()
-	if s.seerrIdx != nil && s.now().Sub(s.seerrTime) < ttl[SourceSeerr] {
-		idx := s.seerrIdx
-		s.mu.Unlock()
+	idx, age := s.seerrIdx, s.now().Sub(s.seerrTime)
+	lastErr, errAge := s.seerrErr, s.now().Sub(s.seerrErrAt)
+	s.mu.Unlock()
+	if idx != nil && age < ttl[SourceSeerr] {
 		return idx, nil
 	}
-	s.mu.Unlock()
-	v, err, _ := s.sf.Do("seerr-index", func() (any, error) {
-		clients, err := s.d.Seerrs(ctx)
-		if err != nil {
-			return nil, err
+	if lastErr != nil && errAge < seerrBackoff {
+		if idx != nil {
+			return idx, nil
 		}
-		if len(clients) == 0 {
-			return nil, ErrNoSeerr
-		}
-		idx := &seerrIndex{byKey: map[string][]string{}, byPlex: map[int64]map[string]bool{},
-			byName: map[string]map[string]bool{}, users: map[int64]seerr.User{}}
-		cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
-		defer cancel()
-		var errs []error
-		for _, c := range clients {
-			users, err := c.Users(cctx)
-			if err != nil {
-				errs = append(errs, err)
-				continue
-			}
-			byID := map[int64]seerr.User{}
-			for _, u := range users {
-				byID[u.ID] = u
-				idx.users[u.ID] = u
-			}
-			reqs, err := c.AllRequests(cctx)
-			if err != nil {
-				errs = append(errs, err)
-				continue
-			}
-			for _, r := range reqs {
-				u := byID[r.RequestedBy.ID]
-				name := u.DisplayName
-				if name == "" {
-					name = r.RequestedBy.DisplayName
-				}
-				plexID := u.PlexID
-				if plexID == 0 {
-					plexID = r.RequestedBy.PlexID
-				}
-				for _, k := range r.MediaKeys() {
-					if name != "" && !contains(idx.byKey[k], name) {
-						idx.byKey[k] = append(idx.byKey[k], name)
-					}
-					if plexID != 0 {
-						add(idx.byPlex, plexID, k)
-					}
-					for _, n := range []string{u.PlexUsername, u.Email} {
-						if n != "" {
-							addName(idx.byName, n, k)
-						}
-					}
-				}
-			}
-		}
-		if len(errs) == len(clients) {
-			return nil, errors.Join(errs...)
-		}
-		s.mu.Lock()
-		s.seerrIdx, s.seerrTime = idx, s.now()
-		s.mu.Unlock()
+		return nil, lastErr
+	}
+	if idx != nil {
+		go func() {
+			_, _, _ = s.sf.Do("seerr-index", func() (any, error) { return s.buildSeerr(context.WithoutCancel(ctx)) })
+		}()
 		return idx, nil
-	})
+	}
+	v, err, _ := s.sf.Do("seerr-index", func() (any, error) { return s.buildSeerr(context.WithoutCancel(ctx)) })
 	if err != nil {
-		s.mu.Lock()
-		stale := s.seerrIdx
-		s.mu.Unlock()
-		if stale != nil {
-			return stale, nil // Seerr down: keep the last index
-		}
 		return nil, err
 	}
 	return v.(*seerrIndex), nil
+}
+
+// seerrBackoff is how long Seerr is not retried after a failed refresh.
+const seerrBackoff = time.Minute
+
+func (s *Service) buildSeerr(ctx context.Context) (res any, err error) {
+	defer func() {
+		if err != nil {
+			s.mu.Lock()
+			s.seerrErr, s.seerrErrAt = err, s.now()
+			s.mu.Unlock()
+		}
+	}()
+
+	clients, err := s.d.Seerrs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(clients) == 0 {
+		return nil, ErrNoSeerr
+	}
+	idx := &seerrIndex{byKey: map[string][]string{}, byPlex: map[int64]map[string]bool{},
+		byName: map[string]map[string]bool{}, users: map[int64]seerr.User{}}
+	cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+	defer cancel()
+	var errs []error
+	for _, c := range clients {
+		users, err := c.Users(cctx)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		byID := map[int64]seerr.User{}
+		for _, u := range users {
+			byID[u.ID] = u
+			idx.users[u.ID] = u
+		}
+		reqs, err := c.AllRequests(cctx)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		for _, r := range reqs {
+			u := byID[r.RequestedBy.ID]
+			name := u.DisplayName
+			if name == "" {
+				name = r.RequestedBy.DisplayName
+			}
+			plexID := u.PlexID
+			if plexID == 0 {
+				plexID = r.RequestedBy.PlexID
+			}
+			for _, k := range r.MediaKeys() {
+				if name != "" && !contains(idx.byKey[k], name) {
+					idx.byKey[k] = append(idx.byKey[k], name)
+				}
+				if plexID != 0 {
+					add(idx.byPlex, plexID, k)
+				}
+				for _, n := range []string{u.PlexUsername, u.Email} {
+					if n != "" {
+						addName(idx.byName, n, k)
+					}
+				}
+			}
+		}
+	}
+	if len(errs) == len(clients) {
+		return nil, errors.Join(errs...)
+	}
+	s.mu.Lock()
+	s.seerrIdx, s.seerrTime, s.seerrErr = idx, s.now(), nil
+	s.mu.Unlock()
+	return idx, nil
 }
 
 func add(m map[int64]map[string]bool, id int64, k string) {
@@ -249,6 +274,8 @@ func Code(err error) string {
 		return "no_plex_server"
 	case errors.Is(err, ErrPlexSignedOut), errors.Is(err, plex.ErrUnauthorized):
 		return "plex_signed_out"
+	case errors.Is(err, ErrSyncing):
+		return "syncing"
 	default:
 		return "unavailable"
 	}
@@ -305,14 +332,14 @@ func (s *Service) source(ctx context.Context, u store.User, src string) (map[str
 	if err != nil {
 		return nil, err
 	}
-	if set != nil && s.now().Sub(at) < ttl[src] {
-		if syncErr != "" {
-			return set, errors.New(syncErr)
-		}
-		return set, nil
+	var stored error
+	if syncErr != "" {
+		stored = errors.New(syncErr)
 	}
-	// Refresh; concurrent requests for the same user and source share it.
-	v, err, _ := s.sf.Do(fmt.Sprintf("%d/%s", u.ID, src), func() (any, error) {
+	if set != nil && s.now().Sub(at) < ttl[src] {
+		return set, stored
+	}
+	sync := func() (any, error) {
 		cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
 		defer cancel()
 		keys, ferr := s.fetch(cctx, u, src)
@@ -328,12 +355,29 @@ func (s *Service) source(ctx context.Context, u store.User, src string) (map[str
 			out[k] = true
 		}
 		return out, nil
-	})
-	if err != nil {
-		return set, err // previous set, if any, with the error
 	}
-	return v.(map[string]bool), nil
+	key := fmt.Sprintf("%d/%s", u.ID, src)
+	if set != nil {
+		// Stale: answer with what we have, refresh behind.
+		go func() { _, _, _ = s.sf.Do(key, sync) }()
+		return set, stored
+	}
+	// First sync: wait for it, but not past the HTTP write timeout; a long
+	// history keeps syncing in the background and shows up on a reload.
+	ch := s.sf.DoChan(key, sync)
+	select {
+	case r := <-ch:
+		if r.Err != nil {
+			return nil, r.Err
+		}
+		return r.Val.(map[string]bool), nil
+	case <-time.After(firstSyncWait):
+		return nil, ErrSyncing
+	}
 }
+
+// firstSyncWait bounds how long a request waits for a user's first sync.
+const firstSyncWait = 45 * time.Second
 
 func (idx *seerrIndex) hasUser(u store.User) bool {
 	for _, su := range idx.users {

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"io/fs"
 	"net/http"
 	"path"
@@ -70,4 +71,19 @@ func (s *Server) serveStaticFile(name, contentType string) http.HandlerFunc {
 		w.Header().Set("Cache-Control", "no-cache")
 		_, _ = w.Write(b)
 	}
+}
+
+// serveServiceWorker serves /sw.js from the root (a worker's scope cannot be
+// wider than its path) with the release stamped in, so each release gets
+// fresh caches and the old ones are purged on activation.
+func (s *Server) serveServiceWorker(w http.ResponseWriter, r *http.Request) {
+	b, err := fs.ReadFile(s.static, "js/sw.js")
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	b = bytes.ReplaceAll(b, []byte("__VERSION__"), []byte(Version))
+	w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache")
+	_, _ = w.Write(b)
 }

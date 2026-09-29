@@ -219,5 +219,6 @@
   "inst.test_refused": "La machine répond, mais rien n'écoute sur ce port : vérifie le port (Radarr 7878, Sonarr 8989, Seerr 5055).",
   "inst.test_timeout": "Pas de réponse à temps : l'adresse n'est pas joignable depuis Agendarr.",
   "inst.test_tls": "Le certificat HTTPS n'est pas valide pour cette adresse : utilise l'URL http:// interne.",
-  "inst.test_not_api": "L'adresse répond, mais ce n'est pas l'API attendue : vérifie le chemin (URL de base) et qu'il n'y a pas de page de connexion devant."
+  "inst.test_not_api": "L'adresse répond, mais ce n'est pas l'API attendue : vérifie le chemin (URL de base) et qu'il n'y a pas de page de connexion devant.",
+  "cal.why_syncing": "première synchronisation en cours, recharge dans une minute."
 }

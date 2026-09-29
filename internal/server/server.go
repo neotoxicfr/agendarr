@@ -107,12 +107,6 @@ func New(cfg config.Config, st *store.Store, box *secret.Box, log *slog.Logger) 
 // Handler returns the root handler with every middleware applied.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", s.handleHealth)
-	mux.Handle("GET /static/", http.StripPrefix("/static/", s.staticHandler()))
-	// The manifest and the service worker must be served from the root: a
-	// worker's scope cannot be wider than the path it is served from.
-	mux.HandleFunc("GET /manifest.webmanifest", s.serveStaticFile("manifest.webmanifest", "application/manifest+json"))
-	mux.HandleFunc("GET /sw.js", s.serveStaticFile("js/sw.js", "text/javascript; charset=utf-8"))
 	mux.HandleFunc("GET /offline", s.handleOffline)
 	mux.HandleFunc("GET /privacy", func(w http.ResponseWriter, r *http.Request) {
 		s.render(w, r, http.StatusOK, "privacy", pageData{Title: "title.privacy"})
@@ -154,7 +148,18 @@ func (s *Server) Handler() http.Handler {
 	// Cross-origin state-changing requests are rejected (Sec-Fetch-Site /
 	// Origin checks), which is our CSRF defence alongside SameSite=Lax.
 	csrf := http.NewCrossOriginProtection()
-	return s.recoverer(securityHeaders(s.sessions.LoadAndSave(s.loadUser(csrf.Handler(mux)))))
+	app := s.sessions.LoadAndSave(s.loadUser(csrf.Handler(mux)))
+
+	// Static assets, the service worker, the manifest and the health check
+	// need no session: kept out of LoadAndSave, they cost no SQLite write
+	// and carry no Set-Cookie (scs touches the session on every request).
+	bare := http.NewServeMux()
+	bare.Handle("GET /static/", http.StripPrefix("/static/", s.staticHandler()))
+	bare.HandleFunc("GET /manifest.webmanifest", s.serveStaticFile("manifest.webmanifest", "application/manifest+json"))
+	bare.HandleFunc("GET /sw.js", s.serveServiceWorker)
+	bare.HandleFunc("GET /healthz", s.handleHealth)
+	bare.Handle("/", app)
+	return s.recoverer(securityHeaders(gzipHandler(bare)))
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
