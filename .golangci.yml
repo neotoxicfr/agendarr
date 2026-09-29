@@ -20,6 +20,9 @@ linters:
         - (*database/sql.DB).Close
         - (*database/sql.Rows).Close
         - (*github.com/neotoxicfr/agendarr/internal/store.Store).Close
+        # bufio.Writer errors are sticky and returned by Flush, which is checked
+        - (*bufio.Writer).WriteString
+        - (*bufio.Writer).WriteByte
 
   exclusions:
     paths:
