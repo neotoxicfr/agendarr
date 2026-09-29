@@ -1,0 +1,181 @@
+[
+ {
+  "id": 4819,
+  "title": "Mayday",
+  "year": 2026,
+  "tmdbId": 1137844,
+  "imdbId": "tt28014327",
+  "overview": "Un pilote de la Navy envoyé en mission secrète durant la guerre froide se retrouve piégé en territoire ennemi. Son seul espoir de survie est de s'allier à un ex-agent du KGB excentrique.",
+  "runtime": 111,
+  "digitalRelease": "2026-09-03T00:00:00Z",
+  "releaseDate": "2026-09-03T00:00:00Z",
+  "hasFile": true,
+  "monitored": true,
+  "genres": [
+   "Action",
+   "Comedy"
+  ],
+  "images": [
+   {
+    "coverType": "poster",
+    "remoteUrl": "https://image.tmdb.org/t/p/original/hVXjX1jLZ1ljFSNGXpjJfbTUOa7.jpg"
+   },
+   {
+    "coverType": "fanart",
+    "remoteUrl": "https://image.tmdb.org/t/p/original/g7Ccid5kuD7A8hXWlsQiNfwOxaD.jpg"
+   }
+  ],
+  "status": "released"
+ },
+ {
+  "id": 3918,
+  "title": "KPop Demon Hunters",
+  "year": 2025,
+  "tmdbId": 803796,
+  "imdbId": "tt14205554",
+  "overview": "Quand elles ne remplissent pas les stades, Rumi, Mira et Zoey, superstars de la K-pop, utilisent leurs pouvoirs secrets pour protéger leurs fans de menaces surnaturelles.",
+  "runtime": 96,
+  "inCinemas": "2025-08-23T00:00:00Z",
+  "digitalRelease": "2025-06-19T00:00:00Z",
+  "physicalRelease": "2026-11-03T00:00:00Z",
+  "releaseDate": "2025-06-19T00:00:00Z",
+  "hasFile": true,
+  "monitored": true,
+  "genres": [
+   "Fantasy",
+   "Music",
+   "Comedy",
+   "Animation"
+  ],
+  "images": [
+   {
+    "coverType": "poster",
+    "remoteUrl": "https://image.tmdb.org/t/p/original/zT7Lhw3BhJbMkRqm9Zlx2YGMsY0.jpg"
+   },
+   {
+    "coverType": "fanart",
+    "remoteUrl": "https://image.tmdb.org/t/p/original/w3Bi0wygeFQctn6AqFTwhGNXRwL.jpg"
+   }
+  ],
+  "status": "released"
+ },
+ {
+  "id": 4643,
+  "title": "La bataille de Gaulle : L'âge de fer",
+  "year": 2026,
+  "tmdbId": 1165366,
+  "imdbId": "tt28553375",
+  "overview": "Juin 1940. La France s'effondre et signe l’armistice. Au milieu du chaos, un homme refuse de céder. Seul contre tous, ce général inconnu s'échappe vers Londres pour sauver ce qu'il reste d'un rêve : la liberté. Sans armée, sans appui, sans espoir. Mais avec une folle conviction : la France, sa France, n'a pas déposé les armes. Il tente un ultime pari : convaincre le monde que la bataille de France n'est ni terminée, ni perdue. La réalité est têtue, et lui donne tort. Mais peu à peu se lèvent autour de lui en Angleterre, en France et en Afrique des résistants de l'ombre, des lycéens révoltés, des soldats déterminés. Leur foi, leur audace, leur rage de liberté défient l'Histoire qui semblait pourtant écrite d’avance.",
+  "runtime": 160,
+  "inCinemas": "2026-06-03T00:00:00Z",
+  "physicalRelease": "2026-11-04T00:00:00Z",
+  "releaseDate": "2026-11-04T00:00:00Z",
+  "hasFile": false,
+  "monitored": true,
+  "genres": [
+   "History",
+   "Drama"
+  ],
+  "images": [
+   {
+    "coverType": "poster",
+    "remoteUrl": "https://image.tmdb.org/t/p/original/bJ9TGclvkkHbc03MjHdbdvgyYww.jpg"
+   },
+   {
+    "coverType": "fanart",
+    "remoteUrl": "https://image.tmdb.org/t/p/original/ovzRhiBZjaZXTX5dd36yL9BvGyr.jpg"
+   }
+  ],
+  "status": "inCinemas"
+ },
+ {
+  "id": 4810,
+  "title": "Hope",
+  "year": 2026,
+  "tmdbId": 1058424,
+  "imdbId": "tt27369017",
+  "overview": "Alors que les secours sont mobilisés ailleurs et que toute communication est interrompue, les habitants de Hope doivent faire face seuls à une menace grandissante. Tandis que certains tentent de protéger le village, d’autres s’aventurent dans la montagne… mais deviennent à leur tour des proies. L’ignorance et la peur déclenchent une spirale incontrôlable aux conséquences dévastatrices.",
+  "runtime": 157,
+  "inCinemas": "2026-07-15T00:00:00Z",
+  "digitalRelease": "2026-10-13T00:00:00Z",
+  "releaseDate": "2026-10-13T00:00:00Z",
+  "hasFile": false,
+  "monitored": true,
+  "genres": [
+   "Science Fiction",
+   "Mystery",
+   "Action"
+  ],
+  "images": [
+   {
+    "coverType": "poster",
+    "remoteUrl": "https://image.tmdb.org/t/p/original/1n37BJchWHLiSYQkuFxe5KjB951.jpg"
+   },
+   {
+    "coverType": "fanart",
+    "remoteUrl": "https://image.tmdb.org/t/p/original/hrCTKrc3Tz2wbPOt5rcrlAhqF11.jpg"
+   }
+  ],
+  "status": "inCinemas"
+ },
+ {
+  "id": 4318,
+  "title": "L'Odyssée",
+  "year": 2026,
+  "tmdbId": 1368337,
+  "imdbId": "tt33764258",
+  "overview": "Vingt ans après son départ pour la guerre de Troie, le roi Ulysse rentre enfin à Ithaque, mais son voyage est parsemé d'aventures et d'épreuves.",
+  "runtime": 173,
+  "inCinemas": "2026-07-15T00:00:00Z",
+  "digitalRelease": "2026-11-15T00:00:00Z",
+  "physicalRelease": "2026-11-17T00:00:00Z",
+  "releaseDate": "2026-11-15T00:00:00Z",
+  "hasFile": false,
+  "monitored": true,
+  "genres": [
+   "Adventure",
+   "Action",
+   "Fantasy"
+  ],
+  "images": [
+   {
+    "coverType": "poster",
+    "remoteUrl": "https://image.tmdb.org/t/p/original/5rhTDKUhPYvpdQIijFIs5VoWsON.jpg"
+   },
+   {
+    "coverType": "fanart",
+    "remoteUrl": "https://image.tmdb.org/t/p/original/bulFtfy3oBQtCnAMSi7g6DSSds3.jpg"
+   }
+  ],
+  "status": "inCinemas"
+ },
+ {
+  "id": 4806,
+  "title": "Mutiny",
+  "year": 2026,
+  "tmdbId": 1288445,
+  "imdbId": "tt32338669",
+  "overview": "Cole Reed, ancien agent des forces spéciales reconverti en chef de sécurité, est accusé à tort du meurtre de son patron. Remontant le fil de la machination dont il est victime, il se retrouve piégé à bord d’un porte-conteneurs dont l’équipage est composé de mercenaires. En haute mer, Reed ne pourra compter sur aucune aide…",
+  "runtime": 96,
+  "inCinemas": "2026-08-19T00:00:00Z",
+  "digitalRelease": "2026-09-08T00:00:00Z",
+  "releaseDate": "2026-09-08T00:00:00Z",
+  "hasFile": true,
+  "monitored": true,
+  "genres": [
+   "Action",
+   "Thriller"
+  ],
+  "images": [
+   {
+    "coverType": "poster",
+    "remoteUrl": "https://image.tmdb.org/t/p/original/pu2VxGlpGwffOx292w18b1tv96j.jpg"
+   },
+   {
+    "coverType": "fanart",
+    "remoteUrl": "https://image.tmdb.org/t/p/original/e2QAGrEmbpmZpMymDRkDisJkvg9.jpg"
+   }
+  ],
+  "status": "released"
+ }
+]

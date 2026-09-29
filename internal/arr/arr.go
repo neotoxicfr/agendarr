@@ -3,6 +3,7 @@ package arr
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 	"time"
 
@@ -22,14 +23,19 @@ type Image struct {
 	RemoteURL string `json:"remoteUrl"` // TMDB/TVDB CDN
 }
 
-// Poster returns the local poster path, if any.
-func Poster(images []Image) string {
+// HasPoster reports whether the item has a poster.
+func HasPoster(images []Image) bool {
 	for _, im := range images {
-		if im.CoverType == "poster" && im.URL != "" {
-			return im.URL
+		if im.CoverType == "poster" && (im.URL != "" || im.RemoteURL != "") {
+			return true
 		}
 	}
-	return ""
+	return false
+}
+
+// PosterPath is the API path of a cached poster; width is 250 or 500.
+func PosterPath(mediaID int64, width int) string {
+	return fmt.Sprintf("/api/v3/mediacover/%d/poster-%d.jpg", mediaID, width)
 }
 
 // Movie is a Radarr calendar entry.

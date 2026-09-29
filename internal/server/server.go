@@ -17,7 +17,9 @@ import (
 
 	"github.com/alexedwards/scs/sqlite3store"
 	"github.com/alexedwards/scs/v2"
+	"golang.org/x/sync/singleflight"
 
+	"github.com/neotoxicfr/agendarr/internal/calendar"
 	"github.com/neotoxicfr/agendarr/internal/config"
 	"github.com/neotoxicfr/agendarr/internal/i18n"
 	"github.com/neotoxicfr/agendarr/internal/plex"
@@ -45,6 +47,8 @@ type Server struct {
 	ownerKnown atomic.Bool // setup completed; never goes back to false
 
 	onInstancesChanged func()
+	cal                *calendar.Service
+	posterSF           singleflight.Group
 }
 
 // New builds a Server and parses the templates.
@@ -79,6 +83,9 @@ func New(cfg config.Config, st *store.Store, box *secret.Box, log *slog.Logger) 
 		log.Warn("AGENDARR_PLEX_TV_URL set: plex.tv is replaced, test benches only", "url", cfg.PlexTVURL)
 		s.plex.TVBase, s.plex.ClientsBase = cfg.PlexTVURL, cfg.PlexTVURL
 	}
+
+	s.cal = calendar.New(s.calendarSources, log)
+	s.onInstancesChanged = s.cal.Invalidate
 
 	gob.Register([]string(nil)) // flash messages
 	s.sessions = scs.New()
@@ -118,6 +125,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /lang", s.handleLang)
 
 	mux.HandleFunc("GET /{$}", s.requireUser(s.handleHome))
+	mux.HandleFunc("GET /api/calendar", s.requireUser(s.handleCalendarAPI))
+	mux.HandleFunc("GET /img/{inst}/{id}", s.requireUser(s.handlePoster))
 
 	mux.HandleFunc("GET /admin", s.requireAdmin(s.handleAdmin))
 	mux.HandleFunc("GET /admin/users", s.requireAdmin(s.handleAdminUsers))
@@ -146,10 +155,6 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte("ok\n"))
 }
 
-func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
-	s.render(w, r, http.StatusOK, "home", pageData{})
-}
-
 func (s *Server) handleOffline(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, http.StatusOK, "offline", pageData{Title: "title.offline"})
 }
@@ -169,7 +174,7 @@ type pageData struct {
 }
 
 // jsPrefixes are the label groups exposed to app.js.
-var jsPrefixes = []string{"login.", "js."}
+var jsPrefixes = []string{"login.", "js.", "cal."}
 
 // render executes a page into a buffer first, so a template error becomes a
 // clean 500 instead of a half-written page.

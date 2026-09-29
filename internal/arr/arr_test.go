@@ -61,7 +61,7 @@ func TestCalendars(t *testing.T) {
 		t.Fatalf("movies: %+v %v", mv, err)
 	}
 	ep, err := c.Episodes(ctx, now, now.Add(time.Hour))
-	if err != nil || len(ep) != 1 || ep[0].Series.TvdbID != 123 || Poster(ep[0].Series.Images) != "/MediaCover/3/poster.jpg?lastWrite=1" {
+	if err != nil || len(ep) != 1 || ep[0].Series.TvdbID != 123 || !HasPoster(ep[0].Series.Images) {
 		t.Fatalf("episodes: %+v %v", ep, err)
 	}
 }
