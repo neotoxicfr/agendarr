@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/gob"
 	"encoding/hex"
 	"html/template"
 	"io/fs"
@@ -42,6 +43,8 @@ type Server struct {
 	sessions   *scs.SessionManager
 	plex       *plex.Client
 	ownerKnown atomic.Bool // setup completed; never goes back to false
+
+	onInstancesChanged func()
 }
 
 // New builds a Server and parses the templates.
@@ -72,7 +75,12 @@ func New(cfg config.Config, st *store.Store, box *secret.Box, log *slog.Logger) 
 		}
 	}
 	s.plex = plex.New(clientID, Version)
+	if cfg.PlexTVURL != "" {
+		log.Warn("AGENDARR_PLEX_TV_URL set: plex.tv is replaced, test benches only", "url", cfg.PlexTVURL)
+		s.plex.TVBase, s.plex.ClientsBase = cfg.PlexTVURL, cfg.PlexTVURL
+	}
 
+	gob.Register([]string(nil)) // flash messages
 	s.sessions = scs.New()
 	s.sessions.Store = sqlite3store.New(st.DB)
 	s.sessions.Lifetime = 400 * 24 * time.Hour
@@ -114,6 +122,14 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /admin", s.requireAdmin(s.handleAdmin))
 	mux.HandleFunc("GET /admin/users", s.requireAdmin(s.handleAdminUsers))
 	mux.HandleFunc("POST /admin/users/{id}/{action}", s.requireAdmin(s.handleAdminUserAction))
+	mux.HandleFunc("GET /admin/instances", s.requireAdmin(s.handleAdminInstances))
+	mux.HandleFunc("GET /admin/instances/new", s.requireAdmin(s.handleInstanceForm))
+	mux.HandleFunc("POST /admin/instances/new", s.requireAdmin(s.handleInstanceSave))
+	mux.HandleFunc("POST /admin/instances/test", s.requireAdmin(s.handleInstanceTest))
+	mux.HandleFunc("GET /admin/instances/{id}", s.requireAdmin(s.handleInstanceForm))
+	mux.HandleFunc("POST /admin/instances/{id}", s.requireAdmin(s.handleInstanceSave))
+	mux.HandleFunc("POST /admin/instances/{id}/delete", s.requireAdmin(s.handleInstanceDelete))
+	mux.HandleFunc("POST /admin/instances/{id}/import", s.requireAdmin(s.handleSeerrImport))
 
 	// Cross-origin state-changing requests are rejected (Sec-Fetch-Site /
 	// Origin checks), which is our CSRF defence alongside SameSite=Lax.
@@ -148,6 +164,7 @@ type pageData struct {
 	Langs   []string
 	T       map[string]string
 	JS      map[string]string // labels the front-end scripts need
+	Flash   string
 	Data    any
 }
 
@@ -169,6 +186,7 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, status int, name
 	d.Lang = s.i18n.Pick(r)
 	d.Langs = s.i18n.Langs()
 	d.T = s.i18n.Map(d.Lang)
+	d.Flash = s.takeFlash(r, d.T)
 	d.JS = map[string]string{}
 	for k, v := range d.T {
 		for _, p := range jsPrefixes {

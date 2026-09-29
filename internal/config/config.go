@@ -22,6 +22,9 @@ type Config struct {
 	// username or email, so a freshly exposed instance cannot be claimed by
 	// someone else.
 	SetupPlexUser string
+	// PlexTVURL replaces https://plex.tv and https://clients.plex.tv. Only
+	// for test benches running a fake plex.tv; never set it in production.
+	PlexTVURL string
 	// SecureCookies forces the Secure flag on cookies. Defaults to true when
 	// BaseURL is https.
 	SecureCookies bool
@@ -34,6 +37,7 @@ func Load() (Config, error) {
 		DataDir:       env("AGENDARR_DATA_DIR", "./data"),
 		BaseURL:       strings.TrimRight(os.Getenv("AGENDARR_BASE_URL"), "/"),
 		SetupPlexUser: strings.TrimSpace(os.Getenv("AGENDARR_SETUP_PLEX_USER")),
+		PlexTVURL:     strings.TrimRight(os.Getenv("AGENDARR_PLEX_TV_URL"), "/"),
 	}
 	if c.BaseURL != "" {
 		u, err := url.Parse(c.BaseURL)

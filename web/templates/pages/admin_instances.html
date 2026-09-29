@@ -1,0 +1,38 @@
+{{define "content"}}<div class="page">
+  <h1>{{index .T "title.admin"}}</h1>
+  {{template "admin_nav" .}}
+  <p class="lead">{{index .T "inst.lead"}}</p>
+  {{range $kind := .Data.Kinds}}
+  {{$name := index $.Data.Names $kind}}
+  <section class="group" aria-labelledby="h-{{$kind}}">
+    <div class="group-head">
+      <h2 id="h-{{$kind}}">{{$name}}</h2>
+      <a class="btn btn-sm" href="/admin/instances/new?kind={{$kind}}">{{printf (index $.T "inst.add") $name}}</a>
+    </div>
+    {{with index $.Data.Groups $kind}}
+    <ul class="rows">
+      {{range .}}
+      <li class="row">
+        <span class="kind-dot kind-{{.Kind}}" aria-hidden="true"></span>
+        <div class="row-main">
+          <span class="row-title">{{.Name}}
+            {{if .Enabled}}<span class="tag tag-ok">{{index $.T "inst.enabled"}}</span>{{else}}<span class="tag">{{index $.T "inst.disabled"}}</span>{{end}}
+          </span>
+          <span class="row-meta">{{.URL}}</span>
+        </div>
+        <div class="row-actions">
+          {{if eq .Kind "seerr"}}
+          <form method="post" action="/admin/instances/{{.ID}}/import"><button class="btn btn-sm" type="submit" title="{{index $.T "inst.import_help"}}">{{index $.T "inst.import"}}</button></form>
+          {{end}}
+          <a class="btn btn-sm" href="/admin/instances/{{.ID}}" aria-label="{{printf (index $.T "inst.edit_aria") .Name}}">{{index $.T "inst.edit"}}</a>
+          <form method="post" action="/admin/instances/{{.ID}}/delete" data-confirm="{{printf (index $.T "inst.delete_confirm") .Name}}"><button class="btn btn-sm btn-danger" type="submit">{{index $.T "inst.delete"}}</button></form>
+        </div>
+      </li>
+      {{end}}
+    </ul>
+    {{else}}
+    <p class="muted">{{printf (index $.T "inst.empty") $name}}</p>
+    {{end}}
+  </section>
+  {{end}}
+</div>{{end}}

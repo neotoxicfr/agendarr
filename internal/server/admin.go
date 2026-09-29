@@ -1,12 +1,32 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 )
 
+// handleAdmin opens on the instances until at least one exists, since that
+// is the first thing a fresh install needs.
 func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
-	http.Redirect(w, r, "/admin/users", http.StatusSeeOther)
+	http.Redirect(w, r, "/admin/instances", http.StatusSeeOther)
+}
+
+// flash stores a one-shot message: an i18n key and its arguments.
+func (s *Server) flash(r *http.Request, key string, args ...string) {
+	s.sessions.Put(r.Context(), "flash", append([]string{key}, args...))
+}
+
+func (s *Server) takeFlash(r *http.Request, T map[string]string) string {
+	v, ok := s.sessions.Pop(r.Context(), "flash").([]string)
+	if !ok || len(v) == 0 {
+		return ""
+	}
+	args := make([]any, len(v)-1)
+	for i, a := range v[1:] {
+		args[i] = a
+	}
+	return fmt.Sprintf(T[v[0]], args...)
 }
 
 func (s *Server) handleAdminUsers(w http.ResponseWriter, r *http.Request) {

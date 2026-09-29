@@ -75,3 +75,36 @@ if (loginBtn) {
     }
   });
 }
+
+// Instance form: the API key hint follows the kind, and "Test" checks the
+// values as typed without saving them.
+const instForm = document.querySelector("[data-instance-form]");
+if (instForm) {
+  const syncKind = () => {
+    const kind = (instForm.querySelector("[name=kind]:checked") || instForm.querySelector("[name=kind]")).value;
+    instForm.querySelectorAll("[data-kind-help]").forEach((el) => {
+      el.hidden = el.dataset.kindHelp !== (kind === "seerr" ? "seerr" : "arr");
+    });
+  };
+  instForm.addEventListener("change", syncKind);
+  syncKind();
+
+  const out = instForm.querySelector("[data-test-result]");
+  const btn = instForm.querySelector("[data-test-instance]");
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    out.className = "test-result";
+    out.textContent = t("js.testing");
+    try {
+      const res = await fetch("/admin/instances/test", { method: "POST", body: new FormData(instForm) });
+      const body = await res.json();
+      out.textContent = body.message;
+      out.classList.add(body.ok ? "is-ok" : "is-error");
+    } catch {
+      out.textContent = t("js.test_failed");
+      out.classList.add("is-error");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}

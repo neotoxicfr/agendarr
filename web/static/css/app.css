@@ -37,11 +37,11 @@
     --line: #dcd9d0;
     --text: #1c1d24;
     --text-2: #5c5f6d;
-    --accent: #b86200;
+    --accent: #9a4f00;
     --accent-ink: #ffffff;
     --movie: #0b6fb8;
     --episode: #6a43c9;
-    --ok: #16804f;
+    --ok: #0b6a3d;
     --warn: #a35a00;
     --danger: #c02f2f;
   }
@@ -177,12 +177,39 @@ main { padding: var(--gap) max(var(--gap), env(safe-area-inset-right)) calc(var(
 .tag-accent { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
 .tag-danger { background: color-mix(in srgb, var(--danger) 16%, transparent); color: var(--danger); }
 
+.nav-icon { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.nav a .nav-icon { display: none; }
+.btn-logout .nav-icon { display: none; }
+.btn { white-space: nowrap; }
+.row-actions { flex-wrap: wrap; justify-content: flex-end; }
+
+/* Phone: the main navigation becomes a bottom tab bar, within thumb reach;
+   the top bar keeps the brand and the account. */
 @media (max-width: 720px) {
-  .me-name { display: none; }
-  .nav { margin-left: 0; }
-  .nav a { padding: 0 10px; }
+  :root { --tabbar-h: 60px; }
+  /* backdrop-filter would make the top bar the containing block of the
+     fixed tab bar inside it, pinning the tab bar to the top. */
+  .topbar { backdrop-filter: none; background: var(--bg); }
+  body:has(.nav) { padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom)); }
+  .me-name, .logout-label { display: none; }
+  .btn-logout { width: var(--tap); padding: 0; }
+  .btn-logout .nav-icon { display: block; }
+  .nav {
+    position: fixed; z-index: 20; left: 0; right: 0; bottom: 0; margin: 0; gap: 0;
+    padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    background: color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter: blur(12px);
+    border-top: 1px solid var(--line);
+  }
+  .nav a {
+    flex: 1; flex-direction: column; justify-content: center; gap: 2px;
+    height: var(--tabbar-h); padding: 0 4px; border-radius: 0;
+    font-size: 0.75rem; font-weight: 600;
+  }
+  .nav a .nav-icon { display: block; width: 24px; height: 24px; }
+  .nav a:hover, .nav a[aria-current="page"] { background: none; }
+  .nav a[aria-current="page"] { color: var(--accent); }
   .row { flex-wrap: wrap; }
-  .row-actions { width: 100%; padding-left: 54px; }
+  .row-actions { width: 100%; justify-content: flex-start; padding-left: 24px; }
 }
 .prose { max-width: 42rem; }
 .prose h2 { margin-top: 28px; }
@@ -194,3 +221,57 @@ main { padding: var(--gap) max(var(--gap), env(safe-area-inset-right)) calc(var(
 }
 .skip:focus { top: 8px; }
 main:focus { outline: none; }
+
+/* --- instances & forms ---------------------------------------------------- */
+:root { --radarr: var(--movie); --sonarr: var(--episode); --seerr: var(--accent); }
+.muted { color: var(--text-2); }
+.flash {
+  padding: 10px 14px; border-radius: var(--radius); margin: 0 0 16px;
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ok) 40%, transparent);
+}
+.group { margin-top: 28px; }
+.group-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.group-head h2 { margin: 0; }
+.kind-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.kind-radarr { background: var(--radarr); }
+.kind-sonarr { background: var(--sonarr); }
+.kind-seerr { background: var(--seerr); }
+.tag-ok { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
+
+.form {
+  max-width: 40rem; padding: 24px; margin-top: 8px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+}
+.form h2 { margin-bottom: 20px; }
+.field { margin: 0 0 20px; padding: 0; border: 0; min-width: 0; }
+.field > label, .field > legend { display: block; font-weight: 600; margin-bottom: 6px; padding: 0; }
+.field input[type=text], .field input:not([type]), .field input[type=url], .field input[type=password] {
+  width: 100%; min-height: var(--tap); padding: 0 12px;
+  border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--bg); color: var(--text); font: inherit;
+}
+.field input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-color: transparent; }
+.field input[aria-invalid="true"] { border-color: var(--danger); }
+.help { margin: 6px 0 0; color: var(--text-2); font-size: var(--fs-1); }
+.error { margin: 6px 0 0; color: var(--danger); font-size: var(--fs-1); font-weight: 600; }
+.check { display: inline-flex; align-items: center; gap: 10px; min-height: var(--tap); cursor: pointer; font-weight: 500 !important; }
+.check input { width: 20px; height: 20px; accent-color: var(--accent); }
+.segmented { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 4px; border-radius: var(--radius); background: var(--bg); border: 1px solid var(--line); }
+.segmented label { position: relative; }
+.segmented input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.segmented span { display: inline-flex; align-items: center; min-height: 40px; padding: 0 16px; border-radius: var(--radius-sm); color: var(--text-2); font-weight: 600; }
+.segmented input:checked + span { background: var(--surface-2); color: var(--text); box-shadow: inset 0 0 0 1px var(--line); }
+.segmented input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 1px; }
+.test-result { min-height: 1.5em; margin: 0 0 12px; font-size: var(--fs-1); color: var(--text-2); }
+.test-result.is-ok { color: var(--ok); font-weight: 600; }
+.test-result.is-error { color: var(--danger); font-weight: 600; }
+.form-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.spacer { flex: 1; }
+
+@media (max-width: 720px) {
+  .form { padding: 16px; margin-left: calc(-1 * var(--gap) + 4px); margin-right: calc(-1 * var(--gap) + 4px); }
+  .form-actions .btn-primary { flex: 1 1 100%; order: -1; }
+  .form-actions [data-test-instance] { flex: 1; }
+  .form-actions .spacer { display: none; }
+}
