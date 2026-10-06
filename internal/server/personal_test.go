@@ -3,11 +3,13 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/neotoxicfr/agendarr/internal/config"
 	"github.com/neotoxicfr/agendarr/internal/store"
@@ -104,6 +106,19 @@ func TestPersonalFilters(t *testing.T) {
 	got, _ = titles("&mine=seerr,watching,bogus")
 	if len(got) != 2 {
 		t.Fatalf("union: %v", got)
+	}
+	// After a failed sync, the next request waits for the retry instead of
+	// serving the empty set with the old error.
+	u, err := h.srv.store.UserByPlexID(ctx, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.srv.store.SetUserMedia(ctx, u.ID, "watched", nil, errors.New("boom"), time.Now().Add(-2*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	got, errs = titles("&mine=watched")
+	if strings.Join(got, ";") != "Watched Show|" || len(errs) != 0 {
+		t.Fatalf("retry after failure: %v %v", got, errs)
 	}
 	// The history is cached in plex_guids: a second user sync reuses it.
 	if g, _ := h.srv.store.PlexGuids(ctx, []string{"2199"}); len(g["2199"]) != 1 {

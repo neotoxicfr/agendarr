@@ -361,22 +361,23 @@ func (s *Service) source(ctx context.Context, u store.User, src string) (map[str
 		return out, nil
 	}
 	key := fmt.Sprintf("%d/%s", u.ID, src)
-	if set != nil {
+	if set != nil && stored == nil {
 		// Stale: answer with what we have, refresh behind.
 		go func() { _, _, _ = s.sf.Do(key, sync) }()
-		return set, stored
+		return set, nil
 	}
-	// First sync: wait for it, but not past the HTTP write timeout; a long
-	// history keeps syncing in the background and shows up on a reload.
+	// First sync, or the last one failed (what we have may be empty): wait
+	// for it, but not past the HTTP write timeout; a long history keeps
+	// syncing in the background and shows up on a reload.
 	ch := s.sf.DoChan(key, sync)
 	select {
 	case r := <-ch:
 		if r.Err != nil {
-			return nil, r.Err
+			return set, r.Err
 		}
 		return r.Val.(map[string]bool), nil
 	case <-time.After(firstSyncWait):
-		return nil, ErrSyncing
+		return set, ErrSyncing
 	}
 }
 
