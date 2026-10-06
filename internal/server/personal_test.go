@@ -45,7 +45,7 @@ func fakeUpstream(t *testing.T) *httptest.Server {
 		j(w, `{"MediaContainer":{"totalSize":1,"Metadata":[{"type":"episode","ratingKey":"7","grandparentKey":"/library/metadata/2199","viewedAt":1790000000}]}}`)
 	})
 	mux.HandleFunc("GET /plex/library/metadata/2199", func(w http.ResponseWriter, r *http.Request) {
-		j(w, `{"MediaContainer":{"Metadata":[{"ratingKey":"2199","Guid":[{"id":"tvdb://73871"}]}]}}`)
+		j(w, `{"MediaContainer":{"Metadata":[{"ratingKey":"2199","guid":"plex://show/x","Guid":[{"id":"tvdb://73871"}]}]}}`)
 	})
 	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)

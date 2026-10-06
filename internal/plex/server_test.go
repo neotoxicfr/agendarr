@@ -27,12 +27,12 @@ func TestServerHistoryAndGuids(t *testing.T) {
 		 {"type":"track","ratingKey":"1","viewedAt":1}]}}`)
 	})
 	mux.HandleFunc("GET /library/metadata/{ids}", func(w http.ResponseWriter, r *http.Request) {
-		if r.PathValue("ids") != "2199,83745,999" {
+		if r.PathValue("ids") != "2199,83745,999" || r.URL.Query().Get("includeGuids") != "1" {
 			http.NotFound(w, r)
 			return
 		}
 		io.WriteString(w, `{"MediaContainer":{"Metadata":[
-		 {"ratingKey":"2199","Guid":[{"id":"imdb://tt0149460"},{"id":"tmdb://615"},{"id":"tvdb://73871"}]},
+		 {"ratingKey":"2199","guid":"plex://show/x","Guid":[{"id":"imdb://tt0149460"},{"id":"tmdb://615"},{"id":"tvdb://73871"}]},
 		 {"ratingKey":"83745","Guid":[{"id":"tmdb://616037"},{"id":"plex://movie/x"}]}]}}`)
 	})
 	ts := httptest.NewServer(mux)

@@ -196,13 +196,16 @@ func (s *Server) Guids(ctx context.Context, keys []string) (map[string][]string,
 			MediaContainer struct {
 				Metadata []struct {
 					RatingKey string `json:"ratingKey"`
-					Guid      []struct {
+					// "guid" is the plex:// string; without this exact
+					// field encoding/json would fold it into "Guid".
+					PlexGuid string `json:"guid"`
+					Guid     []struct {
 						ID string `json:"id"`
 					} `json:"Guid"`
 				} `json:"Metadata"`
 			} `json:"MediaContainer"`
 		}
-		err := s.get(ctx, "/library/metadata/"+strings.Join(keys[i:j], ","), nil, &v)
+		err := s.get(ctx, "/library/metadata/"+strings.Join(keys[i:j], ","), url.Values{"includeGuids": {"1"}}, &v)
 		if errors.Is(err, errNotFound) {
 			continue
 		}
@@ -241,7 +244,8 @@ func (c *Client) Watchlist(ctx context.Context, token string) ([]string, error) 
 			MediaContainer struct {
 				TotalSize int `json:"totalSize"`
 				Metadata  []struct {
-					Guid []struct {
+					PlexGuid string `json:"guid"` // see Guids
+					Guid     []struct {
 						ID string `json:"id"`
 					} `json:"Guid"`
 				} `json:"Metadata"`

@@ -336,7 +336,11 @@ func (s *Service) source(ctx context.Context, u store.User, src string) (map[str
 	if syncErr != "" {
 		stored = errors.New(syncErr)
 	}
-	if set != nil && s.now().Sub(at) < ttl[src] {
+	fresh := ttl[src]
+	if stored != nil {
+		fresh = seerrBackoff // a failed sync is retried soon, not after the full TTL
+	}
+	if set != nil && s.now().Sub(at) < fresh {
 		return set, stored
 	}
 	sync := func() (any, error) {
