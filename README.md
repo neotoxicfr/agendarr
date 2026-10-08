@@ -10,7 +10,7 @@ Radarr, Sonarr and Seerr in one calendar. Everyone signs in with their Plex acco
 and sees everything that's coming, or just what they care about.
 
 [![CI](https://github.com/neotoxicfr/agendarr/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/neotoxicfr/agendarr/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/badge/release-v0.1.0-blue)](https://github.com/neotoxicfr/agendarr/releases)
+[![Release](https://img.shields.io/badge/release-v0.2.0-blue)](https://github.com/neotoxicfr/agendarr/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 </div>
