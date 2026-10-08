@@ -20,6 +20,9 @@ const Product = "Agendarr"
 // ErrUnauthorized is returned when plex.tv rejects the token.
 var ErrUnauthorized = errors.New("plex: unauthorized")
 
+// ErrNotFound is returned on a 404 from plex.tv.
+var ErrNotFound = errors.New("plex: not found")
+
 // Client calls plex.tv. The zero value is not usable; use New.
 type Client struct {
 	// ClientID identifies this agendarr install (X-Plex-Client-Identifier).
@@ -78,7 +81,11 @@ func (c *Client) do(ctx context.Context, method, rawURL, token string, out any) 
 	}
 	if res.StatusCode < 200 || res.StatusCode > 299 {
 		body, _ := io.ReadAll(io.LimitReader(res.Body, 512))
-		return fmt.Errorf("plex: %s %s: HTTP %d: %s", method, redact(rawURL), res.StatusCode, body)
+		err := fmt.Errorf("plex: %s %s: HTTP %d: %s", method, redact(rawURL), res.StatusCode, body)
+		if res.StatusCode == http.StatusNotFound {
+			err = fmt.Errorf("%w: %w", ErrNotFound, err)
+		}
+		return err
 	}
 	if out == nil {
 		return nil
