@@ -53,6 +53,8 @@ type Server struct {
 	personal           *personal.Service
 	plexConn           plexConn
 	plexLib            plexLibrary
+	tracks             trackCache
+	tracksSF           singleflight.Group
 	posterSF           singleflight.Group
 }
 
@@ -126,6 +128,7 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("GET /{$}", s.requireUser(s.handleHome))
 	mux.HandleFunc("GET /api/calendar", s.requireUser(s.handleCalendarAPI))
+	mux.HandleFunc("GET /api/tracks", s.requireUser(s.handleTracks))
 	mux.HandleFunc("GET /img/{inst}/{id}", s.requireUser(s.handlePoster))
 	mux.HandleFunc("GET /sync", s.requireUser(s.handleSync))
 	mux.HandleFunc("POST /sync/new", s.requireUser(s.handleSyncNew))

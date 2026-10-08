@@ -10,7 +10,7 @@ Radarr, Sonarr and Seerr in one calendar. Everyone signs in with their Plex acco
 and sees everything that's coming, or just what they care about.
 
 [![CI](https://github.com/neotoxicfr/agendarr/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/neotoxicfr/agendarr/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/badge/release-v0.2.0-blue)](https://github.com/neotoxicfr/agendarr/releases)
+[![Release](https://img.shields.io/badge/release-v0.3.0-blue)](https://github.com/neotoxicfr/agendarr/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 </div>
@@ -56,6 +56,11 @@ and only the admin can open them. Agendarr gives the whole household one calenda
 - **Plex sign-in.** On first run, the owner of the Plex server becomes the
   administrator and their server is bound automatically. Access is re-checked
   every day, so someone you stop sharing with loses access too.
+- **What you will get, before you press play.** An available release shows its
+  quality, HDR, video and audio formats, and every audio and subtitle track
+  from Plex (language as a flag, title, forced, SDH). One click opens it in
+  Plex; administrators also get Radarr or Sonarr. TMDB, TVDB, IMDb and
+  Letterboxd links, each person picking the ones they use.
 - **Personal filters**, which can be combined: Seerr requests, shows watched in
   the last 90 days, Plex watchlist, full Plex history. Every release shows who
   requested it.
@@ -241,4 +246,6 @@ security issues privately as described in [SECURITY.md](SECURITY.md).
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE). Country flags come from [Twemoji](https://github.com/twitter/twemoji)
+(CC-BY 4.0) through [country-flag-emoji-polyfill](https://github.com/talkjs/country-flag-emoji-polyfill)
+(MIT), see [`web/static/fonts`](web/static/fonts/LICENSE.md).

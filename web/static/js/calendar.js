@@ -61,6 +61,7 @@
     filters: normFilters(Object.assign({ movies: true, episodes: true, status: "all", hideUnmonitored: false, instances: {} }, store.get("filters", {}))),
     mine: store.get("mine", []),
     shortcuts: store.get("shortcuts", true),
+    sites: store.get("sites", ["tmdb", "imdb"]),
     agendaWeeks: 5,
     selected: null, // phone month view: selected day key
   };
@@ -541,6 +542,11 @@
       state.mine = [...root.querySelectorAll("[data-mine]:checked")].map((c) => c.dataset.mine);
       saveFilters();
     } else if (x.hasAttribute("data-shortcuts")) { state.shortcuts = x.checked; syncControls(); savePrefs(); }
+    else if (x.dataset.site) {
+      state.sites = [...root.querySelectorAll("[data-site]:checked")].map((c) => c.dataset.site);
+      store.set("sites", state.sites);
+      savePrefs();
+    }
   });
   function saveFilters() {
     store.set("filters", state.filters);
@@ -557,7 +563,7 @@
     saveTimer = setTimeout(() => {
       fetch("/api/prefs", {
         method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mine: state.mine, filters: state.filters, shortcuts: state.shortcuts }),
+        body: JSON.stringify({ mine: state.mine, filters: state.filters, shortcuts: state.shortcuts, sites: state.sites }),
       }).catch(() => {});
     }, 400);
   }
@@ -565,6 +571,7 @@
     root.querySelectorAll("[data-filter]").forEach((x) => { x.checked = !!state.filters[x.dataset.filter]; });
     root.querySelectorAll("input[name=status]").forEach((x) => { x.checked = x.value === state.filters.status; });
     root.querySelectorAll("[data-mine]").forEach((x) => { x.checked = state.mine.includes(x.dataset.mine); });
+    root.querySelectorAll("[data-site]").forEach((x) => { x.checked = state.sites.includes(x.dataset.site); });
     const sc = $("[data-shortcuts]");
     sc.checked = state.shortcuts;
     $("[data-shortcuts-note]").hidden = !state.shortcuts;
@@ -640,33 +647,108 @@
     try { dn = new Intl.DisplayNames([lang], { type: "language" }); } catch { /* old browser */ }
     return (c) => { try { return (dn && dn.of(c)) || c; } catch { return c; } };
   })();
-  const fSize = new Intl.NumberFormat(lang, { style: "unit", unit: "gigabyte", maximumFractionDigits: 1 });
-  // "WEBRip-2160p" with a 4K frame reads "4K WEBRip": the resolution once.
-  const qualityOf = (m) => {
-    const source = (m.quality || "").replace(/-?\d{3,4}p$/i, "");
-    return m.resolution ? [m.resolution, source].filter(Boolean).join(" ") : m.quality;
+  // Languages show as flags (the name stays for tooltips and screen readers).
+  // A language is not a country: a tag's own region wins (en-US, fr-CA),
+  // and a language without an obvious flag stays written out.
+  const REGION = { fr: "FR", en: "GB", ja: "JP", de: "DE", es: "ES", it: "IT", pt: "PT", ru: "RU", ko: "KR", zh: "CN",
+    nl: "NL", sv: "SE", da: "DK", no: "NO", nb: "NO", nn: "NO", fi: "FI", pl: "PL", cs: "CZ", sk: "SK", hu: "HU",
+    ro: "RO", el: "GR", tr: "TR", uk: "UA", he: "IL", hi: "IN", th: "TH", vi: "VN", id: "ID", ms: "MY", bg: "BG",
+    hr: "HR", sr: "RS", sl: "SI", et: "EE", lv: "LV", lt: "LT", is: "IS", ga: "IE", fa: "IR", fil: "PH", tl: "PH" };
+  const flagOf = (tag) => {
+    const [base, region] = String(tag || "").split("-");
+    const r = /^[A-Za-z]{2}$/.test(region || "") ? region.toUpperCase() : REGION[base.toLowerCase()];
+    return r ? String.fromCodePoint(...[...r].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65)) : "";
   };
-  const row = (label, value) => (value ? [el("dt", { text: t(label) }), el("dd", { text: value })] : null);
+  const langBadge = (tag) => {
+    const name = tag ? langName(tag) : "?";
+    const f = flagOf(tag);
+    return f ? el("span", { class: "flag", role: "img", "aria-label": name, title: name, text: f }) : el("span", { text: name });
+  };
+  const langList = (tags) => (tags || []).length ? el("span", { class: "langs" }, tags.map(langBadge)) : null;
+  const CODEC = { eac3: "E-AC3", ac3: "AC3", truehd: "TrueHD", dca: "DTS", dts: "DTS", aac: "AAC", flac: "FLAC", opus: "Opus",
+    mp3: "MP3", pcm: "PCM", srt: "SRT", subrip: "SRT", pgs: "PGS", hdmv_pgs_subtitle: "PGS", ass: "ASS", ssa: "SSA",
+    vobsub: "VobSub", dvd_subtitle: "VobSub", mov_text: "TX3G", webvtt: "WebVTT" };
+  const LAYOUT = { mono: "1.0", stereo: "2.0" };
+  const codecName = (c) => CODEC[(c || "").toLowerCase()] || (c || "").toUpperCase();
+  const trackItem = (x, audio) => el("li", {},
+    langBadge(x.lang),
+    badges(audio ? audioBadges(x.codec, x.layout) : [codecName(x.codec)]),
+    x.title ? el("span", { class: "track-title", text: x.title }) : null,
+    ...[x.forced && "cal.track_forced", x.hi && "cal.track_hi", x.external && "cal.track_external"]
+      .filter(Boolean).map((k) => el("span", { class: "pill", text: t(k) })));
+  const trackList = (list, audio) => (list?.length ? el("ul", { class: "tracks" }, list.map((x) => trackItem(x, audio))) : null);
+  const fSize = new Intl.NumberFormat(lang, { style: "unit", unit: "gigabyte", maximumFractionDigits: 1 });
+  // Formats read as badges: "4K", "WEBRip", "Dolby Vision", "HEVC", "Atmos".
+  const badges = (list) => {
+    const items = list.filter(Boolean);
+    return items.length ? el("span", { class: "fmts" }, items.map((x) => el("span", { class: "fmt", text: x, title: FULL[x] }))) : null;
+  };
+  const FULL = { DV: "Dolby Vision", "E-AC3": "Dolby Digital Plus", AC3: "Dolby Digital", TrueHD: "Dolby TrueHD" };
+  const HDR = { DV: "DV", HDR10PLUS: "HDR10+", HDR10: "HDR10", HLG: "HLG", PQ: "HDR" };
+  const hdrNames = (h) => (h || "").split(/\s+/).filter(Boolean).map((x) => HDR[x.toUpperCase()] || x);
+  const VIDEO = { X265: "HEVC", H265: "HEVC", HEVC: "HEVC", X264: "H.264", H264: "H.264", AVC: "H.264", AV1: "AV1", VP9: "VP9",
+    MPEG2: "MPEG-2", MPEG2VIDEO: "MPEG-2", VC1: "VC-1", XVID: "Xvid", DIVX: "DivX" };
+  const videoName = (c) => VIDEO[(c || "").toUpperCase().replace(/[^A-Z0-9]/g, "")] || c;
+  // "EAC3 Atmos" from Radarr, "eac3" from Plex: the same badges either way.
+  const audioBadges = (codec, channels) => {
+    const atmos = /atmos/i.test(codec || "");
+    const base = (codec || "").replace(/\s*atmos\s*/i, " ").trim();
+    return [codecName(base), atmos ? "Atmos" : "", LAYOUT[channels] || channels];
+  };
+  const row = (label, value, extra = {}) => (value
+    ? [el("dt", { text: t(label), ...extra }), el("dd", extra, value)] : null);
   const files = (e) => (e.media || []).map((m) => el("section", { class: "detail-file" },
     e.media.length > 1 ? el("h3", { text: m.instance }) : null,
     el("dl", { class: "detail-facts" },
-      row("cal.detail_quality", [qualityOf(m), m.hdr].filter(Boolean).join(" · ")),
-      row("cal.detail_video", m.video),
-      row("cal.detail_audio", [m.audio, (m.audioLangs || []).map(langName).join(", ")].filter(Boolean).join(" · ")),
-      row("cal.detail_subs", (m.subs || []).map(langName).join(", ")),
+      // "WEBRip-2160p" with a 4K frame reads "4K WEBRip": the resolution once.
+      row("cal.detail_quality", badges([m.resolution, (m.quality || "").replace(/-?\d{3,4}p$/i, "") || (m.resolution ? "" : m.quality), ...hdrNames(m.hdr)])),
+      row("cal.detail_video", badges([videoName(m.videoCodec), m.bitDepth > 8 ? `${m.bitDepth}-bit` : ""])),
+      row("cal.detail_audio", m.audioCodec || m.audioLangs?.length
+        ? el("span", { class: "langs-line" }, badges(audioBadges(m.audioCodec, m.channels)), langList(m.audioLangs)) : null),
+      row("cal.detail_subs", langList(m.subs)),
       row("cal.detail_size", m.size ? fSize.format(m.size / 1e9) : ""))));
   const links = (e) => {
     const list = [
       e.plexUrl ? el("a", { class: "btn btn-primary", href: e.plexUrl, target: "_blank", rel: "noopener", text: t("cal.open_plex") }) : null,
       ...(e.arrLinks || []).map((l) => el("a", { class: "btn", href: l.url, target: "_blank", rel: "noopener", text: t("cal.open_in", { name: l.label }) })),
     ].filter(Boolean);
-    return list.length ? el("p", { class: "detail-actions" }, list) : null;
+    const ext = (e.ext || []).filter((l) => state.sites.includes(l.id)).map((l) => el("a", { href: l.url, target: "_blank",
+      rel: "noopener noreferrer", title: t("cal.open_in", { name: l.label }), text: l.label }));
+    return [
+      list.length ? el("p", { class: "detail-actions" }, list) : null,
+      ext.length ? el("p", { class: "detail-ext" }, el("span", { text: t("cal.see_on") }), ext) : null,
+    ];
   };
+
+  // Per-track audio and subtitles, from Plex, folded under "Tracks (n)" once
+  // the sheet is open: the summary above is enough most of the time.
+  let tracksFor = null;
+  async function loadTracks(e, article) {
+    tracksFor = e;
+    const q = new URLSearchParams({ group: e.group });
+    if (e.kind === "episode") { q.set("season", e.season); q.set("episode", e.episode); }
+    let data;
+    try { data = await (await fetch("/api/tracks?" + q)).json(); } catch { return; }
+    const versions = (data.versions || []).filter((v) => v.audio?.length || v.subs?.length);
+    if (tracksFor !== e || !versions.length || !article.isConnected) return;
+    const n = versions.reduce((sum, v) => sum + (v.audio?.length || 0) + (v.subs?.length || 0), 0);
+    const block = el("details", { class: "detail-file detail-tracks" },
+      el("summary", { text: t("cal.tracks", { n }) }),
+      ...versions.map((v) => [
+        versions.length > 1 ? el("h3", { text: v.resolution || "" }) : null,
+        el("dl", { class: "detail-facts" },
+          v.audio?.length ? [el("dt", { text: t("cal.detail_audio") }), el("dd", {}, trackList(v.audio, true))] : null,
+          v.subs?.length ? [el("dt", { text: t("cal.detail_subs") }), el("dd", {}, trackList(v.subs, false))] : null),
+      ]));
+    const after = article.querySelectorAll(".detail-file");
+    (after.length ? after[after.length - 1] : article.querySelector(".detail-facts")).after(block);
+  }
 
   function openDetail(e) {
     const day = parseKey(dayOf(e));
     const when = [fDayFull.format(day), timeOf(e)].filter(Boolean).join(" · ");
-    show(el("article", { class: `detail is-${e.kind}` },
+    tracksFor = null;
+    const article = el("article", { class: `detail is-${e.kind}` },
       el("div", { class: "detail-top" },
         poster(e, "poster-lg", 500),
         el("div", { class: "detail-head" },
@@ -690,7 +772,9 @@
           el("strong", { text: t("cal.episode_code", { s: pad(x.season), e: pad(x.episode) }) }),
           x.epTitle ? ` · ${x.epTitle}` : "",
           el("span", { class: `status status-${statusOf(x)}`, text: t("cal.status_" + statusOf(x)) }))))
-        : e.overview ? el("p", { class: "detail-overview", text: e.overview }) : null));
+        : e.overview ? el("p", { class: "detail-overview", text: e.overview }) : null);
+    show(article);
+    if (e.hasFile && e.plexUrl && !e.bundle) loadTracks(e, article);
   }
 
   function openDay(day, list) {
@@ -707,6 +791,7 @@
     state.mine = p.mine || [];
     state.filters = normFilters(Object.assign(state.filters, p.filters || {}));
     if (typeof p.shortcuts === "boolean") state.shortcuts = p.shortcuts;
+    if (Array.isArray(p.sites)) { state.sites = p.sites; store.set("sites", state.sites); }
     store.set("filters", state.filters);
     store.set("mine", state.mine);
     syncControls();

@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -187,7 +188,7 @@ func TestMediaOf(t *testing.T) {
 		VideoBitDepth: 10, VideoCodec: "x265", VideoDynamicRangeType: "DV HDR10Plus", Resolution: "3840x1606",
 		Subtitles: "fre/fre/fre/eng/eng/und"}
 	got, _ := json.Marshal(mediaOf("Radarr 4K", f))
-	want := `[{"instance":"Radarr 4K","quality":"WEBRip-2160p","resolution":"4K","video":"x265 10 bit","hdr":"DV HDR10Plus","audio":"EAC3 Atmos 5.1","audioLangs":["fr","en"],"subs":["fr","en"],"size":5}]`
+	want := `[{"instance":"Radarr 4K","quality":"WEBRip-2160p","resolution":"4K","videoCodec":"x265","bitDepth":10,"hdr":"DV HDR10Plus","audioCodec":"EAC3 Atmos","channels":"5.1","audioLangs":["fr","en"],"subs":["fr","en"],"size":5}]`
 	if string(got) != want {
 		t.Fatalf("got  %s\nwant %s", got, want)
 	}
@@ -198,5 +199,25 @@ func TestMediaOf(t *testing.T) {
 		if got := resolutionLabel(in); got != want {
 			t.Fatalf("%q: %q", in, got)
 		}
+	}
+}
+
+func TestExternalLinks(t *testing.T) {
+	d := time.Date(2026, 10, 7, 0, 0, 0, 0, time.UTC)
+	mv := fromMovie(1, "Radarr", arr.Movie{ID: 1, Title: "M", TmdbID: 969681, ImdbID: "tt1", DigitalRelease: &d})
+	ep, _ := fromEpisode(2, "Sonarr", arr.Episode{SeasonNumber: 6, EpisodeNumber: 4, TvdbID: 11839915, AirDateUTC: &d,
+		Series: arr.Series{ID: 3, Title: "S", TmdbID: 95480, TvdbID: 5, ImdbID: "tt2"}})
+	got := func(l []Link) string {
+		var s []string
+		for _, x := range l {
+			s = append(s, x.Label+"="+x.URL)
+		}
+		return strings.Join(s, " ")
+	}
+	if g := got(mv[0].Ext); g != "TMDB=https://www.themoviedb.org/movie/969681 IMDb=https://www.imdb.com/title/tt1/ Letterboxd=https://letterboxd.com/tmdb/969681/" {
+		t.Fatalf("movie: %s", g)
+	}
+	if g := got(ep.Ext); g != "TMDB=https://www.themoviedb.org/tv/95480/season/6/episode/4 TVDB=https://thetvdb.com/dereferrer/episode/11839915 IMDb=https://www.imdb.com/title/tt2/" {
+		t.Fatalf("episode: %s", g)
 	}
 }

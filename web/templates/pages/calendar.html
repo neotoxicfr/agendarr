@@ -30,6 +30,16 @@
       <div data-instances></div>
     </fieldset>
     <fieldset class="side-group">
+      <legend>{{index .T "cal.sites"}}</legend>
+      <p class="side-help">{{index .T "cal.sites_help"}}</p>
+      <div class="site-chips">
+        <label class="site-chip"><input type="checkbox" data-site="tmdb"><span>TMDB</span></label>
+        <label class="site-chip"><input type="checkbox" data-site="tvdb"><span>TVDB</span></label>
+        <label class="site-chip"><input type="checkbox" data-site="imdb"><span>IMDb</span></label>
+        <label class="site-chip"><input type="checkbox" data-site="letterboxd"><span>Letterboxd</span></label>
+      </div>
+    </fieldset>
+    <fieldset class="side-group">
       <label class="check"><input type="checkbox" data-shortcuts checked> {{index .T "cal.shortcuts_toggle"}}</label>
       <p class="side-note" data-shortcuts-note>{{index .T "cal.shortcuts"}}</p>
     </fieldset>

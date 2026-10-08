@@ -53,6 +53,15 @@ func fakeUpstream(t *testing.T) *httptest.Server {
 	mux.HandleFunc("GET /plex/library/sections/1/all", func(w http.ResponseWriter, r *http.Request) {
 		j(w, `{"MediaContainer":{"Metadata":[{"ratingKey":"55","guid":"plex://movie/x","Guid":[{"id":"tmdb://100"}]}]}}`)
 	})
+	mux.HandleFunc("GET /plex/library/metadata/55", func(w http.ResponseWriter, r *http.Request) {
+		j(w, `{"MediaContainer":{"Metadata":[{"ratingKey":"55","Media":[{"Part":[{"Stream":[
+		  {"streamType":1,"codec":"hevc"},
+		  {"streamType":2,"codec":"eac3","languageTag":"fr","title":"FR VFF","audioChannelLayout":"5.1(side)","default":true},
+		  {"streamType":2,"codec":"truehd","languageTag":"en-US","title":"ENG VO","audioChannelLayout":"7.1"},
+		  {"streamType":3,"codec":"srt","languageTag":"fr","title":"FR Forced","forced":true},
+		  {"streamType":3,"codec":"pgs","languageTag":"en","hearingImpaired":true},
+		  {"streamType":3,"codec":"srt","languageTag":"fr","key":"/library/streams/9"}]}]}]}]}}`)
+	})
 	mux.HandleFunc("GET /plex/library/metadata/2199", func(w http.ResponseWriter, r *http.Request) {
 		j(w, `{"MediaContainer":{"Metadata":[{"ratingKey":"2199","guid":"plex://show/x","Guid":[{"id":"tvdb://73871"}]}]}}`)
 	})
@@ -168,6 +177,26 @@ func TestPersonalFilters(t *testing.T) {
 			t.Fatalf("%s: %+v", body, got.Filters)
 		}
 	}
+
+	// "See on" sites: defaults until chosen, unknown ones dropped, none allowed.
+	for body, want := range map[string]string{
+		`{}`: "tmdb,imdb",
+		`{"sites":["imdb","trakt","imdb","letterboxd"]}`: "imdb,letterboxd",
+		`{"sites":[]}`: "",
+	} {
+		req, _ := http.NewRequest("PUT", h.http.URL+"/api/prefs", strings.NewReader(body))
+		req.Header.Set("Origin", h.http.URL)
+		res, err := friend.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got Prefs
+		json.NewDecoder(res.Body).Decode(&got)
+		res.Body.Close()
+		if strings.Join(got.Sites, ",") != want || got.Sites == nil {
+			t.Fatalf("%s: %#v", body, got.Sites)
+		}
+	}
 }
 
 // Media details reach everyone; the Plex link too; Radarr links only admins,
@@ -189,8 +218,8 @@ func TestEventLinksAndMedia(t *testing.T) {
 		PlexURL  string
 		ArrLinks []struct{ Label, URL string }
 		Media    []struct {
-			Quality, Resolution, Audio string
-			AudioLangs, Subs           []string
+			Quality, Resolution, AudioCodec, Channels string
+			AudioLangs, Subs                          []string
 		}
 	}
 	get := func(c *http.Client) ev {
@@ -224,12 +253,33 @@ func TestEventLinksAndMedia(t *testing.T) {
 		t.Fatalf("admin links: %+v", o.ArrLinks)
 	}
 	m := o.Media
-	if len(m) != 1 || m[0].Quality != "Bluray-1080p" || m[0].Resolution != "1080p" || m[0].Audio != "DTS 5.1" ||
+	if len(m) != 1 || m[0].Quality != "Bluray-1080p" || m[0].Resolution != "1080p" || m[0].AudioCodec != "DTS" || m[0].Channels != "5.1" ||
 		strings.Join(m[0].AudioLangs, ",") != "fr" || strings.Join(m[0].Subs, ",") != "en" {
 		t.Fatalf("media: %+v", m)
 	}
 	f := get(friend)
 	if f.PlexURL == "" || len(f.ArrLinks) != 0 || len(f.Media) != 1 {
 		t.Fatalf("friend: %+v", f)
+	}
+
+	// Tracks come from Plex, per track; unknown items answer an empty list.
+	tracks := func(q string) string {
+		res, err := friend.Get(h.http.URL + "/api/tracks?" + q)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		b, _ := io.ReadAll(res.Body)
+		return strings.TrimSpace(string(b))
+	}
+	want := `{"versions":[{"audio":[{"codec":"eac3","lang":"fr","title":"FR VFF","layout":"5.1","default":true},` +
+		`{"codec":"truehd","lang":"en-US","title":"ENG VO","layout":"7.1"}],` +
+		`"subs":[{"codec":"srt","lang":"fr","title":"FR Forced","forced":true},{"codec":"pgs","lang":"en","hi":true},` +
+		`{"codec":"srt","lang":"fr","external":true}]}]}`
+	if got := tracks("group=movie:tmdb:100"); got != want {
+		t.Fatalf("tracks:\n got %s\nwant %s", got, want)
+	}
+	if got := tracks("group=movie:tmdb:999"); got != `{"versions":[]}` {
+		t.Fatalf("unknown: %s", got)
 	}
 }

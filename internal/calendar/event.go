@@ -60,6 +60,8 @@ type Event struct {
 	PlexURL string `json:"plexUrl,omitempty"`
 	// ArrLinks open it in Radarr or Sonarr, for admins (set per response).
 	ArrLinks []Link `json:"arrLinks,omitempty"`
+	// Ext opens it on TMDB, TVDB and IMDb.
+	Ext []Link `json:"ext,omitempty"`
 }
 
 // Media sums up one file: quality, video, audio and subtitles.
@@ -67,9 +69,11 @@ type Media struct {
 	Instance   string   `json:"instance"`
 	Quality    string   `json:"quality,omitempty"` // WEBDL-1080p
 	Resolution string   `json:"resolution,omitempty"`
-	Video      string   `json:"video,omitempty"` // x265 10 bit
-	HDR        string   `json:"hdr,omitempty"`
-	Audio      string   `json:"audio,omitempty"` // EAC3 Atmos 5.1
+	VideoCodec string   `json:"videoCodec,omitempty"` // x265
+	BitDepth   int      `json:"bitDepth,omitempty"`
+	HDR        string   `json:"hdr,omitempty"`        // DV HDR10Plus
+	AudioCodec string   `json:"audioCodec,omitempty"` // EAC3 Atmos
+	Channels   string   `json:"channels,omitempty"`   // 5.1
 	AudioLangs []string `json:"audioLangs,omitempty"`
 	Subs       []string `json:"subs,omitempty"`
 	Size       int64    `json:"size,omitempty"`
@@ -82,11 +86,16 @@ type ArrRef struct {
 	Path       string // /movie/{slug} or /series/{slug}
 }
 
-// Link is a labelled URL.
+// Link is a labelled URL. ID names the site of an external link (tmdb,
+// tvdb, imdb, letterboxd), which each user can hide.
 type Link struct {
+	ID    string `json:"id,omitempty"`
 	Label string `json:"label"`
 	URL   string `json:"url"`
 }
+
+// Sites lists the sites of external links, in display order.
+var Sites = []string{"tmdb", "tvdb", "imdb", "letterboxd"}
 
 // sortKey orders events within a day: timed episodes by air time, then
 // movies, by title.
@@ -133,6 +142,15 @@ func fromMovie(instID int64, instName string, m arr.Movie) []Event {
 	if m.HasFile {
 		base.Media = mediaOf(instName, m.MovieFile)
 	}
+	if m.TmdbID != 0 {
+		base.Ext = append(base.Ext, Link{"tmdb", "TMDB", fmt.Sprintf("https://www.themoviedb.org/movie/%d", m.TmdbID)})
+	}
+	if m.ImdbID != "" {
+		base.Ext = append(base.Ext, Link{"imdb", "IMDb", "https://www.imdb.com/title/" + url.PathEscape(m.ImdbID) + "/"})
+	}
+	if m.TmdbID != 0 {
+		base.Ext = append(base.Ext, Link{"letterboxd", "Letterboxd", fmt.Sprintf("https://letterboxd.com/tmdb/%d/", m.TmdbID)})
+	}
 	if m.TitleSlug != "" {
 		base.Arr = []ArrRef{{InstanceID: instID, Instance: instName, Path: "/movie/" + url.PathEscape(m.TitleSlug)}}
 	}
@@ -167,6 +185,19 @@ func fromEpisode(instID int64, instName string, ep arr.Episode) (Event, bool) {
 	}
 	if ep.HasFile {
 		e.Media = mediaOf(instName, ep.EpisodeFile)
+	}
+	// TMDB and TVDB open the episode itself; IMDb, the series.
+	if s.TmdbID != 0 {
+		e.Ext = append(e.Ext, Link{"tmdb", "TMDB", fmt.Sprintf("https://www.themoviedb.org/tv/%d/season/%d/episode/%d", s.TmdbID, ep.SeasonNumber, ep.EpisodeNumber)})
+	}
+	switch {
+	case ep.TvdbID != 0:
+		e.Ext = append(e.Ext, Link{"tvdb", "TVDB", fmt.Sprintf("https://thetvdb.com/dereferrer/episode/%d", ep.TvdbID)})
+	case s.TvdbID != 0:
+		e.Ext = append(e.Ext, Link{"tvdb", "TVDB", fmt.Sprintf("https://thetvdb.com/dereferrer/series/%d", s.TvdbID)})
+	}
+	if s.ImdbID != "" {
+		e.Ext = append(e.Ext, Link{"imdb", "IMDb", "https://www.imdb.com/title/" + url.PathEscape(s.ImdbID) + "/"})
 	}
 	if s.TitleSlug != "" {
 		e.Arr = []ArrRef{{InstanceID: instID, Instance: instName, Path: "/series/" + url.PathEscape(s.TitleSlug)}}

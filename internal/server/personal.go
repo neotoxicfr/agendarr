@@ -6,10 +6,12 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/neotoxicfr/agendarr/internal/calendar"
 	"github.com/neotoxicfr/agendarr/internal/personal"
 	"github.com/neotoxicfr/agendarr/internal/plex"
 	"github.com/neotoxicfr/agendarr/internal/seerr"
@@ -98,6 +100,26 @@ type Prefs struct {
 	Mine    []string    `json:"mine"`
 	Filters PrefFilters `json:"filters"`
 	Keys    *bool       `json:"shortcuts,omitempty"` // single-key shortcuts on (default)
+	// Sites are the external links shown on a detail sheet ("See on").
+	Sites []string `json:"sites"`
+}
+
+// defaultSites are shown until a user picks their own.
+var defaultSites = []string{"tmdb", "imdb"}
+
+// cleanSites keeps the known sites, once each; nil (never chosen) gets the
+// defaults, an empty list stays empty.
+func cleanSites(in []string) []string {
+	if in == nil {
+		return slices.Clone(defaultSites)
+	}
+	out := []string{}
+	for _, v := range in {
+		if slices.Contains(calendar.Sites, v) && !slices.Contains(out, v) {
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 // PrefFilters mirror the filter panel.
@@ -136,6 +158,7 @@ func (s *Server) loadPrefs(ctx context.Context, userID int64) Prefs {
 	}
 	p.Mine = cleanSources(p.Mine)
 	p.Filters.normalize()
+	p.Sites = cleanSites(p.Sites)
 	if p.Filters.Instances == nil {
 		p.Filters.Instances = map[string]bool{}
 	}
@@ -172,6 +195,7 @@ func (s *Server) handlePrefsPut(w http.ResponseWriter, r *http.Request) {
 	}
 	p.Mine = cleanSources(p.Mine)
 	p.Filters.normalize()
+	p.Sites = cleanSites(p.Sites)
 	if p.View != "" && p.View != "agenda" && p.View != "week" && p.View != "month" {
 		p.View = ""
 	}

@@ -15,14 +15,9 @@ func mediaOf(instName string, f *arr.File) []Media {
 	m := Media{Instance: instName, Quality: f.Quality.Quality.Name, Size: f.Size}
 	if mi := f.MediaInfo; mi != nil {
 		m.Resolution = resolutionLabel(mi.Resolution)
-		m.Video = mi.VideoCodec
-		if mi.VideoBitDepth > 8 && m.Video != "" {
-			m.Video += " " + strconv.Itoa(mi.VideoBitDepth) + " bit"
-		}
-		m.HDR = mi.VideoDynamicRangeType
-		m.Audio = mi.AudioCodec
-		if mi.AudioChannels > 0 && m.Audio != "" {
-			m.Audio += " " + strconv.FormatFloat(mi.AudioChannels, 'f', 1, 64)
+		m.VideoCodec, m.BitDepth, m.HDR, m.AudioCodec = mi.VideoCodec, mi.VideoBitDepth, mi.VideoDynamicRangeType, mi.AudioCodec
+		if mi.AudioChannels > 0 {
+			m.Channels = strconv.FormatFloat(mi.AudioChannels, 'f', 1, 64)
 		}
 		m.AudioLangs = languages(mi.AudioLanguages)
 		m.Subs = languages(mi.Subtitles)
