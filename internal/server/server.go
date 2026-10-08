@@ -52,6 +52,7 @@ type Server struct {
 	cal                *calendar.Service
 	personal           *personal.Service
 	plexConn           plexConn
+	plexLib            plexLibrary
 	posterSF           singleflight.Group
 }
 

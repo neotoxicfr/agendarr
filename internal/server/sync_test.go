@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/neotoxicfr/agendarr/internal/calendar"
 	"github.com/neotoxicfr/agendarr/internal/config"
 	"github.com/neotoxicfr/agendarr/internal/store"
 )
@@ -96,4 +97,17 @@ func mustUser(t *testing.T, h *harness, plexID int64) *store.User {
 		t.Fatal(err)
 	}
 	return &u
+}
+
+func TestFilterEventsStatus(t *testing.T) {
+	in := []calendar.Event{{Kind: "movie", Title: "on disk", HasFile: true, Monitored: true}, {Kind: "movie", Title: "coming", Monitored: true}}
+	for status, want := range map[string]string{"all": "on disk,coming", "available": "on disk", "upcoming": "coming"} {
+		var got []string
+		for _, e := range filterEvents(in, PrefFilters{Movies: true, Episodes: true, Status: status}) {
+			got = append(got, e.Title)
+		}
+		if strings.Join(got, ",") != want {
+			t.Fatalf("%s: %v", status, got)
+		}
+	}
 }

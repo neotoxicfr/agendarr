@@ -97,6 +97,7 @@ func (s *Server) parseInstance(r *http.Request, existing *store.Instance) (insta
 	f.Name = strings.TrimSpace(r.PostFormValue("name"))
 	f.URL = strings.TrimRight(strings.TrimSpace(r.PostFormValue("url")), "/")
 	f.Enabled = r.PostFormValue("enabled") != ""
+	f.PublicURL = strings.TrimRight(strings.TrimSpace(r.PostFormValue("public_url")), "/")
 	key := strings.TrimSpace(r.PostFormValue("api_key"))
 
 	if _, ok := kindNames[f.Kind]; !ok {
@@ -108,6 +109,9 @@ func (s *Server) parseInstance(r *http.Request, existing *store.Instance) (insta
 	}
 	if u, err := url.Parse(f.URL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		f.Errors["url"] = "inst.err_url"
+	}
+	if f.PublicURL != "" && !webURL(f.PublicURL) {
+		f.Errors["public_url"] = "inst.err_url"
 	}
 	plainKey := ""
 	switch {
@@ -122,6 +126,12 @@ func (s *Server) parseInstance(r *http.Request, existing *store.Instance) (insta
 		f.Errors["api_key"] = "inst.err_key"
 	}
 	return f, plainKey
+}
+
+// webURL reports whether s is an absolute http(s) URL.
+func webURL(s string) bool {
+	u, err := url.Parse(s)
+	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
 }
 
 func (s *Server) handleInstanceSave(w http.ResponseWriter, r *http.Request) {
@@ -280,6 +290,9 @@ func (s *Server) handleSeerrImport(w http.ResponseWriter, r *http.Request) {
 			}
 			_, terr := testInstance(ctx, kind, u, a.APIKey)
 			ni := store.Instance{Kind: kind, Name: a.Name, URL: u, APIKey: s.box.Seal(a.APIKey), Enabled: terr == nil}
+			if pub := strings.TrimRight(a.ExternalURL, "/"); webURL(pub) {
+				ni.PublicURL = pub
+			}
 			if ni.Name == "" {
 				ni.Name = kindNames[kind]
 			}

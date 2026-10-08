@@ -269,3 +269,53 @@ func (c *Client) Watchlist(ctx context.Context, token string) ([]string, error) 
 	}
 	return out, nil
 }
+
+// Library maps the external ids ("tmdb:1", "tvdb:2", "imdb:tt3") of every
+// movie and show on the server to its ratingKey.
+func (s *Server) Library(ctx context.Context) (map[string]string, error) {
+	var secs struct {
+		MediaContainer struct {
+			Directory []struct {
+				Key  string `json:"key"`
+				Type string `json:"type"`
+			} `json:"Directory"`
+		} `json:"MediaContainer"`
+	}
+	if err := s.get(ctx, "/library/sections", nil, &secs); err != nil {
+		return nil, err
+	}
+	out := map[string]string{}
+	for _, d := range secs.MediaContainer.Directory {
+		if d.Type != "movie" && d.Type != "show" {
+			continue
+		}
+		var v struct {
+			MediaContainer struct {
+				Metadata []struct {
+					RatingKey string `json:"ratingKey"`
+					PlexGuid  string `json:"guid"` // see Guids
+					Guid      []struct {
+						ID string `json:"id"`
+					} `json:"Guid"`
+				} `json:"Metadata"`
+			} `json:"MediaContainer"`
+		}
+		if err := s.get(ctx, "/library/sections/"+url.PathEscape(d.Key)+"/all", url.Values{"includeGuids": {"1"}}, &v); err != nil {
+			return nil, err
+		}
+		for _, m := range v.MediaContainer.Metadata {
+			for _, g := range m.Guid {
+				if k := GuidKey(g.ID); k != "" {
+					out[k] = m.RatingKey
+				}
+			}
+		}
+	}
+	return out, nil
+}
+
+// WebURL opens a library item in Plex Web for anyone the server is shared with.
+func WebURL(machineID, ratingKey string) string {
+	return "https://app.plex.tv/desktop/#!/server/" + url.PathEscape(machineID) +
+		"/details?key=" + url.QueryEscape("/library/metadata/"+ratingKey)
+}
