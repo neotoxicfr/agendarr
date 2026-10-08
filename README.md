@@ -10,7 +10,7 @@ Radarr, Sonarr and Seerr in one calendar. Everyone signs in with their Plex acco
 and sees everything that's coming, or just what they care about.
 
 [![CI](https://github.com/neotoxicfr/agendarr/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/neotoxicfr/agendarr/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/badge/release-v0.1.0-blue)](https://github.com/neotoxicfr/agendarr/releases)
+[![Release](https://img.shields.io/badge/release-v0.2.0-blue)](https://github.com/neotoxicfr/agendarr/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 </div>
@@ -117,7 +117,9 @@ has the same file with comments.
 ### First run
 
 1. **Sign in with the Plex account that owns the server.** It becomes the
-   administrator. If it owns several servers, pick one.
+   administrator. If it owns several servers, pick one. Do this right after
+   starting the container, before sharing the URL: until then, the first
+   person to sign in with a Plex server of their own becomes the administrator.
 2. In **Admin › Instances**, add **Seerr**, then click **Import Radarr and Sonarr**:
    Agendarr copies the servers Seerr already knows, API keys included. You can
    also add Radarr and Sonarr by hand (the API key is in *Settings › General* of

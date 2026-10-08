@@ -32,6 +32,14 @@
       <p class="help" id="f-url-help">{{index .T "inst.url_help"}}</p>
     </div>
 
+    <div class="field" data-kind-help="arr">
+      <label for="f-public">{{index .T "inst.public_url"}}</label>
+      <input id="f-public" name="public_url" type="url" inputmode="url" value="{{$f.PublicURL}}" autocomplete="off" spellcheck="false"
+        aria-describedby="f-public-help{{if index $f.Errors "public_url"}} f-public-err{{end}}" {{if index $f.Errors "public_url"}}aria-invalid="true"{{end}}>
+      {{with index $f.Errors "public_url"}}<p class="error" id="f-public-err">{{index $.T .}}</p>{{end}}
+      <p class="help" id="f-public-help">{{index .T "inst.public_url_help"}}</p>
+    </div>
+
     <div class="field">
       <label for="f-key">{{index .T "inst.api_key"}}</label>
       <input id="f-key" name="api_key" type="password" autocomplete="off" spellcheck="false" {{if not $f.HasKey}}required{{end}}

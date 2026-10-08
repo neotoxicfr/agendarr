@@ -28,6 +28,7 @@ const (
 	sessUserID      = "uid"
 	sessPlexID      = "pid" // guards against a reused users.id
 	sessPinID       = "pin_id"
+	sessPinAt       = "pin_at" // unix time the PIN was created
 	sessSetupUserID = "setup_uid"
 )
 
@@ -163,6 +164,7 @@ func (s *Server) handlePinStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.sessions.Put(r.Context(), sessPinID, pin.ID)
+	s.sessions.Put(r.Context(), sessPinAt, time.Now().Unix())
 	base := s.baseURL(r)
 	writeJSON(w, http.StatusOK, map[string]string{
 		"popupUrl":    s.plex.AuthURL(pin.Code, base+"/auth/plex/done"),
@@ -208,6 +210,10 @@ func (s *Server) handlePinDone(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, http.StatusOK, "auth_done", pageData{Title: "title.login"})
 }
 
+// pinPatience is how long a PIN plex.tv claims not to know is still
+// treated as pending; the sign-in page itself gives up after 10 minutes.
+const pinPatience = 10 * time.Minute
+
 // checkPin returns where to go next, or an error code, or pending.
 func (s *Server) checkPin(r *http.Request) (next, code string, pending bool) {
 	ctx := r.Context()
@@ -216,6 +222,11 @@ func (s *Server) checkPin(r *http.Request) (next, code string, pending bool) {
 		return "", "expired", false
 	}
 	pin, err := s.plex.CheckPin(ctx, id)
+	if errors.Is(err, plex.ErrNotFound) && time.Since(time.Unix(s.sessions.GetInt64(ctx, sessPinAt), 0)) < pinPatience {
+		// plex.tv answers 404 on some lookups of a live PIN (4 of 16
+		// on 08/10/2026, then 200 again): keep polling rather than give up.
+		return "", "", true
+	}
 	if err != nil {
 		s.log.Warn("check pin", "err", err)
 		return "", "expired", false
@@ -224,6 +235,7 @@ func (s *Server) checkPin(r *http.Request) (next, code string, pending bool) {
 		return "", "", true
 	}
 	s.sessions.Remove(ctx, sessPinID)
+	s.sessions.Remove(ctx, sessPinAt)
 	next, code = s.completeSignIn(r, pin.AuthToken)
 	return next, code, false
 }

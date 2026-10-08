@@ -15,20 +15,21 @@ const (
 
 // Instance is a configured Radarr, Sonarr or Seerr.
 type Instance struct {
-	ID       int64
-	Kind     string
-	Name     string
-	URL      string
-	APIKey   string // sealed
-	Enabled  bool
-	Position int
+	ID        int64
+	Kind      string
+	Name      string
+	URL       string
+	PublicURL string // optional: what a browser opens, for admin links
+	APIKey    string // sealed
+	Enabled   bool
+	Position  int
 }
 
-const instCols = `id, kind, name, url, api_key, enabled, position`
+const instCols = `id, kind, name, url, api_key, enabled, position, public_url`
 
 func scanInstance(row interface{ Scan(...any) error }) (Instance, error) {
 	var i Instance
-	err := row.Scan(&i.ID, &i.Kind, &i.Name, &i.URL, &i.APIKey, &i.Enabled, &i.Position)
+	err := row.Scan(&i.ID, &i.Kind, &i.Name, &i.URL, &i.APIKey, &i.Enabled, &i.Position, &i.PublicURL)
 	if errors.Is(err, sql.ErrNoRows) {
 		return i, ErrNotFound
 	}
@@ -62,16 +63,16 @@ func (s *Store) Instance(ctx context.Context, id int64) (Instance, error) {
 // SaveInstance inserts (ID == 0) or updates an instance and returns its id.
 func (s *Store) SaveInstance(ctx context.Context, i Instance) (int64, error) {
 	if i.ID == 0 {
-		res, err := s.DB.ExecContext(ctx, `INSERT INTO instances (kind, name, url, api_key, enabled, position)
-			VALUES (?, ?, ?, ?, ?, (SELECT coalesce(max(position), 0) + 1 FROM instances WHERE kind = ?))`,
-			i.Kind, i.Name, i.URL, i.APIKey, i.Enabled, i.Kind)
+		res, err := s.DB.ExecContext(ctx, `INSERT INTO instances (kind, name, url, api_key, enabled, public_url, position)
+			VALUES (?, ?, ?, ?, ?, ?, (SELECT coalesce(max(position), 0) + 1 FROM instances WHERE kind = ?))`,
+			i.Kind, i.Name, i.URL, i.APIKey, i.Enabled, i.PublicURL, i.Kind)
 		if err != nil {
 			return 0, err
 		}
 		return res.LastInsertId()
 	}
-	_, err := s.DB.ExecContext(ctx, `UPDATE instances SET name = ?, url = ?, api_key = ?, enabled = ? WHERE id = ?`,
-		i.Name, i.URL, i.APIKey, i.Enabled, i.ID)
+	_, err := s.DB.ExecContext(ctx, `UPDATE instances SET name = ?, url = ?, api_key = ?, enabled = ?, public_url = ? WHERE id = ?`,
+		i.Name, i.URL, i.APIKey, i.Enabled, i.PublicURL, i.ID)
 	return i.ID, err
 }
 

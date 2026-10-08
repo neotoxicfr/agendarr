@@ -43,6 +43,12 @@
   const dayOf = (e) => (e.air ? keyOf(new Date(e.air)) : e.date);
 
   // --- state -------------------------------------------------------------------
+  // "status" replaced the hideDownloaded checkbox: an old saved choice maps to "upcoming".
+  function normFilters(f) {
+    if (!["all", "available", "upcoming"].includes(f.status)) f.status = f.hideDownloaded ? "upcoming" : "all";
+    delete f.hideDownloaded;
+    return f;
+  }
   const store = {
     get(k, d) { try { const v = localStorage.getItem("agendarr." + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
     set(k, v) { try { localStorage.setItem("agendarr." + k, JSON.stringify(v)); } catch { /* private mode */ } },
@@ -52,7 +58,7 @@
   const state = {
     view: ["agenda", "week", "month"].includes(params.get("view")) ? params.get("view") : store.get("view", wide.matches ? "month" : "agenda"),
     anchor: /^\d{4}-\d{2}-\d{2}$/.test(params.get("date") || "") ? parseKey(params.get("date")) : new Date(),
-    filters: Object.assign({ movies: true, episodes: true, hideDownloaded: false, hideUnmonitored: false, instances: {} }, store.get("filters", {})),
+    filters: normFilters(Object.assign({ movies: true, episodes: true, status: "all", hideUnmonitored: false, instances: {} }, store.get("filters", {}))),
     mine: store.get("mine", []),
     shortcuts: store.get("shortcuts", true),
     agendaWeeks: 5,
@@ -126,14 +132,15 @@
     const f = state.filters;
     if (e.kind === "movie" && !f.movies) return false;
     if (e.kind === "episode" && !f.episodes) return false;
-    if (f.hideDownloaded && e.hasFile) return false;
+    if (f.status === "available" && !e.hasFile) return false;
+    if (f.status === "upcoming" && e.hasFile) return false;
     if (f.hideUnmonitored && !e.monitored) return false;
     if (e.instances.length && e.instances.every((n) => f.instances[n] === false)) return false;
     return true;
   };
   const activeFilterCount = () => {
     const f = state.filters;
-    return (!f.movies) + (!f.episodes) + f.hideDownloaded + f.hideUnmonitored + Object.values(f.instances).filter((v) => v === false).length + state.mine.length;
+    return (!f.movies) + (!f.episodes) + (f.status !== "all") + f.hideUnmonitored + Object.values(f.instances).filter((v) => v === false).length + state.mine.length;
   };
   const knownInstances = new Set();
   function syncInstanceFilters(events) {
@@ -527,6 +534,7 @@
   root.addEventListener("change", (ev) => {
     const x = ev.target;
     if (x.name === "view") setView(x.value);
+    else if (x.name === "status") { state.filters.status = x.value; saveFilters(); }
     else if (x.dataset.filter) { state.filters[x.dataset.filter] = x.checked; saveFilters(); }
     else if (x.dataset.instance) { state.filters.instances[x.dataset.instance] = x.checked; saveFilters(); }
     else if (x.dataset.mine) {
@@ -555,6 +563,7 @@
   }
   function syncControls() {
     root.querySelectorAll("[data-filter]").forEach((x) => { x.checked = !!state.filters[x.dataset.filter]; });
+    root.querySelectorAll("input[name=status]").forEach((x) => { x.checked = x.value === state.filters.status; });
     root.querySelectorAll("[data-mine]").forEach((x) => { x.checked = state.mine.includes(x.dataset.mine); });
     const sc = $("[data-shortcuts]");
     sc.checked = state.shortcuts;
@@ -625,6 +634,35 @@
   dialog.addEventListener("click", (ev) => { if (ev.target === dialog) dialog.close(); });
   $("[data-detail-close]").addEventListener("click", () => dialog.close());
 
+  // File details from Radarr/Sonarr: one block per instance holding a file.
+  const langName = (() => {
+    let dn = null;
+    try { dn = new Intl.DisplayNames([lang], { type: "language" }); } catch { /* old browser */ }
+    return (c) => { try { return (dn && dn.of(c)) || c; } catch { return c; } };
+  })();
+  const fSize = new Intl.NumberFormat(lang, { style: "unit", unit: "gigabyte", maximumFractionDigits: 1 });
+  // "WEBRip-2160p" with a 4K frame reads "4K WEBRip": the resolution once.
+  const qualityOf = (m) => {
+    const source = (m.quality || "").replace(/-?\d{3,4}p$/i, "");
+    return m.resolution ? [m.resolution, source].filter(Boolean).join(" ") : m.quality;
+  };
+  const row = (label, value) => (value ? [el("dt", { text: t(label) }), el("dd", { text: value })] : null);
+  const files = (e) => (e.media || []).map((m) => el("section", { class: "detail-file" },
+    e.media.length > 1 ? el("h3", { text: m.instance }) : null,
+    el("dl", { class: "detail-facts" },
+      row("cal.detail_quality", [qualityOf(m), m.hdr].filter(Boolean).join(" · ")),
+      row("cal.detail_video", m.video),
+      row("cal.detail_audio", [m.audio, (m.audioLangs || []).map(langName).join(", ")].filter(Boolean).join(" · ")),
+      row("cal.detail_subs", (m.subs || []).map(langName).join(", ")),
+      row("cal.detail_size", m.size ? fSize.format(m.size / 1e9) : ""))));
+  const links = (e) => {
+    const list = [
+      e.plexUrl ? el("a", { class: "btn btn-primary", href: e.plexUrl, target: "_blank", rel: "noopener", text: t("cal.open_plex") }) : null,
+      ...(e.arrLinks || []).map((l) => el("a", { class: "btn", href: l.url, target: "_blank", rel: "noopener", text: t("cal.open_in", { name: l.label }) })),
+    ].filter(Boolean);
+    return list.length ? el("p", { class: "detail-actions" }, list) : null;
+  };
+
   function openDetail(e) {
     const day = parseKey(dayOf(e));
     const when = [fDayFull.format(day), timeOf(e)].filter(Boolean).join(" · ");
@@ -645,6 +683,8 @@
         e.runtime ? [el("dt", { text: t("cal.detail_duration") }), el("dd", { text: t("cal.detail_runtime", { n: e.runtime }) })] : null,
         e.requestedBy?.length ? [el("dt", { text: t("cal.requested_by") }), el("dd", { text: e.requestedBy.join(", ") })] : null,
         el("dt", { text: t("cal.detail_sources") }), el("dd", { text: e.instances.join(", ") })),
+      e.bundle ? null : files(e),
+      links(e),
       e.bundle
         ? el("ol", { class: "detail-episodes" }, e.bundle.map((x) => el("li", {},
           el("strong", { text: t("cal.episode_code", { s: pad(x.season), e: pad(x.episode) }) }),
@@ -665,7 +705,7 @@
     if (!p) return;
     const before = JSON.stringify([state.mine, state.filters]);
     state.mine = p.mine || [];
-    state.filters = Object.assign(state.filters, p.filters || {});
+    state.filters = normFilters(Object.assign(state.filters, p.filters || {}));
     if (typeof p.shortcuts === "boolean") state.shortcuts = p.shortcuts;
     store.set("filters", state.filters);
     store.set("mine", state.mine);

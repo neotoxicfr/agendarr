@@ -179,3 +179,24 @@ func TestSpecialsKeepSeasonZero(t *testing.T) {
 		t.Fatalf("season omitted: %s", b)
 	}
 }
+
+func TestMediaOf(t *testing.T) {
+	f := &arr.File{Size: 5}
+	f.Quality.Quality.Name = "WEBRip-2160p"
+	f.MediaInfo = &arr.MediaInfo{AudioChannels: 5.1, AudioCodec: "EAC3 Atmos", AudioLanguages: "fre/eng",
+		VideoBitDepth: 10, VideoCodec: "x265", VideoDynamicRangeType: "DV HDR10Plus", Resolution: "3840x1606",
+		Subtitles: "fre/fre/fre/eng/eng/und"}
+	got, _ := json.Marshal(mediaOf("Radarr 4K", f))
+	want := `[{"instance":"Radarr 4K","quality":"WEBRip-2160p","resolution":"4K","video":"x265 10 bit","hdr":"DV HDR10Plus","audio":"EAC3 Atmos 5.1","audioLangs":["fr","en"],"subs":["fr","en"],"size":5}]`
+	if string(got) != want {
+		t.Fatalf("got  %s\nwant %s", got, want)
+	}
+	if mediaOf("x", nil) != nil {
+		t.Fatal("no file, no media")
+	}
+	for in, want := range map[string]string{"1920x800": "1080p", "1280x720": "720p", "720x576": "SD", "": ""} {
+		if got := resolutionLabel(in); got != want {
+			t.Fatalf("%q: %q", in, got)
+		}
+	}
+}

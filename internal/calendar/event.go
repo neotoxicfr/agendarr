@@ -4,6 +4,8 @@ package calendar
 
 import (
 	"fmt"
+	"net/url"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -50,6 +52,40 @@ type Event struct {
 	Group string `json:"group"`
 	// RequestedBy lists the Seerr users who requested it (set per response).
 	RequestedBy []string `json:"requestedBy,omitempty"`
+	// Media describes the file of each instance that has one.
+	Media []Media `json:"media,omitempty"`
+	// Arr locates the movie or series in each instance (admin links).
+	Arr []ArrRef `json:"-"`
+	// PlexURL opens it on the Plex server (set per response).
+	PlexURL string `json:"plexUrl,omitempty"`
+	// ArrLinks open it in Radarr or Sonarr, for admins (set per response).
+	ArrLinks []Link `json:"arrLinks,omitempty"`
+}
+
+// Media sums up one file: quality, video, audio and subtitles.
+type Media struct {
+	Instance   string   `json:"instance"`
+	Quality    string   `json:"quality,omitempty"` // WEBDL-1080p
+	Resolution string   `json:"resolution,omitempty"`
+	Video      string   `json:"video,omitempty"` // x265 10 bit
+	HDR        string   `json:"hdr,omitempty"`
+	Audio      string   `json:"audio,omitempty"` // EAC3 Atmos 5.1
+	AudioLangs []string `json:"audioLangs,omitempty"`
+	Subs       []string `json:"subs,omitempty"`
+	Size       int64    `json:"size,omitempty"`
+}
+
+// ArrRef is where a movie or series lives in one instance's web UI.
+type ArrRef struct {
+	InstanceID int64
+	Instance   string
+	Path       string // /movie/{slug} or /series/{slug}
+}
+
+// Link is a labelled URL.
+type Link struct {
+	Label string `json:"label"`
+	URL   string `json:"url"`
 }
 
 // sortKey orders events within a day: timed episodes by air time, then
@@ -94,6 +130,12 @@ func fromMovie(instID int64, instName string, m arr.Movie) []Event {
 		Poster: posterURL(instID, m.ID, m.Images), Instances: []string{instName},
 		Keys: keys(m.TmdbID, 0, m.ImdbID),
 	}
+	if m.HasFile {
+		base.Media = mediaOf(instName, m.MovieFile)
+	}
+	if m.TitleSlug != "" {
+		base.Arr = []ArrRef{{InstanceID: instID, Instance: instName, Path: "/movie/" + url.PathEscape(m.TitleSlug)}}
+	}
 	base.Group = "movie:" + firstKey(base.Keys, fmt.Sprintf("radarr%d-%d", instID, m.ID))
 	var out []Event
 	for _, r := range []struct {
@@ -122,6 +164,12 @@ func fromEpisode(instID int64, instName string, ep arr.Episode) (Event, bool) {
 		Runtime: ep.Runtime, HasFile: ep.HasFile, Monitored: ep.Monitored, Network: s.Network,
 		Overview: ep.Overview, Poster: posterURL(instID, s.ID, s.Images), Instances: []string{instName},
 		Keys: keys(s.TmdbID, s.TvdbID, s.ImdbID),
+	}
+	if ep.HasFile {
+		e.Media = mediaOf(instName, ep.EpisodeFile)
+	}
+	if s.TitleSlug != "" {
+		e.Arr = []ArrRef{{InstanceID: instID, Instance: instName, Path: "/series/" + url.PathEscape(s.TitleSlug)}}
 	}
 	if e.Runtime == 0 {
 		e.Runtime = s.Runtime
@@ -165,6 +213,18 @@ func merge(events []Event) []Event {
 			}
 			if m.Poster == "" {
 				m.Poster = e.Poster
+			}
+			// A month fetch also returns the other release dates of a movie,
+			// so the same instance can come twice: add each one once.
+			for _, x := range e.Media {
+				if !slices.ContainsFunc(m.Media, func(y Media) bool { return y.Instance == x.Instance }) {
+					m.Media = append(slices.Clip(m.Media), x)
+				}
+			}
+			for _, x := range e.Arr {
+				if !slices.ContainsFunc(m.Arr, func(y ArrRef) bool { return y.InstanceID == x.InstanceID }) {
+					m.Arr = append(slices.Clip(m.Arr), x)
+				}
 			}
 			continue
 		}

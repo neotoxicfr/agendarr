@@ -104,9 +104,24 @@ type Prefs struct {
 type PrefFilters struct {
 	Movies          bool            `json:"movies"`
 	Episodes        bool            `json:"episodes"`
-	HideDownloaded  bool            `json:"hideDownloaded"`
+	Status          string          `json:"status"`                   // all | available | upcoming
+	HideDownloaded  bool            `json:"hideDownloaded,omitempty"` // before Status; read once, then dropped
 	HideUnmonitored bool            `json:"hideUnmonitored"`
 	Instances       map[string]bool `json:"instances"`
+}
+
+// normalize maps the old hideDownloaded checkbox onto Status and drops
+// unknown values.
+func (f *PrefFilters) normalize() {
+	switch f.Status {
+	case "all", "available", "upcoming":
+	default:
+		f.Status = "all"
+		if f.HideDownloaded {
+			f.Status = "upcoming"
+		}
+	}
+	f.HideDownloaded = false
 }
 
 func defaultPrefs() Prefs {
@@ -120,6 +135,7 @@ func (s *Server) loadPrefs(ctx context.Context, userID int64) Prefs {
 		_ = json.Unmarshal([]byte(raw), &p)
 	}
 	p.Mine = cleanSources(p.Mine)
+	p.Filters.normalize()
 	if p.Filters.Instances == nil {
 		p.Filters.Instances = map[string]bool{}
 	}
@@ -155,6 +171,7 @@ func (s *Server) handlePrefsPut(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p.Mine = cleanSources(p.Mine)
+	p.Filters.normalize()
 	if p.View != "" && p.View != "agenda" && p.View != "week" && p.View != "month" {
 		p.View = ""
 	}

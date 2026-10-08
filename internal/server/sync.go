@@ -167,7 +167,8 @@ func filterEvents(in []calendar.Event, f PrefFilters) []calendar.Event {
 	out := make([]calendar.Event, 0, len(in))
 	for _, e := range in {
 		if (e.Kind == "movie" && !f.Movies) || (e.Kind == "episode" && !f.Episodes) ||
-			(f.HideDownloaded && e.HasFile) || (f.HideUnmonitored && !e.Monitored) {
+			(f.Status == "available" && !e.HasFile) || (f.Status == "upcoming" && e.HasFile) ||
+			(f.HideUnmonitored && !e.Monitored) {
 			continue
 		}
 		hidden := len(e.Instances) > 0

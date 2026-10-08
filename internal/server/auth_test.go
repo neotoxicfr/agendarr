@@ -22,6 +22,7 @@ import (
 type fakePlex struct {
 	mu       sync.Mutex
 	nextPin  string            // token the next PIN resolves to
+	pinMiss  int               // lookups answered 404 before the PIN is found
 	accounts map[string]string // token -> user JSON
 	servers  map[string]string // token -> resources JSON
 }
@@ -34,6 +35,11 @@ func (f *fakePlex) handler() http.Handler {
 	mux.HandleFunc("GET /api/v2/pins/1", func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
 		defer f.mu.Unlock()
+		if f.pinMiss > 0 {
+			f.pinMiss--
+			http.Error(w, `{"errors":[{"code":1020,"message":"Code not found or expired","status":404}]}`, http.StatusNotFound)
+			return
+		}
 		json.NewEncoder(w).Encode(map[string]any{"id": 1, "code": "c", "authToken": f.nextPin})
 	})
 	mux.HandleFunc("GET /api/v2/user", func(w http.ResponseWriter, r *http.Request) {
@@ -258,5 +264,32 @@ func TestDeletedUserCookieDoesNotOpenNextAccount(t *testing.T) {
 	}
 	if code := h.status(friend, "/"); code != http.StatusSeeOther {
 		t.Fatalf("deleted user's cookie opened the new account: %d", code)
+	}
+}
+
+// plex.tv answers 404 on some lookups of a live PIN: the sign-in keeps
+// polling instead of sending the user back with "code expired".
+func TestPinNotFoundIsRetried(t *testing.T) {
+	h := newHarness(t, config.Config{DataDir: t.TempDir()})
+	if _, next := h.signIn("owner"); next != "/admin" {
+		t.Fatalf("owner: %q", next)
+	}
+	jar, _ := cookiejar.New(nil)
+	c := &http.Client{Jar: jar, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	h.fp.mu.Lock()
+	h.fp.nextPin, h.fp.pinMiss = "friend", 2
+	h.fp.mu.Unlock()
+	h.post(c, "/auth/plex/start", nil)
+	for i := 0; i < 2; i++ {
+		var check map[string]any
+		h.post(c, "/auth/plex/check", &check)
+		if check["pending"] != true {
+			t.Fatalf("check %d: %v", i, check)
+		}
+	}
+	var check map[string]any
+	h.post(c, "/auth/plex/check", &check)
+	if check["redirect"] != "/" {
+		t.Fatalf("after the misses: %v", check)
 	}
 }

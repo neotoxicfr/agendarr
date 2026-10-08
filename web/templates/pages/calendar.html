@@ -18,7 +18,11 @@
       <legend>{{index .T "cal.show"}}</legend>
       <label class="check"><input type="checkbox" data-filter="movies" checked> <span class="legend-dot is-movie" aria-hidden="true"></span>{{index .T "cal.movies"}}</label>
       <label class="check"><input type="checkbox" data-filter="episodes" checked> <span class="legend-dot is-episode" aria-hidden="true"></span>{{index .T "cal.episodes"}}</label>
-      <label class="check"><input type="checkbox" data-filter="hideDownloaded"> {{index .T "cal.hide_downloaded"}}</label>
+      <div class="segmented segmented-fill" role="radiogroup" aria-label="{{index .T "cal.status_filter"}}">
+        <label><input type="radio" name="status" value="all" checked><span>{{index .T "cal.status_all"}}</span></label>
+        <label><input type="radio" name="status" value="available"><span>{{index .T "cal.status_available"}}</span></label>
+        <label><input type="radio" name="status" value="upcoming"><span>{{index .T "cal.status_upcoming"}}</span></label>
+      </div>
       <label class="check"><input type="checkbox" data-filter="hideUnmonitored"> {{index .T "cal.hide_unmonitored"}}</label>
     </fieldset>
     <fieldset class="side-group" data-instances-group hidden>

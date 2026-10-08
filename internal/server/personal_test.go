@@ -24,7 +24,8 @@ func fakeUpstream(t *testing.T) *httptest.Server {
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /radarr/api/v3/calendar", func(w http.ResponseWriter, r *http.Request) {
-		j(w, `[{"id":1,"title":"Requested Movie","tmdbId":100,"digitalRelease":"2026-10-02T00:00:00Z","monitored":true},
+		j(w, `[{"id":1,"title":"Requested Movie","tmdbId":100,"digitalRelease":"2026-10-02T00:00:00Z","monitored":true,"titleSlug":"100","hasFile":true,
+		        "movieFile":{"size":9,"quality":{"quality":{"name":"Bluray-1080p"}},"mediaInfo":{"audioCodec":"DTS","audioChannels":5.1,"audioLanguages":"fre","resolution":"1920x800","subtitles":"eng"}}},
 		       {"id":2,"title":"Other Movie","tmdbId":200,"digitalRelease":"2026-10-03T00:00:00Z","monitored":true}]`)
 	})
 	mux.HandleFunc("GET /sonarr/api/v3/calendar", func(w http.ResponseWriter, r *http.Request) {
@@ -45,6 +46,12 @@ func fakeUpstream(t *testing.T) *httptest.Server {
 			return
 		}
 		j(w, `{"MediaContainer":{"totalSize":1,"Metadata":[{"type":"episode","ratingKey":"7","grandparentKey":"/library/metadata/2199","viewedAt":1790000000}]}}`)
+	})
+	mux.HandleFunc("GET /plex/library/sections", func(w http.ResponseWriter, r *http.Request) {
+		j(w, `{"MediaContainer":{"Directory":[{"key":"1","type":"movie"},{"key":"9","type":"artist"}]}}`)
+	})
+	mux.HandleFunc("GET /plex/library/sections/1/all", func(w http.ResponseWriter, r *http.Request) {
+		j(w, `{"MediaContainer":{"Metadata":[{"ratingKey":"55","guid":"plex://movie/x","Guid":[{"id":"tmdb://100"}]}]}}`)
 	})
 	mux.HandleFunc("GET /plex/library/metadata/2199", func(w http.ResponseWriter, r *http.Request) {
 		j(w, `{"MediaContainer":{"Metadata":[{"ratingKey":"2199","guid":"plex://show/x","Guid":[{"id":"tvdb://73871"}]}]}}`)
@@ -139,5 +146,90 @@ func TestPersonalFilters(t *testing.T) {
 	res.Body.Close()
 	if p.View != "" || strings.Join(p.Mine, ",") != "seerr" || p.Filters.Movies || !p.Filters.Episodes {
 		t.Fatalf("prefs: %+v", p)
+	}
+
+	// The old "hide available" checkbox becomes the "upcoming" status;
+	// unknown statuses fall back to "all".
+	for body, want := range map[string]string{
+		`{"filters":{"movies":true,"episodes":true,"hideDownloaded":true}}`: "upcoming",
+		`{"filters":{"movies":true,"episodes":true,"status":"hack"}}`:       "all",
+		`{"filters":{"movies":true,"episodes":true,"status":"available"}}`:  "available",
+	} {
+		req, _ := http.NewRequest("PUT", h.http.URL+"/api/prefs", strings.NewReader(body))
+		req.Header.Set("Origin", h.http.URL)
+		res, err := friend.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got Prefs
+		json.NewDecoder(res.Body).Decode(&got)
+		res.Body.Close()
+		if got.Filters.Status != want || got.Filters.HideDownloaded {
+			t.Fatalf("%s: %+v", body, got.Filters)
+		}
+	}
+}
+
+// Media details reach everyone; the Plex link too; Radarr links only admins,
+// and only for instances with a public address.
+func TestEventLinksAndMedia(t *testing.T) {
+	up := fakeUpstream(t)
+	h := newHarness(t, config.Config{DataDir: t.TempDir(), PlexServerURL: up.URL + "/plex"})
+	owner, _ := h.signIn("owner")
+	friend, _ := h.signIn("friend")
+	ctx := context.Background()
+	i := store.Instance{Kind: "radarr", Name: "Radarr", URL: up.URL + "/radarr", PublicURL: "https://radarr.example.com", Enabled: true}
+	i.APIKey = h.srv.box.Seal("k")
+	if _, err := h.srv.store.SaveInstance(ctx, i); err != nil {
+		t.Fatal(err)
+	}
+	h.srv.instancesChanged()
+	type ev struct {
+		Title    string
+		PlexURL  string
+		ArrLinks []struct{ Label, URL string }
+		Media    []struct {
+			Quality, Resolution, Audio string
+			AudioLangs, Subs           []string
+		}
+	}
+	get := func(c *http.Client) ev {
+		res, err := c.Get(h.http.URL + "/api/calendar?from=2026-10-01&to=2026-10-31")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		var body struct{ Events []ev }
+		json.NewDecoder(res.Body).Decode(&body)
+		for _, e := range body.Events {
+			if e.Title == "Requested Movie" {
+				return e
+			}
+		}
+		t.Fatalf("movie missing: %+v", body.Events)
+		return ev{}
+	}
+	// The Plex index is built in the background after the first request.
+	var o ev
+	for n := 0; n < 50; n++ {
+		if o = get(owner); o.PlexURL != "" {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if !strings.Contains(o.PlexURL, "/server/A/details?key=%2Flibrary%2Fmetadata%2F55") {
+		t.Fatalf("plex url: %q", o.PlexURL)
+	}
+	if len(o.ArrLinks) != 1 || o.ArrLinks[0].URL != "https://radarr.example.com/movie/100" {
+		t.Fatalf("admin links: %+v", o.ArrLinks)
+	}
+	m := o.Media
+	if len(m) != 1 || m[0].Quality != "Bluray-1080p" || m[0].Resolution != "1080p" || m[0].Audio != "DTS 5.1" ||
+		strings.Join(m[0].AudioLangs, ",") != "fr" || strings.Join(m[0].Subs, ",") != "en" {
+		t.Fatalf("media: %+v", m)
+	}
+	f := get(friend)
+	if f.PlexURL == "" || len(f.ArrLinks) != 0 || len(f.Media) != 1 {
+		t.Fatalf("friend: %+v", f)
 	}
 }

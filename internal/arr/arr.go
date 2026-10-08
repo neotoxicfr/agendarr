@@ -54,20 +54,47 @@ type Movie struct {
 	Monitored       bool       `json:"monitored"`
 	Genres          []string   `json:"genres"`
 	Images          []Image    `json:"images"`
+	TitleSlug       string     `json:"titleSlug"`
+	MovieFile       *File      `json:"movieFile"`
+}
+
+// File is the file Radarr or Sonarr has for a movie or an episode.
+type File struct {
+	Size    int64 `json:"size"`
+	Quality struct {
+		Quality struct {
+			Name string `json:"name"` // WEBDL-1080p
+		} `json:"quality"`
+	} `json:"quality"`
+	MediaInfo *MediaInfo `json:"mediaInfo"`
+}
+
+// MediaInfo is what Radarr and Sonarr read from the file. Languages are
+// ISO 639-2 codes joined by "/" ("fre/eng").
+type MediaInfo struct {
+	AudioChannels         float64 `json:"audioChannels"`
+	AudioCodec            string  `json:"audioCodec"`
+	AudioLanguages        string  `json:"audioLanguages"`
+	VideoBitDepth         int     `json:"videoBitDepth"`
+	VideoCodec            string  `json:"videoCodec"`
+	VideoDynamicRangeType string  `json:"videoDynamicRangeType"`
+	Resolution            string  `json:"resolution"` // 3840x1606
+	Subtitles             string  `json:"subtitles"`
 }
 
 // Series is the series embedded in a Sonarr calendar entry.
 type Series struct {
-	ID       int64   `json:"id"`
-	Title    string  `json:"title"`
-	Year     int     `json:"year"`
-	TvdbID   int64   `json:"tvdbId"`
-	TmdbID   int64   `json:"tmdbId"`
-	ImdbID   string  `json:"imdbId"`
-	Network  string  `json:"network"`
-	Overview string  `json:"overview"`
-	Runtime  int     `json:"runtime"`
-	Images   []Image `json:"images"`
+	ID        int64   `json:"id"`
+	Title     string  `json:"title"`
+	Year      int     `json:"year"`
+	TvdbID    int64   `json:"tvdbId"`
+	TmdbID    int64   `json:"tmdbId"`
+	ImdbID    string  `json:"imdbId"`
+	Network   string  `json:"network"`
+	TitleSlug string  `json:"titleSlug"`
+	Overview  string  `json:"overview"`
+	Runtime   int     `json:"runtime"`
+	Images    []Image `json:"images"`
 }
 
 // Episode is a Sonarr calendar entry.
@@ -85,6 +112,7 @@ type Episode struct {
 	Monitored     bool       `json:"monitored"`
 	FinaleType    string     `json:"finaleType"`
 	Series        Series     `json:"series"`
+	EpisodeFile   *File      `json:"episodeFile"`
 }
 
 // Client is one Radarr or Sonarr instance.
@@ -121,6 +149,7 @@ func (c *Client) Movies(ctx context.Context, start, end time.Time) ([]Movie, err
 func (c *Client) Episodes(ctx context.Context, start, end time.Time) ([]Episode, error) {
 	q := window(start, end)
 	q.Set("includeSeries", "true")
+	q.Set("includeEpisodeFile", "true")
 	var out []Episode
 	err := c.Get(ctx, "/api/v3/calendar", q, &out)
 	return out, err

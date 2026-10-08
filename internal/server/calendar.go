@@ -73,6 +73,7 @@ func (s *Server) handleCalendarAPI(w http.ResponseWriter, r *http.Request) {
 		out.Personal = pr.Errors
 		out.Events = keepKeys(out.Events, pr.Keys)
 	}
+	s.addLinks(r.Context(), out.Events, currentUser(r).IsAdmin)
 	writeJSON(w, http.StatusOK, out)
 }
 
