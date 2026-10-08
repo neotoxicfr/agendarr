@@ -117,7 +117,9 @@ has the same file with comments.
 ### First run
 
 1. **Sign in with the Plex account that owns the server.** It becomes the
-   administrator. If it owns several servers, pick one.
+   administrator. If it owns several servers, pick one. Do this right after
+   starting the container, before sharing the URL: until then, the first
+   person to sign in with a Plex server of their own becomes the administrator.
 2. In **Admin › Instances**, add **Seerr**, then click **Import Radarr and Sonarr**:
    Agendarr copies the servers Seerr already knows, API keys included. You can
    also add Radarr and Sonarr by hand (the API key is in *Settings › General* of
