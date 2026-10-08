@@ -1,0 +1,16 @@
+{{define "content"}}<section class="auth">
+  <img class="auth-logo" src="/static/icons/icon.svg?v={{.Version}}" alt="" width="64" height="64">
+  {{if .Data.Setup}}
+  <h1>{{index .T "login.setup_title"}}</h1>
+  <p>{{index .T "login.setup_body"}}</p>
+  {{else}}
+  <h1>{{index .T "login.title"}}</h1>
+  <p>{{with .Data.Server}}{{printf (index $.T "login.body_server") .}}{{else}}{{index .T "login.body"}}{{end}}</p>
+  {{end}}
+  {{with .Data.Error}}<p class="alert" role="alert">{{index $.T .}}</p>{{end}}
+  <button class="btn btn-plex" type="button" data-plex-login>
+    <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M7 3h5.2l4.8 9-4.8 9H7l4.8-9z"/></svg>
+    {{index .T "login.button"}}
+  </button>
+  <p class="auth-status" data-plex-status aria-live="polite"></p>
+</section>{{end}}

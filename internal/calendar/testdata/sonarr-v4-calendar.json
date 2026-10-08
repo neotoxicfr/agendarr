@@ -1,0 +1,358 @@
+[
+ {
+  "id": 127967,
+  "seriesId": 782,
+  "seasonNumber": 4,
+  "episodeNumber": 6,
+  "title": "Plum Out of Luck",
+  "overview": "On the run from the police, Reacher and Tamara leave town in search of the mysterious Ahlquist, but they end up in trouble. Meanwhile, in Philadelphia, Jacob and Plum must face their own problems.",
+  "airDate": "2026-09-02",
+  "airDateUtc": "2026-09-02T07:00:00Z",
+  "runtime": 41,
+  "hasFile": true,
+  "monitored": true,
+  "tvdbId": 11868081,
+  "series": {
+   "id": 782,
+   "title": "Reacher",
+   "year": 2022,
+   "tvdbId": 366924,
+   "tmdbId": 108978,
+   "imdbId": "tt9288030",
+   "network": "Prime Video",
+   "runtime": 49,
+   "images": [
+    {
+     "coverType": "banner",
+     "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/366924/banners/61acf46489189.jpg"
+    },
+    {
+     "coverType": "poster",
+     "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/366924/posters/655131f48f1a3.jpg"
+    },
+    {
+     "coverType": "fanart",
+     "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/366924/backgrounds/61f5af4b75b57.jpg"
+    },
+    {
+     "coverType": "clearlogo",
+     "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/366924/clearlogo/65d99aebeb7a5.png"
+    }
+   ],
+   "status": "continuing",
+   "airTime": "03:00"
+  }
+ },
+ {
+  "id": 131909,
+  "seriesId": 1878,
+  "seasonNumber": 0,
+  "episodeNumber": 6,
+  "title": "Reprising Your Faves",
+  "overview": "Join Kaley Cuoco, Melissa Rouch, Mayim Bialik, and others as they discuss the joy of bringing their beloved Big Bang Theory characters into Stuart Fails to Save the Universe.",
+  "airDate": "2026-09-03",
+  "airDateUtc": "2026-09-04T01:00:00Z",
+  "runtime": 2,
+  "hasFile": false,
+  "monitored": false,
+  "tvdbId": 11977047,
+  "series": {
+   "id": 1878,
+   "title": "Stuart Fails to Save the Universe",
+   "year": 2026,
+   "tvdbId": 465664,
+   "tmdbId": 287620,
+   "imdbId": "tt27497393",
+   "network": "HBO Max",
+   "runtime": 20,
+   "images": [
+    {
+     "coverType": "banner",
+     "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/465664/banners/6a2ba97a10d9e.jpg"
+    },
+    {
+     "coverType": "poster",
+     "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/465664/posters/6a62ca71cfd7e.jpg"
+    },
+    {
+     "coverType": "fanart",
+     "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/465664/backgrounds/6a76940feafe8.jpg"
+    },
+    {
+     "coverType": "clearlogo",
+     "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/465664/clearlogo/6a919a6c04adf.png"
+    }
+   ],
+   "status": "continuing",
+   "airTime": "21:00"
+  }
+ },
+ {
+  "id": 125515,
+  "seriesId": 1847,
+  "seasonNumber": 3,
+  "episodeNumber": 10,
+  "title": "Troy",
+  "overview": "A leader wakes to a new world.",
+  "airDate": "2026-09-04",
+  "airDateUtc": "2026-09-04T04:00:00Z",
+  "runtime": 60,
+  "hasFile": true,
+  "monitored": true,
+  "finaleType": "season",
+  "tvdbId": 11751888,
+  "series": {
+   "id": 1847,
+   "title": "Silo",
+   "year": 2023,
+   "tvdbId": 403245,
+   "tmdbId": 125988,
+   "imdbId": "tt14688458",
+   "network": "Apple TV",
+   "runtime": 51,
+   "images": [
+    {
+     "coverType": "banner",
+     "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/403245/banners/6449d56a60674.jpg"
+    },
+    {
+     "coverType": "poster",
+     "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/403245/posters/64432dea72673.jpg"
+    },
+    {
+     "coverType": "fanart",
+     "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/403245/backgrounds/640bc23f1fa80.jpg"
+    },
+    {
+     "coverType": "clearlogo",
+     "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/403245/clearlogo/6455710e48c96.png"
+    }
+   ],
+   "status": "continuing",
+   "airTime": "00:00"
+  }
+ },
+ {
+  "id": 131531,
+  "seriesId": 1665,
+  "seasonNumber": 4,
+  "episodeNumber": 6,
+  "title": "Episode 6",
+  "overview": "The final showdown forces Lana into a life-or-death situation as she races against the clock to save thousands of lives.",
+  "airDate": "2026-09-14",
+  "airDateUtc": "2026-09-14T20:00:00Z",
+  "runtime": 47,
+  "hasFile": false,
+  "monitored": true,
+  "finaleType": "season",
+  "tvdbId": 11950624,
+  "series": {
+   "id": 1665,
+   "title": "Trigger Point (2022)",
+   "year": 2022,
+   "tvdbId": 395985,
+   "tmdbId": 127716,
+   "imdbId": "tt11958610",
+   "network": "ITV1",
+   "runtime": 45,
+   "images": [
+    {
+     "coverType": "banner",
+     "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/395985/banners/625990f7506d5.jpg"
+    },
+    {
+     "coverType": "poster",
+     "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/395985/posters/656cdb042cc06.jpg"
+    },
+    {
+     "coverType": "fanart",
+     "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/395985/backgrounds/61e010b71ea61.jpg"
+    },
+    {
+     "coverType": "clearlogo",
+     "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/395985/clearlogo/61f0001463f18.png"
+    }
+   ],
+   "status": "continuing",
+   "airTime": "21:00"
+  }
+ },
+ {
+  "id": 130214,
+  "seriesId": 1962,
+  "seasonNumber": 1,
+  "episodeNumber": 1,
+  "title": "L Train",
+  "overview": "When Neagley's childhood friend, Tommy, dies after walking into an oncoming train, the police are ready to label this as an apparent accident. But after receiving a mysterious message from the deceased, Neagley knows something is amiss.",
+  "airDate": "2026-09-16",
+  "airDateUtc": "2026-09-16T07:00:00Z",
+  "runtime": 57,
+  "hasFile": true,
+  "monitored": true,
+  "tvdbId": 11619755,
+  "series": {
+   "id": 1962,
+   "title": "Neagley",
+   "year": 2026,
+   "tvdbId": 455064,
+   "tmdbId": 273207,
+   "imdbId": "tt33539520",
+   "network": "Prime Video",
+   "runtime": 49,
+   "images": [
+    {
+     "coverType": "banner",
+     "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/455064/banners/6a6fece6a76aa.jpg"
+    },
+    {
+     "coverType": "poster",
+     "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/455064/posters/6a651c53aebc2.jpg"
+    },
+    {
+     "coverType": "fanart",
+     "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/455064/backgrounds/6aaea7837cc16.jpg"
+    },
+    {
+     "coverType": "clearlogo",
+     "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/455064/clearlogo/6aaea770cecfb.png"
+    }
+   ],
+   "status": "continuing",
+   "airTime": "03:00"
+  }
+ },
+ {
+  "id": 132281,
+  "seriesId": 1990,
+  "seasonNumber": 4,
+  "episodeNumber": 1,
+  "title": "Bloodbath",
+  "overview": "Tormented by her sharp-tongued stepmother, Lizzie Borden sees her world open up when an unorthodox and provocative new maid joins her household.",
+  "airDate": "2026-09-17",
+  "airDateUtc": "2026-09-17T07:00:00Z",
+  "runtime": 54,
+  "hasFile": false,
+  "monitored": false,
+  "tvdbId": 11934436,
+  "series": {
+   "id": 1990,
+   "title": "Monster (2022)",
+   "year": 2022,
+   "tvdbId": 389492,
+   "tmdbId": 299939,
+   "imdbId": "tt13207736",
+   "network": "Netflix",
+   "runtime": 52,
+   "images": [
+    {
+     "coverType": "banner",
+     "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/389492/banners/645166230842c.jpg"
+    },
+    {
+     "coverType": "poster",
+     "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/389492/posters/6aac14ea9be85.jpg"
+    },
+    {
+     "coverType": "fanart",
+     "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/389492/backgrounds/66ee54059f7e4.jpg"
+    },
+    {
+     "coverType": "clearlogo",
+     "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/389492/clearlogo/66ecdcff36e43.png"
+    }
+   ],
+   "status": "continuing",
+   "airTime": "03:00"
+  }
+ },
+ {
+  "id": 132252,
+  "seriesId": 1989,
+  "seasonNumber": 1,
+  "episodeNumber": 11,
+  "title": "Quite the Villainess",
+  "overview": "With the plans to murder Kenshuu using a curse out in the open, Gabi is cornered. She tries to slash Reirin, but is pinned down on the spot. With everything settled, Reirin and Keigetsu decide to cancel the swap. As they are enveloped in flames, the two Maidens tell each other how they feel...",
+  "airDate": "2026-09-20",
+  "airDateUtc": "2026-09-20T14:45:00Z",
+  "runtime": 24,
+  "hasFile": true,
+  "monitored": true,
+  "finaleType": "midseason",
+  "tvdbId": 11881665,
+  "series": {
+   "id": 1989,
+   "title": "Though I Am an Inept Villainess",
+   "year": 2026,
+   "tvdbId": 461544,
+   "tmdbId": 286345,
+   "imdbId": "tt41293157",
+   "network": "TV Tokyo",
+   "runtime": 24,
+   "images": [
+    {
+     "coverType": "banner",
+     "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/461544/banners/6a615b8f3d7c8.jpg"
+    },
+    {
+     "coverType": "poster",
+     "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/461544/posters/6a53b8baa3544.jpg"
+    },
+    {
+     "coverType": "fanart",
+     "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/461544/backgrounds/6a53b85e3ce17.jpg"
+    },
+    {
+     "coverType": "clearlogo",
+     "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/461544/clearlogo/6a544e3a7e903.png"
+    }
+   ],
+   "status": "continuing",
+   "airTime": "23:45"
+  }
+ },
+ {
+  "id": 131862,
+  "seriesId": 1985,
+  "seasonNumber": 1,
+  "episodeNumber": 12,
+  "title": "A Fresh Start",
+  "overview": "Hayato and friends enjoy their long-awaited pool day and then take a trip to revisit their roots in Tsukinose.",
+  "airDate": "2026-09-21",
+  "airDateUtc": "2026-09-21T14:30:00Z",
+  "runtime": 24,
+  "hasFile": true,
+  "monitored": true,
+  "finaleType": "series",
+  "tvdbId": 11874744,
+  "series": {
+   "id": 1985,
+   "title": "Oh Boy, Was I Wrong About Her",
+   "year": 2026,
+   "tvdbId": 467401,
+   "tmdbId": 250008,
+   "imdbId": "tt41278615",
+   "network": "Tokyo MX",
+   "runtime": 24,
+   "images": [
+    {
+     "coverType": "banner",
+     "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/467401/banners/6a4ce7f42c513.jpg"
+    },
+    {
+     "coverType": "poster",
+     "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/467401/posters/6a44c319cdea4.jpg"
+    },
+    {
+     "coverType": "fanart",
+     "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/467401/backgrounds/6a4bcf0d73596.jpg"
+    },
+    {
+     "coverType": "clearlogo",
+     "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/467401/clearlogo/6a544a9179bc5.png"
+    }
+   ],
+   "status": "ended",
+   "airTime": "23:30"
+  }
+ }
+]

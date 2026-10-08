@@ -1,0 +1,80 @@
+{{define "content"}}<div class="cal" data-calendar data-admin="{{.User.IsAdmin}}">
+  <aside class="cal-side" id="cal-filters" data-cal-filters aria-label="{{index .T "cal.filters"}}">
+    <div class="side-head">
+      <h2>{{index .T "cal.filters"}}</h2>
+      <button class="btn btn-ghost icon-btn side-close" type="button" data-filters-close aria-label="{{index .T "cal.filters_close"}}">
+        <svg class="nav-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <fieldset class="side-group">
+      <legend>{{index .T "cal.mine"}}</legend>
+      <p class="side-help">{{index .T "cal.mine_help"}}</p>
+      <label class="check"><input type="checkbox" data-mine="seerr"> {{index .T "cal.mine_seerr"}}</label>
+      <label class="check"><input type="checkbox" data-mine="watching"> {{index .T "cal.mine_watching"}}</label>
+      <label class="check"><input type="checkbox" data-mine="watchlist"> {{index .T "cal.mine_watchlist"}}</label>
+      <label class="check"><input type="checkbox" data-mine="watched"> {{index .T "cal.mine_watched"}}</label>
+    </fieldset>
+    <fieldset class="side-group">
+      <legend>{{index .T "cal.show"}}</legend>
+      <label class="check"><input type="checkbox" data-filter="movies" checked> <span class="legend-dot is-movie" aria-hidden="true"></span>{{index .T "cal.movies"}}</label>
+      <label class="check"><input type="checkbox" data-filter="episodes" checked> <span class="legend-dot is-episode" aria-hidden="true"></span>{{index .T "cal.episodes"}}</label>
+      <label class="check"><input type="checkbox" data-filter="hideDownloaded"> {{index .T "cal.hide_downloaded"}}</label>
+      <label class="check"><input type="checkbox" data-filter="hideUnmonitored"> {{index .T "cal.hide_unmonitored"}}</label>
+    </fieldset>
+    <fieldset class="side-group" data-instances-group hidden>
+      <legend>{{index .T "cal.instances"}}</legend>
+      <div data-instances></div>
+    </fieldset>
+    <fieldset class="side-group">
+      <label class="check"><input type="checkbox" data-shortcuts checked> {{index .T "cal.shortcuts_toggle"}}</label>
+      <p class="side-note" data-shortcuts-note>{{index .T "cal.shortcuts"}}</p>
+    </fieldset>
+  </aside>
+
+  <section class="cal-main" aria-labelledby="cal-title">
+    <div class="cal-toolbar">
+      <div class="cal-nav">
+        <button class="btn icon-btn" type="button" data-cal="prev" aria-label="{{index .T "cal.prev"}}">
+          <svg class="nav-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>
+        </button>
+        <button class="btn" type="button" data-cal="today">{{index .T "cal.today"}}</button>
+        <button class="btn icon-btn" type="button" data-cal="next" aria-label="{{index .T "cal.next"}}">
+          <svg class="nav-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>
+        </button>
+      </div>
+      <h1 class="cal-title" id="cal-title" data-cal-title aria-live="polite"></h1>
+      <div class="cal-tools">
+        <div class="segmented" role="radiogroup" aria-label="{{index .T "cal.views_aria"}}">
+          <label><input type="radio" name="view" value="agenda"><span>{{index .T "cal.view_agenda"}}</span></label>
+          <label><input type="radio" name="view" value="week"><span>{{index .T "cal.view_week"}}</span></label>
+          <label><input type="radio" name="view" value="month"><span>{{index .T "cal.view_month"}}</span></label>
+        </div>
+        <button class="btn icon-btn filters-btn" type="button" data-filters-open aria-controls="cal-filters" aria-expanded="false">
+          <svg class="nav-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+          <span class="sr-only">{{index .T "cal.filters"}}</span>
+          <span class="filters-count" data-filters-count hidden></span>
+        </button>
+      </div>
+    </div>
+    <ul class="legend" aria-label="{{index .T "cal.legend_aria"}}">
+      <li><span class="lg-dot is-movie" aria-hidden="true"></span>{{index .T "cal.legend_movie"}}</li>
+      <li><span class="lg-dot is-episode" aria-hidden="true"></span>{{index .T "cal.legend_episode"}}</li>
+      <li><span class="lg-dot is-neutral is-filled" aria-hidden="true"></span>{{index .T "cal.legend_available"}}</li>
+      <li><span class="lg-dot is-neutral" aria-hidden="true"></span>{{index .T "cal.legend_expected"}}</li>
+    </ul>
+    <div class="cal-warning" data-cal-warning role="status" hidden></div>
+    <div class="cal-body" data-cal-body aria-busy="true"></div>
+  </section>
+
+  <div class="scrim" data-scrim hidden></div>
+
+  <dialog class="sheet" data-detail aria-labelledby="detail-title">
+    <div class="sheet-inner">
+      <button class="btn btn-ghost icon-btn sheet-close" type="button" data-detail-close aria-label="{{index .T "cal.close"}}">
+        <svg class="nav-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+      <div data-detail-body></div>
+    </div>
+  </dialog>
+</div>
+<script src="/static/js/calendar.js?v={{.Version}}" defer></script>{{end}}

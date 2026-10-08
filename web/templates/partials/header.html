@@ -1,0 +1,32 @@
+{{define "header"}}<header class="topbar">
+  <a class="brand" href="/" aria-label="{{index .T "nav.home_aria"}}">
+    <img src="/static/icons/icon.svg?v={{.Version}}" alt="" width="28" height="28">
+    <span>Agendarr</span>
+  </a>
+  {{with .User}}
+  <nav class="nav" aria-label="{{index $.T "nav.main_aria"}}">
+    <a href="/" {{if eq $.Path "/"}}aria-current="page"{{end}}>
+      <svg class="nav-icon" aria-hidden="true" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
+      <span>{{index $.T "nav.calendar"}}</span>
+    </a>
+    <a href="/sync" {{if eq $.Path "/sync"}}aria-current="page"{{end}}>
+      <svg class="nav-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.6L20 8.7M20 4v4.7h-4.7M20 12a8 8 0 0 1-13.7 5.6L4 15.3M4 20v-4.7h4.7"/></svg>
+      <span>{{index $.T "nav.sync"}}</span>
+    </a>
+    {{if .IsAdmin}}<a href="/admin" {{if hasPrefix $.Path "/admin"}}aria-current="page"{{end}}>
+      <svg class="nav-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2.2"/><circle cx="8" cy="17" r="2.2"/></svg>
+      <span>{{index $.T "nav.admin"}}</span>
+    </a>{{end}}
+  </nav>
+  <div class="me" role="group" aria-label="{{printf (index $.T "nav.account_aria") .Username}}">
+    {{if .Thumb}}<img class="avatar" src="{{.Thumb}}" alt="" width="32" height="32" referrerpolicy="no-referrer">{{end}}
+    <span class="me-name">{{.Username}}</span>
+    <form method="post" action="/logout" data-confirm="{{index $.T "auth.logout_confirm"}}">
+      <button class="btn btn-ghost btn-logout" type="submit" aria-label="{{index $.T "auth.logout"}}">
+        <svg class="nav-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4M10 16l-4-4 4-4M6 12h10"/></svg>
+        <span class="logout-label">{{index $.T "auth.logout"}}</span>
+      </button>
+    </form>
+  </div>
+  {{end}}
+</header>{{end}}

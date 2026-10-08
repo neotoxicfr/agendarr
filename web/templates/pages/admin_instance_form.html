@@ -1,0 +1,60 @@
+{{define "content"}}{{$f := .Data.Form}}<div class="page">
+  <h1>{{index .T "title.admin"}}</h1>
+  {{template "admin_nav" .}}
+  <form class="form" method="post" action="{{if $f.ID}}/admin/instances/{{$f.ID}}{{else}}/admin/instances/new{{end}}" data-instance-form novalidate{{if $f.Errors}} data-has-errors{{end}}>
+    <h2>{{if $f.ID}}{{printf (index .T "inst.edit_title") $f.Name}}{{else}}{{index .T "inst.new_title"}}{{end}}</h2>
+    {{if $f.ID}}<input type="hidden" name="id" value="{{$f.ID}}">{{end}}
+
+    {{if not $f.ID}}
+    <fieldset class="field">
+      <legend>{{index .T "inst.kind"}}</legend>
+      <div class="segmented">
+        {{range .Data.Kinds}}
+        <label><input type="radio" name="kind" value="{{.}}" {{if eq . $f.Kind}}checked{{end}}><span>{{index $.Data.Names .}}</span></label>
+        {{end}}
+      </div>
+    </fieldset>
+    {{else}}
+    <input type="hidden" name="kind" value="{{$f.Kind}}">
+    {{end}}
+
+    <div class="field">
+      <label for="f-name">{{index .T "inst.name"}}</label>
+      <input id="f-name" name="name" value="{{$f.Name}}" autocomplete="off" aria-describedby="f-name-help">
+      <p class="help" id="f-name-help">{{index .T "inst.name_help"}}</p>
+    </div>
+
+    <div class="field">
+      <label for="f-url">{{index .T "inst.url"}}</label>
+      <input id="f-url" name="url" type="url" inputmode="url" value="{{$f.URL}}" required autocomplete="off" spellcheck="false"
+        aria-describedby="f-url-help{{if index $f.Errors "url"}} f-url-err{{end}}" {{if index $f.Errors "url"}}aria-invalid="true"{{end}}>
+      {{with index $f.Errors "url"}}<p class="error" id="f-url-err">{{index $.T .}}</p>{{end}}
+      <p class="help" id="f-url-help">{{index .T "inst.url_help"}}</p>
+    </div>
+
+    <div class="field">
+      <label for="f-key">{{index .T "inst.api_key"}}</label>
+      <input id="f-key" name="api_key" type="password" autocomplete="off" spellcheck="false" {{if not $f.HasKey}}required{{end}}
+        aria-describedby="f-key-help{{if index $f.Errors "api_key"}} f-key-err{{end}}" {{if index $f.Errors "api_key"}}aria-invalid="true"{{end}}>
+      {{with index $f.Errors "api_key"}}<p class="error" id="f-key-err">{{index $.T .}}</p>{{end}}
+      <p class="help" id="f-key-help">
+        <span data-kind-help="arr">{{index .T "inst.api_key_help_arr"}}</span>
+        <span data-kind-help="seerr">{{index .T "inst.api_key_help_seerr"}}</span>
+        {{if $f.HasKey}}{{index .T "inst.api_key_keep"}}{{end}}
+      </p>
+    </div>
+
+    <div class="field">
+      <label class="check"><input type="checkbox" name="enabled" value="1" {{if $f.Enabled}}checked{{end}}> {{index .T "inst.enabled_label"}}</label>
+    </div>
+
+    <p class="test-result" data-test-result role="status" aria-live="polite"></p>
+
+    <div class="form-actions">
+      <button class="btn" type="button" data-test-instance>{{index .T "inst.test"}}</button>
+      <span class="spacer"></span>
+      <a class="btn btn-ghost" href="/admin/instances">{{index .T "inst.cancel"}}</a>
+      <button class="btn btn-primary" type="submit">{{index .T "inst.save"}}</button>
+    </div>
+  </form>
+</div>{{end}}

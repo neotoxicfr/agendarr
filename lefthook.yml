@@ -1,0 +1,22 @@
+pre-commit:
+  parallel: true
+  commands:
+    lint:
+      glob: "*.go"
+      run: golangci-lint run --new-from-rev=HEAD
+    vet:
+      glob: "*.go"
+      run: go vet ./...
+    build:
+      glob: "*.go"
+      run: go build ./...
+
+# Tests are too slow for every commit but cheap enough before publishing.
+# Plain `go test` (not -race) so the hook does not require a cgo toolchain;
+# CI runs the race detector on every push.
+pre-push:
+  parallel: true
+  commands:
+    test:
+      glob: "*.go"
+      run: go test -timeout 120s ./...

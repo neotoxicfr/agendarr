@@ -1,0 +1,12 @@
+{{define "content"}}<section class="auth">
+  <h1>{{index .T "setup.server_title"}}</h1>
+  <p>{{index .T "setup.server_body"}}</p>
+  <form method="post" class="choice-list">
+    {{range .Data}}
+    <button class="choice" type="submit" name="server" value="{{.ClientIdentifier}}">
+      <span class="choice-title">{{.Name}}</span>
+      <span class="choice-meta">{{.Product}}</span>
+    </button>
+    {{end}}
+  </form>
+</section>{{end}}
