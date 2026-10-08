@@ -113,6 +113,7 @@ type Episode struct {
 	FinaleType    string     `json:"finaleType"`
 	Series        Series     `json:"series"`
 	EpisodeFile   *File      `json:"episodeFile"`
+	TvdbID        int64      `json:"tvdbId"` // of the episode
 }
 
 // Client is one Radarr or Sonarr instance.

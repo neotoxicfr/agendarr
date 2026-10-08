@@ -319,3 +319,111 @@ func WebURL(machineID, ratingKey string) string {
 	return "https://app.plex.tv/desktop/#!/server/" + url.PathEscape(machineID) +
 		"/details?key=" + url.QueryEscape("/library/metadata/"+ratingKey)
 }
+
+// Version is one file of a library item, with its audio and subtitle tracks.
+type Version struct {
+	Resolution string  `json:"resolution,omitempty"` // 4K, 1080p
+	Audio      []Track `json:"audio"`
+	Subs       []Track `json:"subs"`
+}
+
+// Track is one audio or subtitle stream.
+type Track struct {
+	Codec    string `json:"codec,omitempty"`  // aac, eac3, srt, pgs…
+	Lang     string `json:"lang,omitempty"`   // BCP 47 tag: fr, en
+	Title    string `json:"title,omitempty"`  // as named in the file
+	Layout   string `json:"layout,omitempty"` // audio: 5.1, 7.1
+	Forced   bool   `json:"forced,omitempty"`
+	HI       bool   `json:"hi,omitempty"` // subtitles for the deaf and hard of hearing
+	Default  bool   `json:"default,omitempty"`
+	External bool   `json:"external,omitempty"` // subtitle in a separate file
+}
+
+// Tracks returns the audio and subtitle tracks of each version of an item.
+func (s *Server) Tracks(ctx context.Context, ratingKey string) ([]Version, error) {
+	var v struct {
+		MediaContainer struct {
+			Metadata []struct {
+				Media []struct {
+					VideoResolution string `json:"videoResolution"` // 4k, 1080, sd
+					Part            []struct {
+						Stream []struct {
+							StreamType         int    `json:"streamType"`
+							Codec              string `json:"codec"`
+							LanguageTag        string `json:"languageTag"`
+							Title              string `json:"title"`
+							AudioChannelLayout string `json:"audioChannelLayout"`
+							Forced             bool   `json:"forced"`
+							HearingImpaired    bool   `json:"hearingImpaired"`
+							Default            bool   `json:"default"`
+							Key                string `json:"key"`
+						} `json:"Stream"`
+					} `json:"Part"`
+				} `json:"Media"`
+			} `json:"Metadata"`
+		} `json:"MediaContainer"`
+	}
+	if err := s.get(ctx, "/library/metadata/"+url.PathEscape(ratingKey), nil, &v); err != nil {
+		return nil, err
+	}
+	var out []Version
+	for _, m := range v.MediaContainer.Metadata {
+		for _, med := range m.Media {
+			ver := Version{Resolution: resolution(med.VideoResolution)}
+			for _, p := range med.Part {
+				for _, st := range p.Stream {
+					t := Track{Codec: st.Codec, Lang: st.LanguageTag, Title: st.Title, Forced: st.Forced,
+						HI: st.HearingImpaired, Default: st.Default}
+					switch st.StreamType {
+					case 2:
+						t.Layout = strings.SplitN(st.AudioChannelLayout, "(", 2)[0]
+						ver.Audio = append(ver.Audio, t)
+					case 3:
+						t.External = st.Key != ""
+						ver.Subs = append(ver.Subs, t)
+					}
+				}
+			}
+			out = append(out, ver)
+		}
+	}
+	return out, nil
+}
+
+// resolution names Plex's videoResolution ("4k", "1080", "sd").
+func resolution(r string) string {
+	switch {
+	case r == "":
+		return ""
+	case strings.EqualFold(r, "4k"):
+		return "4K"
+	case strings.EqualFold(r, "sd"):
+		return "SD"
+	case strings.HasSuffix(r, "p"):
+		return r
+	default:
+		return r + "p"
+	}
+}
+
+// EpisodeKey finds the ratingKey of one episode of a show.
+func (s *Server) EpisodeKey(ctx context.Context, showKey string, season, episode int) (string, error) {
+	var v struct {
+		MediaContainer struct {
+			Metadata []struct {
+				RatingKey   string `json:"ratingKey"`
+				ParentIndex int    `json:"parentIndex"`
+				Index       int    `json:"index"`
+			} `json:"Metadata"`
+		} `json:"MediaContainer"`
+	}
+	if err := s.get(ctx, "/library/metadata/"+url.PathEscape(showKey)+"/allLeaves", nil, &v); err != nil {
+		return "", err
+	}
+	for _, m := range v.MediaContainer.Metadata {
+		if m.ParentIndex == season && m.Index == episode {
+			return m.RatingKey, nil
+		}
+	}
+	return "", errNotFound
+}

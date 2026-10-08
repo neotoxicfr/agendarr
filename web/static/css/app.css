@@ -479,6 +479,39 @@ main:has(.cal) { padding-top: 0; }
 .detail-file h3 { margin: 0; font-size: var(--fs-2); color: var(--text-2); }
 .detail-file .detail-facts { margin-top: 6px; }
 .detail-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 0; }
+.detail-ext { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 12px 0 0; color: var(--text-2); font-size: var(--fs-2); }
+.detail-ext span { margin-right: 4px; }
+.detail-ext a { display: inline-flex; align-items: center; min-height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--text); font-weight: 600; text-decoration: none; }
+.detail-ext a:hover { border-color: var(--text-2); }
+.detail-ext a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* Flags: Windows has no flag emoji, so the flag glyphs come from a bundled
+   subset of Twemoji (only fetched when a flag is on screen). */
+@font-face { font-family: "Twemoji Country Flags"; src: url("/static/fonts/TwemojiCountryFlags.woff2?v=1") format("woff2");
+  unicode-range: U+1F1E6-1F1FF, U+1F3F4, U+E0062-E0063, U+E0065, U+E0067, U+E006C, U+E006E, U+E0073-E0074, U+E0077, U+E007F;
+  font-display: swap; }
+.flag { font-family: "Twemoji Country Flags", "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; font-size: 1.15em; line-height: 1; }
+.langs, .langs-line { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+.tracks { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.tracks li { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
+.fmts { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.fmt { display: inline-flex; align-items: center; padding: 1px 6px; border: 1px solid var(--line); border-radius: 4px;
+  background: var(--surface-2); font-size: var(--fs-1); font-weight: 700; letter-spacing: .03em; line-height: 1.5; white-space: nowrap; }
+.detail-tracks summary { cursor: pointer; font-weight: 600; min-height: 32px; display: flex; align-items: center; gap: 6px; list-style: none; }
+.detail-tracks summary::-webkit-details-marker { display: none; }
+.detail-tracks summary::before { content: "▸"; color: var(--text-2); transition: transform .15s ease; }
+.detail-tracks[open] summary::before { transform: rotate(90deg); }
+.detail-tracks summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.detail-tracks h3 { margin: 8px 0 0; }
+.site-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.site-chip { position: relative; }
+.site-chip input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.site-chip span { display: inline-flex; align-items: center; gap: 4px; min-height: 36px; padding: 0 12px; border: 1px solid var(--line);
+  border-radius: 999px; color: var(--text-2); font-weight: 600; }
+.site-chip input:checked + span { background: var(--surface-2); color: var(--text); border-color: var(--text-2); }
+.site-chip input:checked + span::before { content: "✓"; }
+.site-chip input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 1px; }
+.track-title { color: var(--text-2); }
+.tracks .pill { font-size: var(--fs-1); }
 .day-sheet h2 { margin: 4px 48px 16px 0; }
 
 /* tablet: filters collapse into a drawer */
