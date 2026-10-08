@@ -7,7 +7,7 @@ require (
 	github.com/alexedwards/scs/v2 v2.9.0
 	github.com/pressly/goose/v3 v3.28.0
 	golang.org/x/sync v0.23.0
-	modernc.org/sqlite v1.60.0
+	modernc.org/sqlite v1.60.1
 	rsc.io/qr v0.2.0
 )
 
