@@ -163,3 +163,19 @@ func waitFor(t *testing.T, f func() bool) {
 	}
 	t.Fatal("condition not met")
 }
+
+// Specials are season 0: the field must still reach the browser, which
+// otherwise shows "SundefinedE01".
+func TestSpecialsKeepSeasonZero(t *testing.T) {
+	b, err := json.Marshal(Event{Kind: "episode", Season: 0, Episode: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(b, &m); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := m["season"]; !ok {
+		t.Fatalf("season omitted: %s", b)
+	}
+}

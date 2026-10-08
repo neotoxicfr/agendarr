@@ -25,8 +25,8 @@ type Event struct {
 	Release  string `json:"release,omitempty"` // movies: cinema | digital | physical
 	Title    string `json:"title"`             // movie or series title
 	Year     int    `json:"year,omitempty"`
-	Season   int    `json:"season,omitempty"`
-	Episode  int    `json:"episode,omitempty"`
+	Season   int    `json:"season"` // not omitempty: 0 is the specials season
+	Episode  int    `json:"episode"`
 	EpTitle  string `json:"epTitle,omitempty"`
 	Finale   string `json:"finale,omitempty"` // series | season | midseason
 	Premiere bool   `json:"premiere,omitempty"`
