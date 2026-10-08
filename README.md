@@ -70,7 +70,7 @@ and only the admin can open them. Agendarr gives the whole household one calenda
   motion.
 - **Light and dark**, following the system theme. **English and French**, taken
   from the browser or picked in the footer.
-- **Small and private.** A single Go binary in a `scratch` image (amd64, arm64,
+- **Small and private.** A single Go binary in a distroless image (amd64, arm64,
   armv7) and one SQLite file. API keys never reach the browser, and the server
   only talks to your own servers and plex.tv.
 
@@ -125,7 +125,7 @@ has the same file with comments.
 3. **Share the URL** with your Plex users. They sign in with Plex, and that's it.
 
 <p align="center">
-  <img src="docs/screenshots/desktop-admin.png" width="85%" alt="Admin page listing the Radarr, Sonarr and Seerr instances, with an Import Radarr and Sonarr button">
+  <img src="docs/screenshots/desktop-admin.png" width="80%" alt="Admin page listing the Radarr, Sonarr and Seerr instances, with an Import Radarr and Sonarr button">
 </p>
 
 ### Behind a reverse proxy
