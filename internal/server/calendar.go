@@ -74,6 +74,11 @@ func (s *Server) handleCalendarAPI(w http.ResponseWriter, r *http.Request) {
 		out.Events = keepKeys(out.Events, pr.Keys)
 	}
 	s.addLinks(r.Context(), out.Events, currentUser(r).IsAdmin)
+	if follows, err := s.store.Follows(r.Context(), currentUser(r).ID); err == nil && len(follows) > 0 {
+		for i := range out.Events {
+			out.Events[i].Followed = follows[out.Events[i].Group]
+		}
+	}
 	writeJSON(w, http.StatusOK, out)
 }
 

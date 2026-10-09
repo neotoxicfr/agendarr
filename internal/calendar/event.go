@@ -62,6 +62,8 @@ type Event struct {
 	ArrLinks []Link `json:"arrLinks,omitempty"`
 	// Ext opens it on TMDB, TVDB and IMDb.
 	Ext []Link `json:"ext,omitempty"`
+	// Followed is true when the viewer follows it by hand (set per response).
+	Followed bool `json:"followed,omitempty"`
 }
 
 // Media sums up one file: quality, video, audio and subtitles.

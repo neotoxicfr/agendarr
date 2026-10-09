@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -26,6 +27,7 @@ import (
 	"github.com/neotoxicfr/agendarr/internal/plex"
 	"github.com/neotoxicfr/agendarr/internal/secret"
 	"github.com/neotoxicfr/agendarr/internal/store"
+	"github.com/neotoxicfr/agendarr/internal/webpush"
 	"github.com/neotoxicfr/agendarr/web"
 )
 
@@ -54,6 +56,8 @@ type Server struct {
 	plexConn           plexConn
 	plexLib            plexLibrary
 	tracks             trackCache
+	pushMu             sync.Mutex
+	push               *webpush.Sender
 	tracksSF           singleflight.Group
 	posterSF           singleflight.Group
 }
@@ -129,6 +133,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /{$}", s.requireUser(s.handleHome))
 	mux.HandleFunc("GET /api/calendar", s.requireUser(s.handleCalendarAPI))
 	mux.HandleFunc("GET /api/tracks", s.requireUser(s.handleTracks))
+	mux.HandleFunc("GET /api/notifications", s.requireUser(s.handleNotifications))
+	mux.HandleFunc("POST /api/notifications/read", s.requireUser(s.handleNotificationsRead))
+	mux.HandleFunc("PUT /api/follows", s.requireUser(s.handleFollow))
+	mux.HandleFunc("PUT /api/notifications/sources", s.requireUser(s.handleNotifySources))
+	mux.HandleFunc("POST /api/push", s.requireUser(s.handlePush))
 	mux.HandleFunc("GET /img/{inst}/{id}", s.requireUser(s.handlePoster))
 	mux.HandleFunc("GET /sync", s.requireUser(s.handleSync))
 	mux.HandleFunc("POST /sync/new", s.requireUser(s.handleSyncNew))
@@ -195,7 +204,7 @@ type pageData struct {
 }
 
 // jsPrefixes are the label groups exposed to app.js.
-var jsPrefixes = []string{"login.", "js.", "cal."}
+var jsPrefixes = []string{"login.", "js.", "cal.", "notif."}
 
 // render executes a page into a buffer first, so a template error becomes a
 // clean 500 instead of a half-written page.

@@ -773,9 +773,20 @@
     });
   };
   const links = (e) => {
+    const follow = el("button", { class: "btn btn-follow", type: "button", "aria-pressed": String(!!e.followed), title: t("notif.follow_help"),
+      text: t(e.followed ? "notif.following" : "notif.follow"), onclick: async (ev) => {
+        const b = ev.currentTarget, on = b.getAttribute("aria-pressed") !== "true";
+        const res = await fetch("/api/follows", { method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ group: e.group, title: e.title, on }) }).catch(() => null);
+        if (!res || !res.ok) return;
+        b.setAttribute("aria-pressed", String(on));
+        b.textContent = t(on ? "notif.following" : "notif.follow");
+        setFollowed(e.group, on);
+      } });
     const list = [
       e.plexUrl ? el("a", { class: "btn btn-primary", href: e.plexUrl, target: "_blank", rel: "noopener", text: t("cal.open_plex") }) : null,
       ...(e.arrLinks || []).map((l) => el("a", { class: "btn", href: l.url, target: "_blank", rel: "noopener", text: t("cal.open_in", { name: l.label }) })),
+      follow,
     ].filter(Boolean);
     const ext = (e.ext || []).filter((l) => state.sites.includes(l.id)).map((l) => el("a", { href: l.url, target: "_blank",
       rel: "noopener noreferrer", title: t("cal.open_in", { name: l.label }), text: l.label }));
@@ -784,6 +795,13 @@
       ext.length ? el("p", { class: "detail-ext" }, el("span", { text: t("cal.see_on") }), ext) : null,
     ];
   };
+
+  // Following is per movie or series: every event of the group follows suit,
+  // in the loaded data (the bell can unfollow too).
+  function setFollowed(group, on) {
+    for (const data of cache.values()) for (const ev of data.events || []) if (ev.group === group) ev.followed = on;
+  }
+  document.addEventListener("agendarr:follow", (ev) => setFollowed(ev.detail.group, ev.detail.on));
 
   // What Plex found in the file(s), once the sheet is open. Until then, and
   // when Plex does not have the release, the Radarr/Sonarr reading shows.

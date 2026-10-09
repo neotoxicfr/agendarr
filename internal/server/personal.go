@@ -104,6 +104,8 @@ type Prefs struct {
 	Sites []string `json:"sites"`
 	// Formats shows Dolby, DTS and HDR formats as "logos" (default) or "text".
 	Formats string `json:"formats"`
+	// Notify lists the automatic sources of notifications (see notify.go).
+	Notify []string `json:"notify"`
 }
 
 // defaultSites are shown until a user picks their own.
@@ -165,6 +167,7 @@ func (s *Server) loadPrefs(ctx context.Context, userID int64) Prefs {
 	p.Mine = cleanSources(p.Mine)
 	p.Filters.normalize()
 	p.Sites = cleanSites(p.Sites)
+	p.Notify = cleanNotify(p.Notify)
 	if p.Formats != "text" {
 		p.Formats = "logos"
 	}
@@ -205,6 +208,11 @@ func (s *Server) handlePrefsPut(w http.ResponseWriter, r *http.Request) {
 	p.Mine = cleanSources(p.Mine)
 	p.Filters.normalize()
 	p.Sites = cleanSites(p.Sites)
+	if p.Notify == nil {
+		// Set from the bell, not the calendar: keep what is stored.
+		p.Notify = s.loadPrefs(r.Context(), currentUser(r).ID).Notify
+	}
+	p.Notify = cleanNotify(p.Notify)
 	if p.Formats != "text" {
 		p.Formats = "logos"
 	}

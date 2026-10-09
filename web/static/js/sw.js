@@ -79,3 +79,26 @@ self.addEventListener("fetch", (e) => {
     e.respondWith(fetch(req).catch(() => caches.match("/offline")));
   }
 });
+
+// Web Push: a release someone cares about became available or was upgraded.
+self.addEventListener("push", (e) => {
+  let msg = {};
+  try { msg = e.data ? e.data.json() : {}; } catch { /* not ours */ }
+  e.waitUntil(Promise.all([
+    self.registration.showNotification(msg.title || "Agendarr", {
+      body: msg.body || "", tag: msg.tag, icon: msg.icon || "/static/icons/icon-192.png", badge: "/static/icons/icon-192.png",
+      data: { url: msg.url || "/" },
+    }),
+    self.clients.matchAll({ type: "window" }).then((list) => list.forEach((c) => c.postMessage("agendarr:notification"))),
+  ]));
+});
+
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const url = new URL((e.notification.data && e.notification.data.url) || "/", self.location.origin);
+  if (url.origin !== self.location.origin) return;
+  e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+    const open = list.find((c) => new URL(c.url).origin === url.origin);
+    return open ? open.focus().then((c) => c.navigate(url.href)) : self.clients.openWindow(url.href);
+  }));
+});
