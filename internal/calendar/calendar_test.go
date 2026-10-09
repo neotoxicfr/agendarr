@@ -183,12 +183,11 @@ func TestSpecialsKeepSeasonZero(t *testing.T) {
 
 func TestMediaOf(t *testing.T) {
 	f := &arr.File{Size: 5}
-	f.Quality.Quality.Name = "WEBRip-2160p"
 	f.MediaInfo = &arr.MediaInfo{AudioChannels: 5.1, AudioCodec: "EAC3 Atmos", AudioLanguages: "fre/eng",
 		VideoBitDepth: 10, VideoCodec: "x265", VideoDynamicRangeType: "DV HDR10Plus", Resolution: "3840x1606",
 		Subtitles: "fre/fre/fre/eng/eng/und"}
 	got, _ := json.Marshal(mediaOf("Radarr 4K", f))
-	want := `[{"instance":"Radarr 4K","quality":"WEBRip-2160p","resolution":"4K","videoCodec":"x265","bitDepth":10,"hdr":"DV HDR10Plus","audioCodec":"EAC3 Atmos","channels":"5.1","audioLangs":["fr","en"],"subs":["fr","en"],"size":5}]`
+	want := `[{"instance":"Radarr 4K","resolution":"4K","videoCodec":"x265","bitDepth":10,"hdr":"DV HDR10Plus","audioCodec":"EAC3 Atmos","channels":"5.1","audioLangs":["fr","en"],"subs":["fr","en"],"size":5}]`
 	if string(got) != want {
 		t.Fatalf("got  %s\nwant %s", got, want)
 	}
@@ -214,10 +213,10 @@ func TestExternalLinks(t *testing.T) {
 		}
 		return strings.Join(s, " ")
 	}
-	if g := got(mv[0].Ext); g != "TMDB=https://www.themoviedb.org/movie/969681 IMDb=https://www.imdb.com/title/tt1/ Letterboxd=https://letterboxd.com/tmdb/969681/" {
+	if g := got(mv[0].Ext); g != "TMDB=https://www.themoviedb.org/movie/969681 IMDb=https://www.imdb.com/title/tt1/ Letterboxd=https://letterboxd.com/tmdb/969681/ MDBList=https://mdblist.com/movie/tt1" {
 		t.Fatalf("movie: %s", g)
 	}
-	if g := got(ep.Ext); g != "TMDB=https://www.themoviedb.org/tv/95480/season/6/episode/4 TVDB=https://thetvdb.com/dereferrer/episode/11839915 IMDb=https://www.imdb.com/title/tt2/" {
+	if g := got(ep.Ext); g != "TMDB=https://www.themoviedb.org/tv/95480/season/6/episode/4 TVDB=https://thetvdb.com/dereferrer/episode/11839915 IMDb=https://www.imdb.com/title/tt2/ MDBList=https://mdblist.com/show/tt2" {
 		t.Fatalf("episode: %s", g)
 	}
 }

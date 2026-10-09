@@ -54,9 +54,9 @@ func fakeUpstream(t *testing.T) *httptest.Server {
 		j(w, `{"MediaContainer":{"Metadata":[{"ratingKey":"55","guid":"plex://movie/x","Guid":[{"id":"tmdb://100"}]}]}}`)
 	})
 	mux.HandleFunc("GET /plex/library/metadata/55", func(w http.ResponseWriter, r *http.Request) {
-		j(w, `{"MediaContainer":{"Metadata":[{"ratingKey":"55","Media":[{"Part":[{"Stream":[
-		  {"streamType":1,"codec":"hevc"},
-		  {"streamType":2,"codec":"eac3","languageTag":"fr","title":"FR VFF","audioChannelLayout":"5.1(side)","default":true},
+		j(w, `{"MediaContainer":{"Metadata":[{"ratingKey":"55","Media":[{"videoResolution":"4k","Part":[{"size":6632526039,"Stream":[
+		  {"streamType":1,"codec":"hevc","bitDepth":10,"DOVIPresent":true,"colorTrc":"smpte2084","displayTitle":"4K DoVi/HDR10+"},
+		  {"streamType":2,"codec":"eac3","profile":"dolby digital plus + dolby atmos","languageTag":"fr","title":"FR VFF","audioChannelLayout":"5.1(side)","default":true},
 		  {"streamType":2,"codec":"truehd","languageTag":"en-US","title":"ENG VO","audioChannelLayout":"7.1"},
 		  {"streamType":3,"codec":"srt","languageTag":"fr","title":"FR Forced","forced":true},
 		  {"streamType":3,"codec":"pgs","languageTag":"en","hearingImpaired":true},
@@ -193,8 +193,8 @@ func TestPersonalFilters(t *testing.T) {
 		var got Prefs
 		json.NewDecoder(res.Body).Decode(&got)
 		res.Body.Close()
-		if strings.Join(got.Sites, ",") != want || got.Sites == nil {
-			t.Fatalf("%s: %#v", body, got.Sites)
+		if strings.Join(got.Sites, ",") != want || got.Sites == nil || got.Formats != "logos" {
+			t.Fatalf("%s: %#v %q", body, got.Sites, got.Formats)
 		}
 	}
 }
@@ -218,8 +218,8 @@ func TestEventLinksAndMedia(t *testing.T) {
 		PlexURL  string
 		ArrLinks []struct{ Label, URL string }
 		Media    []struct {
-			Quality, Resolution, AudioCodec, Channels string
-			AudioLangs, Subs                          []string
+			Resolution, AudioCodec, Channels string
+			AudioLangs, Subs                 []string
 		}
 	}
 	get := func(c *http.Client) ev {
@@ -253,7 +253,7 @@ func TestEventLinksAndMedia(t *testing.T) {
 		t.Fatalf("admin links: %+v", o.ArrLinks)
 	}
 	m := o.Media
-	if len(m) != 1 || m[0].Quality != "Bluray-1080p" || m[0].Resolution != "1080p" || m[0].AudioCodec != "DTS" || m[0].Channels != "5.1" ||
+	if len(m) != 1 || m[0].Resolution != "1080p" || m[0].AudioCodec != "DTS" || m[0].Channels != "5.1" ||
 		strings.Join(m[0].AudioLangs, ",") != "fr" || strings.Join(m[0].Subs, ",") != "en" {
 		t.Fatalf("media: %+v", m)
 	}
@@ -272,7 +272,8 @@ func TestEventLinksAndMedia(t *testing.T) {
 		b, _ := io.ReadAll(res.Body)
 		return strings.TrimSpace(string(b))
 	}
-	want := `{"versions":[{"audio":[{"codec":"eac3","lang":"fr","title":"FR VFF","layout":"5.1","default":true},` +
+	want := `{"versions":[{"resolution":"4K","videoCodec":"hevc","bitDepth":10,"hdr":["DV","HDR10+"],"size":6632526039,` +
+		`"audio":[{"codec":"eac3","profile":"dolby digital plus + dolby atmos","lang":"fr","title":"FR VFF","layout":"5.1","default":true},` +
 		`{"codec":"truehd","lang":"en-US","title":"ENG VO","layout":"7.1"}],` +
 		`"subs":[{"codec":"srt","lang":"fr","title":"FR Forced","forced":true},{"codec":"pgs","lang":"en","hi":true},` +
 		`{"codec":"srt","lang":"fr","external":true}]}]}`

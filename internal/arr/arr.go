@@ -60,13 +60,8 @@ type Movie struct {
 
 // File is the file Radarr or Sonarr has for a movie or an episode.
 type File struct {
-	Size    int64 `json:"size"`
-	Quality struct {
-		Quality struct {
-			Name string `json:"name"` // WEBDL-1080p
-		} `json:"quality"`
-	} `json:"quality"`
-	MediaInfo *MediaInfo `json:"mediaInfo"`
+	Size      int64      `json:"size"`
+	MediaInfo *MediaInfo `json:"mediaInfo"` // read from the file (ffprobe)
 }
 
 // MediaInfo is what Radarr and Sonarr read from the file. Languages are

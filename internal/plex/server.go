@@ -320,19 +320,25 @@ func WebURL(machineID, ratingKey string) string {
 		"/details?key=" + url.QueryEscape("/library/metadata/"+ratingKey)
 }
 
-// Version is one file of a library item, with its audio and subtitle tracks.
+// Version is one file of a library item, as Plex analysed it: video
+// format, size, and its audio and subtitle tracks.
 type Version struct {
-	Resolution string  `json:"resolution,omitempty"` // 4K, 1080p
-	Audio      []Track `json:"audio"`
-	Subs       []Track `json:"subs"`
+	Resolution string   `json:"resolution,omitempty"` // 4K, 1080p
+	VideoCodec string   `json:"videoCodec,omitempty"` // hevc
+	BitDepth   int      `json:"bitDepth,omitempty"`
+	HDR        []string `json:"hdr,omitempty"` // DV, HDR10+, HDR10, HLG
+	Size       int64    `json:"size,omitempty"`
+	Audio      []Track  `json:"audio"`
+	Subs       []Track  `json:"subs"`
 }
 
 // Track is one audio or subtitle stream.
 type Track struct {
-	Codec    string `json:"codec,omitempty"`  // aac, eac3, srt, pgs…
-	Lang     string `json:"lang,omitempty"`   // BCP 47 tag: fr, en
-	Title    string `json:"title,omitempty"`  // as named in the file
-	Layout   string `json:"layout,omitempty"` // audio: 5.1, 7.1
+	Codec    string `json:"codec,omitempty"`   // aac, eac3, srt, pgs…
+	Profile  string `json:"profile,omitempty"` // audio: "dolby digital plus + dolby atmos", "ma"
+	Lang     string `json:"lang,omitempty"`    // BCP 47 tag: fr, en
+	Title    string `json:"title,omitempty"`   // as named in the file
+	Layout   string `json:"layout,omitempty"`  // audio: 5.1, 7.1
 	Forced   bool   `json:"forced,omitempty"`
 	HI       bool   `json:"hi,omitempty"` // subtitles for the deaf and hard of hearing
 	Default  bool   `json:"default,omitempty"`
@@ -347,9 +353,15 @@ func (s *Server) Tracks(ctx context.Context, ratingKey string) ([]Version, error
 				Media []struct {
 					VideoResolution string `json:"videoResolution"` // 4k, 1080, sd
 					Part            []struct {
+						Size   int64 `json:"size"`
 						Stream []struct {
 							StreamType         int    `json:"streamType"`
 							Codec              string `json:"codec"`
+							Profile            string `json:"profile"`
+							BitDepth           int    `json:"bitDepth"`
+							DOVIPresent        bool   `json:"DOVIPresent"`
+							ColorTrc           string `json:"colorTrc"`
+							DisplayTitle       string `json:"displayTitle"`
 							LanguageTag        string `json:"languageTag"`
 							Title              string `json:"title"`
 							AudioChannelLayout string `json:"audioChannelLayout"`
@@ -371,11 +383,18 @@ func (s *Server) Tracks(ctx context.Context, ratingKey string) ([]Version, error
 		for _, med := range m.Media {
 			ver := Version{Resolution: resolution(med.VideoResolution)}
 			for _, p := range med.Part {
+				ver.Size += p.Size
 				for _, st := range p.Stream {
 					t := Track{Codec: st.Codec, Lang: st.LanguageTag, Title: st.Title, Forced: st.Forced,
 						HI: st.HearingImpaired, Default: st.Default}
 					switch st.StreamType {
+					case 1:
+						if ver.VideoCodec == "" {
+							ver.VideoCodec, ver.BitDepth = st.Codec, st.BitDepth
+							ver.HDR = hdrOf(st.DOVIPresent, st.ColorTrc, st.DisplayTitle)
+						}
 					case 2:
+						t.Profile = st.Profile
 						t.Layout = strings.SplitN(st.AudioChannelLayout, "(", 2)[0]
 						ver.Audio = append(ver.Audio, t)
 					case 3:
@@ -388,6 +407,25 @@ func (s *Server) Tracks(ctx context.Context, ratingKey string) ([]Version, error
 		}
 	}
 	return out, nil
+}
+
+// hdrOf names the dynamic range Plex found in a video stream: Dolby Vision
+// from its own flag, HDR10+ from Plex's display title (no flag for it), HDR10
+// and HLG from the transfer function.
+func hdrOf(dovi bool, trc, display string) []string {
+	var out []string
+	if dovi {
+		out = append(out, "DV")
+	}
+	switch {
+	case strings.Contains(display, "HDR10+"):
+		out = append(out, "HDR10+")
+	case trc == "smpte2084":
+		out = append(out, "HDR10")
+	case trc == "arib-std-b67":
+		out = append(out, "HLG")
+	}
+	return out
 }
 
 // resolution names Plex's videoResolution ("4k", "1080", "sd").

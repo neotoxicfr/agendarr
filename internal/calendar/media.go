@@ -12,7 +12,9 @@ func mediaOf(instName string, f *arr.File) []Media {
 	if f == nil {
 		return nil
 	}
-	m := Media{Instance: instName, Quality: f.Quality.Quality.Name, Size: f.Size}
+	// Only what was read from the file: Radarr's quality name ("WEBRip-2160p")
+	// comes from the release title.
+	m := Media{Instance: instName, Size: f.Size}
 	if mi := f.MediaInfo; mi != nil {
 		m.Resolution = resolutionLabel(mi.Resolution)
 		m.VideoCodec, m.BitDepth, m.HDR, m.AudioCodec = mi.VideoCodec, mi.VideoBitDepth, mi.VideoDynamicRangeType, mi.AudioCodec

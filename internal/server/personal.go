@@ -102,6 +102,8 @@ type Prefs struct {
 	Keys    *bool       `json:"shortcuts,omitempty"` // single-key shortcuts on (default)
 	// Sites are the external links shown on a detail sheet ("See on").
 	Sites []string `json:"sites"`
+	// Formats shows Dolby, DTS and HDR formats as "logos" (default) or "text".
+	Formats string `json:"formats"`
 }
 
 // defaultSites are shown until a user picks their own.
@@ -159,6 +161,9 @@ func (s *Server) loadPrefs(ctx context.Context, userID int64) Prefs {
 	p.Mine = cleanSources(p.Mine)
 	p.Filters.normalize()
 	p.Sites = cleanSites(p.Sites)
+	if p.Formats != "text" {
+		p.Formats = "logos"
+	}
 	if p.Filters.Instances == nil {
 		p.Filters.Instances = map[string]bool{}
 	}
@@ -196,6 +201,9 @@ func (s *Server) handlePrefsPut(w http.ResponseWriter, r *http.Request) {
 	p.Mine = cleanSources(p.Mine)
 	p.Filters.normalize()
 	p.Sites = cleanSites(p.Sites)
+	if p.Formats != "text" {
+		p.Formats = "logos"
+	}
 	if p.View != "" && p.View != "agenda" && p.View != "week" && p.View != "month" {
 		p.View = ""
 	}

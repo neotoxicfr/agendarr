@@ -60,3 +60,21 @@ func TestServerHistoryAndGuids(t *testing.T) {
 		t.Fatal("dead connection picked")
 	}
 }
+
+func TestHDROf(t *testing.T) {
+	for _, c := range []struct {
+		dovi         bool
+		trc, display string
+		want         string
+	}{
+		{true, "smpte2084", "4K DoVi/HDR10+", "DV HDR10+"},
+		{true, "smpte2084", "4K DoVi/HDR10", "DV HDR10"},
+		{false, "smpte2084", "4K HDR10", "HDR10"},
+		{false, "arib-std-b67", "4K HLG", "HLG"},
+		{false, "bt709", "1080p", ""},
+	} {
+		if got := strings.Join(hdrOf(c.dovi, c.trc, c.display), " "); got != c.want {
+			t.Fatalf("%+v: %q", c, got)
+		}
+	}
+}

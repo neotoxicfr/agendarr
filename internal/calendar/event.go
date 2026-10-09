@@ -67,7 +67,6 @@ type Event struct {
 // Media sums up one file: quality, video, audio and subtitles.
 type Media struct {
 	Instance   string   `json:"instance"`
-	Quality    string   `json:"quality,omitempty"` // WEBDL-1080p
 	Resolution string   `json:"resolution,omitempty"`
 	VideoCodec string   `json:"videoCodec,omitempty"` // x265
 	BitDepth   int      `json:"bitDepth,omitempty"`
@@ -95,7 +94,7 @@ type Link struct {
 }
 
 // Sites lists the sites of external links, in display order.
-var Sites = []string{"tmdb", "tvdb", "imdb", "letterboxd"}
+var Sites = []string{"tmdb", "tvdb", "imdb", "letterboxd", "mdblist"}
 
 // sortKey orders events within a day: timed episodes by air time, then
 // movies, by title.
@@ -151,6 +150,9 @@ func fromMovie(instID int64, instName string, m arr.Movie) []Event {
 	if m.TmdbID != 0 {
 		base.Ext = append(base.Ext, Link{"letterboxd", "Letterboxd", fmt.Sprintf("https://letterboxd.com/tmdb/%d/", m.TmdbID)})
 	}
+	if m.ImdbID != "" {
+		base.Ext = append(base.Ext, Link{"mdblist", "MDBList", "https://mdblist.com/movie/" + url.PathEscape(m.ImdbID)})
+	}
 	if m.TitleSlug != "" {
 		base.Arr = []ArrRef{{InstanceID: instID, Instance: instName, Path: "/movie/" + url.PathEscape(m.TitleSlug)}}
 	}
@@ -197,7 +199,8 @@ func fromEpisode(instID int64, instName string, ep arr.Episode) (Event, bool) {
 		e.Ext = append(e.Ext, Link{"tvdb", "TVDB", fmt.Sprintf("https://thetvdb.com/dereferrer/series/%d", s.TvdbID)})
 	}
 	if s.ImdbID != "" {
-		e.Ext = append(e.Ext, Link{"imdb", "IMDb", "https://www.imdb.com/title/" + url.PathEscape(s.ImdbID) + "/"})
+		e.Ext = append(e.Ext, Link{"imdb", "IMDb", "https://www.imdb.com/title/" + url.PathEscape(s.ImdbID) + "/"},
+			Link{"mdblist", "MDBList", "https://mdblist.com/show/" + url.PathEscape(s.ImdbID)})
 	}
 	if s.TitleSlug != "" {
 		e.Arr = []ArrRef{{InstanceID: instID, Instance: instName, Path: "/series/" + url.PathEscape(s.TitleSlug)}}
