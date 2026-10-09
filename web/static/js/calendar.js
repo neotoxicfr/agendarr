@@ -550,6 +550,11 @@
       savePrefs();
     }
   });
+  const settingsFold = root.querySelector("[data-side-settings]");
+  if (settingsFold) {
+    settingsFold.open = store.get("settingsOpen", false);
+    settingsFold.addEventListener("toggle", () => store.set("settingsOpen", settingsFold.open));
+  }
   function saveFilters() {
     store.set("filters", state.filters);
     store.set("mine", state.mine);
@@ -691,9 +696,13 @@
   // file and proportions live in app.css (.logo-*), the CSP forbids inline styles.
   const LOGO = { DV: "dolby-vision", HDR10: "hdr10", "HDR10+": "hdr10plus", Atmos: "dolby-atmos", "E-AC3": "dolby-digital-plus",
     AC3: "dolby-digital", TrueHD: "dolby-truehd", DTS: "dts", "DTS-HD MA": "dts-hd-ma" };
+  // Formats without an official logo (resolution, codec, bit depth, channels)
+  // are drawn in the style of the HDR10 mark: an outlined box, bold capitals.
+  const MARK = { "4K": "4K UHD", "1440p": "QHD", "1080p": "FULL HD", "720p": "HD", "H.264": "AVC" };
   const badge = (x) => {
-    const logo = state.formats !== "text" && LOGO[x];
-    if (!logo) return el("span", { class: "fmt", text: x, title: FULL[x] });
+    if (state.formats === "text") return el("span", { class: "fmt", text: x, title: FULL[x] });
+    const logo = LOGO[x];
+    if (!logo) return el("span", { class: "fmt-logo", text: MARK[x] || x, title: FULL[x] || (MARK[x] ? x : null) });
     return el("span", { class: `logo logo-${logo}`, role: "img", "aria-label": FULL[x] || x, title: FULL[x] || x });
   };
   const badges = (list) => {
@@ -719,18 +728,19 @@
     ? [el("dt", { text: t(label), ...extra }), el("dd", extra, value)] : null);
   // The file block, from Radarr/Sonarr's reading of the file: only used when
   // Plex does not have the release (Plex's own analysis wins, see loadFile).
-  // One file: a header with its size, then video, audio and subtitles on
-  // three lines, and every track folded under "Tracks (n)".
+  // One file: a header with its size, a strip of video formats, a strip of
+  // audio formats, the languages, and every track folded under "Tracks (n)".
   const fileBlock = ({ title, size, video, audio, audioLangs, subLangs, tracks }) => el("section", { class: "detail-file" },
     el("div", { class: "file-head" },
       el("h3", { text: title || t("cal.detail_file") }),
       size ? el("span", { class: "file-size", text: fSize.format(size / 1e9) }) : null),
-    el("dl", { class: "detail-facts" },
-      row("cal.detail_video", badges(video)),
-      row("cal.detail_audio", audio.length || audioLangs.length ? el("span", { class: "langs-line" }, badges(audio), langList(audioLangs)) : null),
-      row("cal.detail_subs", langList(subLangs))),
+    video.some(Boolean) ? el("div", { class: "spec", role: "group", "aria-label": t("cal.detail_video") }, badges(video)) : null,
+    audio.some(Boolean) ? el("div", { class: "spec", role: "group", "aria-label": t("cal.detail_audio") }, badges(audio)) : null,
+    audioLangs.length || subLangs.length ? el("p", { class: "file-langs" },
+      audioLangs.length ? el("span", { class: "file-lang" }, el("span", { class: "file-lang-label", text: t("cal.detail_audio") }), langList(audioLangs)) : null,
+      subLangs.length ? el("span", { class: "file-lang" }, el("span", { class: "file-lang-label", text: t("cal.detail_subs") }), langList(subLangs)) : null) : null,
     tracks);
-  const videoBadges = (res, hdr, codec, depth) => [res, ...hdr, [videoName(codec), depth > 8 ? `${depth}-bit` : ""].filter(Boolean).join(" ")];
+  const videoBadges = (res, hdr, codec, depth) => [res, ...hdr, videoName(codec), depth > 8 ? `${depth}-bit` : ""];
   // Radarr/Sonarr's reading of the file: only when Plex does not have it.
   const files = (e) => (e.media || []).map((m) => fileBlock({
     title: e.media.length > 1 ? m.instance : "", size: m.size,
@@ -753,8 +763,10 @@
       audio: audioSummary(audio), audioLangs: uniq(audio.map((x) => x.lang)), subLangs: uniq(subs.map((x) => x.lang)),
       tracks: n ? el("details", { class: "detail-tracks" },
         el("summary", { text: t("cal.tracks", { n }) }),
-        audio.length ? [el("h4", { text: t("cal.detail_audio") }), trackList(audio, true)] : null,
-        subs.length ? [el("h4", { text: t("cal.detail_subs") }), trackList(subs, false)] : null) : null,
+        // One grid for both lists, so audio and subtitle columns line up.
+        el("div", { class: "track-grid" },
+          audio.length ? [el("h4", { text: t("cal.detail_audio") }), trackList(audio, true)] : null,
+          subs.length ? [el("h4", { text: t("cal.detail_subs") }), trackList(subs, false)] : null)) : null,
     });
   };
   const links = (e) => {

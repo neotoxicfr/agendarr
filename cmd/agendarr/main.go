@@ -87,6 +87,7 @@ func run(log *slog.Logger) error {
 		IdleTimeout:       120 * time.Second,
 	}
 	go srv.RunAccessChecks(ctx)
+	srv.WarmPlexLibrary(ctx)
 
 	errc := make(chan error, 1)
 	go func() {
