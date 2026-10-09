@@ -200,19 +200,28 @@
 
   // --- items -------------------------------------------------------------------
   // Compact chip for month cells.
+  // Its accessible name starts with what it shows (time, title), then what a
+  // narrow cell leaves out, so a voice command naming the title hits it
+  // (WCAG 2.5.3, label in name).
   const chip = (e) => el("button", {
-    type: "button", class: `chip is-${e.kind} is-${statusOf(e)}`, "aria-label": describe(e), title: describe(e), "data-id": e.id,
+    type: "button", class: `chip is-${e.kind} is-${statusOf(e)}`, title: describe(e), "data-id": e.id,
     onclick: () => openDetail(e),
   },
   el("span", { class: "chip-dot", "aria-hidden": "true" }),
   timeOf(e) ? el("span", { class: "chip-time", text: timeOf(e) }) : null,
   el("span", { class: "chip-title", text: e.title }),
-  e.bundle ? el("span", { class: "chip-code", text: `×${e.bundle.length}` }) : null);
+  e.bundle ? el("span", { class: "chip-code", "aria-hidden": "true", text: `×${e.bundle.length}` }) : null,
+  el("span", { class: "sr-only", text: ", " + [
+    e.kind === "episode" ? (e.bundle ? `${code(e)} (${t("cal.episodes_n", { n: e.bundle.length })})` : code(e)) : null,
+    e.kind === "episode" && !e.bundle && e.epTitle ? e.epTitle : null,
+    ...tagsOf(e), t("cal.status_" + statusOf(e)),
+  ].filter(Boolean).join(", ") }));
 
   // Card with poster for week and agenda.
   const statusEl = (e) => el("span", { class: `status status-${statusOf(e)}`, text: t("cal.status_" + statusOf(e)) });
   const card = (e, size) => el("button", {
-    type: "button", class: `card card-${size} is-${e.kind} is-${statusOf(e)}`, "aria-label": describe(e), "data-id": e.id,
+    // Named by its own text (WCAG 2.5.3): title, episode, time, tags, status.
+    type: "button", class: `card card-${size} is-${e.kind} is-${statusOf(e)}`, "data-id": e.id,
     onclick: () => openDetail(e),
   },
   (() => {

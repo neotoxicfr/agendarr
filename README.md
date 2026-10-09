@@ -6,8 +6,8 @@
 
 **The release calendar for your Plex household.**
 
-Radarr, Sonarr and Seerr in one calendar. Everyone signs in with their Plex account
-and sees everything that's coming, or just what they care about.
+Radarr, Sonarr and Seerr in one calendar. Everyone signs in with their Plex account,
+sees what's coming or just what they care about, and gets told when it lands.
 
 [![CI](https://github.com/neotoxicfr/agendarr/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/neotoxicfr/agendarr/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/badge/release-v0.4.0-blue)](https://github.com/neotoxicfr/agendarr/releases)
@@ -30,42 +30,61 @@ and only the admin can open them. Agendarr gives the whole household one calenda
 - **Everyone gets their own view.** *My Seerr requests*, *shows I'm watching*,
   *my Plex watchlist*, *everything I've watched*: each person ticks what they want.
 - **It goes where people already look.** A personal iCal link puts releases in
-  Apple Calendar, Google Calendar or Outlook, with that person's filters applied.
+  Apple Calendar, Google Calendar or Outlook, with that person's filters applied,
+  and a notification arrives when something they asked for is ready to watch.
 
 <table>
   <tr>
-    <td width="33%"><img src="docs/screenshots/phone-agenda.png" alt="Agenda view on a phone, with posters, episode codes and status"></td>
-    <td width="33%"><img src="docs/screenshots/phone-detail.png" alt="Release details in a bottom sheet on a phone"></td>
-    <td width="33%"><img src="docs/screenshots/phone-sync.png" alt="Calendar subscription page with Apple, Google and Outlook buttons"></td>
+    <td width="25%"><img src="docs/screenshots/phone-agenda.png" alt="Agenda view on a phone, with posters, episode codes and status"></td>
+    <td width="25%"><img src="docs/screenshots/phone-detail.png" alt="Release details on a phone: Ultra HD, Dolby Vision, HDR10+, Dolby Atmos logos and the audio and subtitle languages as flags"></td>
+    <td width="25%"><img src="docs/screenshots/phone-settings.png" alt="Settings page: formats as logos or text, See on links, keyboard, notification sources and this device"></td>
+    <td width="25%"><img src="docs/screenshots/phone-sync.png" alt="Calendar subscription page with Apple, Google and Outlook buttons"></td>
   </tr>
   <tr>
     <td align="center">Agenda on a phone</td>
-    <td align="center">Release details</td>
-    <td align="center">Subscribe in your calendar app</td>
+    <td align="center">What's in the file</td>
+    <td align="center">Settings</td>
+    <td align="center">Subscribe in your calendar</td>
   </tr>
 </table>
 
-![Week view on a desktop, with posters and availability badges](docs/screenshots/desktop-week.png)
+![Week view on a desktop with a movie's details open: the file's formats as logos, every audio track with its language and title, and buttons to open it in Plex or Radarr](docs/screenshots/desktop-week.png)
+
+<table>
+  <tr>
+    <td width="62%"><img src="docs/screenshots/desktop-season.png" alt="A season released at once: rings show how its six episodes split by video format, audio and subtitle languages, and each episode unfolds its own file card"></td>
+    <td width="38%"><img src="docs/screenshots/desktop-bell.png" alt="The notification bell open: an episode now available, a movie upgraded from 1080p to 4K with a French track added, a season of six episodes available"></td>
+  </tr>
+  <tr>
+    <td align="center">A whole season at a glance</td>
+    <td align="center">Notifications</td>
+  </tr>
+</table>
 
 ## Features
 
 - **Every instance in one place.** Add as many Radarr and Sonarr instances as you
   run (4K, anime…); a release seen by several of them shows once. Movies show
-  their cinema, digital and physical releases. Episodes show their air time in
-  each viewer's time zone, and season or series finales are flagged.
+  their cinema, digital and DVD / Blu-ray releases, which you can narrow down.
+  Episodes show their air time in each viewer's time zone, and premieres and
+  finales are flagged.
 - **Plex sign-in.** On first run, the owner of the Plex server becomes the
   administrator and their server is bound automatically. Access is re-checked
   every day, so someone you stop sharing with loses access too.
-- **What you will get, before you press play.** An available release shows its
-  quality, HDR, video and audio formats as Plex read them from the file (as
-  logos or text), and every audio and subtitle track (language as a flag,
-  title, forced, SDH). One click opens it in
-  Plex; administrators also get Radarr or Sonarr. TMDB, TVDB, IMDb and
-  Letterboxd links, each person picking the ones they use.
-- **Notifications.** Be told when something you requested, are watching or
-  follow from its detail sheet becomes available, or when its file is
-  upgraded (1080p to 4K, a French track added…). A bell keeps the history;
-  notifications reach the device too (Web Push), even with the app closed.
+- **What's in the file, before you press play.** An available release shows the
+  formats Plex found in the file itself, as official logos or plain text: 4K,
+  Dolby Vision, HDR10+, HEVC, Dolby Atmos, DTS-HD MA… Every audio and subtitle
+  track is listed with its language as a flag and its title (forced, SDH…).
+  A season released at once shows how its episodes split, and each episode
+  unfolds its own file.
+- **One click away.** Open a release in Plex; administrators also get Radarr or
+  Sonarr. *See on* links to TMDB, TVDB, IMDb, Letterboxd or MDBList, each
+  person picking the ones they use.
+- **Notifications.** Be told when something you requested in Seerr, are
+  watching, or follow from its detail sheet becomes available, or when its file
+  is upgraded (*Resolution: 1080p → 4K*, *Audio: + French*). A bell keeps the
+  history; with Web Push, notifications reach your phone or computer even with
+  Agendarr closed.
 - **Personal filters**, which can be combined: Seerr requests, shows watched in
   the last 90 days, Plex watchlist, full Plex history. Every release shows who
   requested it.
@@ -82,16 +101,17 @@ and only the admin can open them. Agendarr gives the whole household one calenda
   from the browser or picked in the footer.
 - **Small and private.** A single Go binary in a distroless image (amd64, arm64,
   armv7) and one SQLite file. API keys never reach the browser, and the server
-  only talks to your own servers and plex.tv.
+  only talks to your own servers, plex.tv and, for notifications people turn on,
+  their browser's push service.
 
 ## Requirements
 
 - A **Plex Media Server**. You sign in with the account that owns it.
 - **Radarr** and/or **Sonarr** (API v3; tested with Radarr 6 and Sonarr 4).
-- Optional: **Seerr** (or Overseerr / Jellyseerr) for the *my requests* filter
-  and the *requested by* names.
-- A reverse proxy with **HTTPS** if you want the app to install on phones and
-  calendar apps to subscribe.
+- Optional: **Seerr** (or Overseerr / Jellyseerr) for the *my requests* filter,
+  the *requested by* names and notifications about requests.
+- A reverse proxy with **HTTPS** if you want the app to install on phones,
+  calendar apps to subscribe and notifications to reach devices.
 
 ## Quick start
 
@@ -134,7 +154,11 @@ has the same file with comments.
    Agendarr copies the servers Seerr already knows, API keys included. You can
    also add Radarr and Sonarr by hand (the API key is in *Settings › General* of
    each app). **Test connection** checks each one before saving.
-3. **Share the URL** with your Plex users. They sign in with Plex, and that's it.
+3. Optional: give each Radarr and Sonarr instance its **public address**
+   (e.g. `https://radarr.example.com`) so administrators get *Open in Radarr /
+   Sonarr* links. *Import Radarr and Sonarr* fills it from Seerr when it knows it.
+4. **Share the URL** with your Plex users. They sign in with Plex, and that's it.
+   Each person picks their display and notification choices in **Settings**.
 
 <p align="center">
   <img src="docs/screenshots/desktop-admin.png" width="80%" alt="Admin page listing the Radarr, Sonarr and Seerr instances, with an Import Radarr and Sonarr button">
@@ -188,6 +212,8 @@ server {
 
 Calendar apps fetch the iCal link from their own servers, so don't put an IP
 allowlist in front of `/ics/`, or Google and Outlook won't be able to read it.
+Agendarr itself needs outbound HTTPS to plex.tv and, for Web Push, to the
+browsers' push services (Google, Mozilla, Apple, Microsoft).
 
 ## Configuration
 
@@ -196,8 +222,8 @@ app can't work out by itself:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `AGENDARR_BASE_URL` | derived from requests | Public URL, used for the Plex sign-in return and iCal links. Set it behind a proxy. |
-| `AGENDARR_PLEX_SERVER_URL` | addresses advertised by plex.tv | How Agendarr reaches Plex for the history-based filters, e.g. `http://plex:32400` on a shared Docker network |
+| `AGENDARR_BASE_URL` | derived from requests | Public URL, used for the Plex sign-in return, iCal links and as the contact push services see. Set it behind a proxy. |
+| `AGENDARR_PLEX_SERVER_URL` | addresses advertised by plex.tv | How Agendarr reaches Plex for the history-based filters, file formats, tracks and *Open in Plex* links, e.g. `http://plex:32400` on a shared Docker network |
 | `AGENDARR_LISTEN` | `:8080` | HTTP listen address |
 | `AGENDARR_DATA_DIR` | `/data` | Database, encryption key, poster cache |
 | `AGENDARR_SECURE_COOKIES` | `true` when the base URL is https | Force the `Secure` cookie flag on or off |
@@ -210,8 +236,9 @@ docker compose pull && docker compose up -d
 ```
 
 Database migrations run on start. To back up, copy the data volume while the
-container is stopped. Keep `secret.key` with `agendarr.db`: tokens and API
-keys are encrypted with it, and a database without its key can't be read.
+container is stopped. Keep `secret.key` with `agendarr.db`: tokens, API keys
+and the Web Push key are encrypted with it, and a database without its key
+can't be read (people would have to turn notifications on again).
 
 ## Troubleshooting
 
@@ -224,6 +251,14 @@ keys are encrypted with it, and a database without its key can't be read.
 - **Google Calendar shows nothing yet.** Google refreshes subscribed calendars
   every 12 to 24 hours. Apple and Outlook refresh about every hour.
 - **The app doesn't offer to install.** Installing requires HTTPS.
+- **No *Open in Plex* button, no tracks.** The release is not in your Plex
+  library, or Agendarr cannot reach the Plex server: see
+  `AGENDARR_PLEX_SERVER_URL`. The library is indexed at startup and every 30
+  minutes, so a file added a moment ago may take that long.
+- **Notifications don't reach a device.** Turn on *Notifications on this
+  device* in Settings on that device and allow them when the browser asks. On
+  iPhone and iPad, add Agendarr to the home screen first (Safari only allows
+  notifications for installed apps). In-app, the bell works everywhere.
 
 ## How it works
 
@@ -232,7 +267,16 @@ keys are encrypted with it, and a database without its key can't be read.
   named in a warning. Posters go through Agendarr, so API keys never reach the
   browser.
 - Seerr requests are indexed every ten minutes. Plex history is read from your
-  server with the owner's token and resolved to TMDB/TVDB/IMDb ids once.
+  server with the owner's token and resolved to TMDB/TVDB/IMDb ids once. The
+  Plex library is indexed by those ids every 30 minutes; a detail sheet then
+  asks Plex for that item's file and tracks.
+- Every five minutes a watcher compares each release's file (from a month back
+  to two weeks ahead) with the one it saw before: a file that appears is
+  *available*, one that changes on the same instance is a *new version*. It
+  never waits on Plex or Seerr; what it cannot match yet is retried.
+- Notifications are encrypted for each browser (RFC 8291) and signed with the
+  server's own key (VAPID, RFC 8292), using Go's standard library only. Only
+  the browsers' push services are accepted as destinations.
 - Everything lives in one SQLite file. Plex tokens and API keys are encrypted
   with AES-256-GCM. See [SECURITY.md](SECURITY.md) and the in-app privacy page.
 
