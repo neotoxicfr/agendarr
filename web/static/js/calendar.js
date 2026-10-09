@@ -678,13 +678,14 @@
     vobsub: "VobSub", dvd_subtitle: "VobSub", mov_text: "TX3G", webvtt: "WebVTT" };
   const LAYOUT = { mono: "1.0", stereo: "2.0" };
   const codecName = (c) => CODEC[(c || "").toLowerCase()] || (c || "").toUpperCase();
-  // Tracks line up in a grid: flag | format | title and tags.
+  // Tracks line up in a grid: format | flag | title and tags.
   const trackItem = (x, audio) => {
     const title = x.title;
     const tags = [x.forced && "cal.track_forced", x.hi && "cal.track_hi", x.external && "cal.track_external"].filter(Boolean);
+    // Same order as the summary line above: formats, then language.
     return el("li", {},
-      langBadge(x.lang),
       el("span", { class: "track-format" }, badges(audio ? audioBadges(x.codec, x.layout, x.profile) : [codecName(x.codec)])),
+      langBadge(x.lang),
       el("span", { class: "track-more" },
         title ? el("span", { class: "track-title", text: title }) : null,
         ...tags.map((k) => el("span", { class: "pill", text: t(k) }))));
@@ -729,18 +730,22 @@
     ? [el("dt", { text: t(label), ...extra }), el("dd", extra, value)] : null);
   // The file block, from Radarr/Sonarr's reading of the file: only used when
   // Plex does not have the release (Plex's own analysis wins, see loadFile).
-  // One file: a header with its size, a strip of video formats, a strip of
-  // audio formats, the languages, and every track folded under "Tracks (n)".
-  const fileBlock = ({ title, size, video, audio, audioLangs, subLangs, tracks }) => el("section", { class: "detail-file" },
+  // One file, one row per category in a fixed order: video, audio, subtitles.
+  // Each row shows its summary; audio and subtitles unfold their own tracks.
+  const fileRow = (label, content, tracks, audio) => {
+    const cells = [el("span", { class: "file-label", text: t(label) }), el("span", { class: "file-value" }, content)];
+    if (!tracks?.length) return el("div", { class: "file-row" }, cells);
+    return el("details", { class: "file-row" },
+      el("summary", {}, cells, el("span", { class: "file-more", text: t(tracks.length > 1 ? "cal.tracks_n" : "cal.track_one", { n: tracks.length }) })),
+      trackList(tracks, audio));
+  };
+  const fileBlock = ({ title, size, video, audio, audioLangs, subLangs, audioTracks, subTracks }) => el("section", { class: "detail-file" },
     el("div", { class: "file-head" },
       el("h3", { text: title || t("cal.detail_file") }),
       size ? el("span", { class: "file-size", text: fSize.format(size / 1e9) }) : null),
-    video.some(Boolean) ? el("div", { class: "spec", role: "group", "aria-label": t("cal.detail_video") }, badges(video)) : null,
-    audio.some(Boolean) ? el("div", { class: "spec", role: "group", "aria-label": t("cal.detail_audio") }, badges(audio)) : null,
-    audioLangs.length || subLangs.length ? el("p", { class: "file-langs" },
-      audioLangs.length ? el("span", { class: "file-lang" }, el("span", { class: "file-lang-label", text: t("cal.detail_audio") }), langList(audioLangs)) : null,
-      subLangs.length ? el("span", { class: "file-lang" }, el("span", { class: "file-lang-label", text: t("cal.detail_subs") }), langList(subLangs)) : null) : null,
-    tracks);
+    video.some(Boolean) ? fileRow("cal.detail_video", badges(video)) : null,
+    audio.some(Boolean) || audioLangs.length ? fileRow("cal.detail_audio", [badges(audio), langList(audioLangs)], audioTracks, true) : null,
+    subLangs.length ? fileRow("cal.detail_subs", langList(subLangs), subTracks, false) : null);
   const videoBadges = (res, hdr, codec, depth) => [res, ...hdr, videoName(codec), depth > 8 ? `${depth}-bit` : ""];
   // Radarr/Sonarr's reading of the file: only when Plex does not have it.
   const files = (e) => (e.media || []).map((m) => fileBlock({
@@ -757,17 +762,11 @@
   // One version as Plex analysed it.
   const plexFile = (v, many) => {
     const audio = v.audio || [], subs = v.subs || [];
-    const n = audio.length + subs.length;
     return fileBlock({
       title: many ? v.resolution : "", size: v.size,
       video: videoBadges(v.resolution, v.hdr || [], v.videoCodec, v.bitDepth),
       audio: audioSummary(audio), audioLangs: uniq(audio.map((x) => x.lang)), subLangs: uniq(subs.map((x) => x.lang)),
-      tracks: n ? el("details", { class: "detail-tracks" },
-        el("summary", { text: t("cal.tracks", { n }) }),
-        // One grid for both lists, so audio and subtitle columns line up.
-        el("div", { class: "track-grid" },
-          audio.length ? [el("h4", { text: t("cal.detail_audio") }), trackList(audio, true)] : null,
-          subs.length ? [el("h4", { text: t("cal.detail_subs") }), trackList(subs, false)] : null)) : null,
+      audioTracks: audio, subTracks: subs,
     });
   };
   const links = (e) => {
