@@ -53,6 +53,8 @@ type plexConn struct {
 	mu     sync.Mutex
 	uri    string
 	picked time.Time
+	err    error // last failure, served for plexLibraryBackoff (SEC-03)
+	failed time.Time
 }
 
 // plexServer returns a client for the bound Plex server with the owner's
@@ -85,10 +87,15 @@ func (s *Server) plexServer(ctx context.Context) (*plex.Server, error) {
 	}
 	var conns []plex.Connection
 	_ = json.Unmarshal([]byte(raw), &conns)
+	if s.plexConn.err != nil && time.Since(s.plexConn.failed) < plexLibraryBackoff {
+		return nil, s.plexConn.err
+	}
 	uri, err := plex.PickConnection(ctx, conns, token, s.plex.ClientID)
 	if err != nil {
+		s.plexConn.err, s.plexConn.failed = err, time.Now()
 		return nil, err
 	}
+	s.plexConn.err = nil
 	s.plexConn.uri, s.plexConn.picked = uri, time.Now()
 	srv.BaseURL = uri
 	return srv, nil
@@ -104,6 +111,8 @@ type Prefs struct {
 	Sites []string `json:"sites"`
 	// Formats shows Dolby, DTS and HDR formats as "logos" (default) or "text".
 	Formats string `json:"formats"`
+	// Notify lists the automatic sources of notifications (see notify.go).
+	Notify []string `json:"notify"`
 }
 
 // defaultSites are shown until a user picks their own.
@@ -126,12 +135,16 @@ func cleanSites(in []string) []string {
 
 // PrefFilters mirror the filter panel.
 type PrefFilters struct {
-	Movies          bool            `json:"movies"`
-	Episodes        bool            `json:"episodes"`
-	Status          string          `json:"status"`                   // all | available | upcoming
-	HideDownloaded  bool            `json:"hideDownloaded,omitempty"` // before Status; read once, then dropped
-	HideUnmonitored bool            `json:"hideUnmonitored"`
-	Instances       map[string]bool `json:"instances"`
+	Movies          bool   `json:"movies"`
+	Episodes        bool   `json:"episodes"`
+	Status          string `json:"status"`                   // all | available | upcoming
+	HideDownloaded  bool   `json:"hideDownloaded,omitempty"` // before Status; read once, then dropped
+	HideUnmonitored bool   `json:"hideUnmonitored"`
+	// Movie release types to leave out; all shown by default.
+	HideCinema   bool            `json:"hideCinema,omitempty"`
+	HideDigital  bool            `json:"hideDigital,omitempty"`
+	HidePhysical bool            `json:"hidePhysical,omitempty"`
+	Instances    map[string]bool `json:"instances"`
 }
 
 // normalize maps the old hideDownloaded checkbox onto Status and drops
@@ -161,6 +174,7 @@ func (s *Server) loadPrefs(ctx context.Context, userID int64) Prefs {
 	p.Mine = cleanSources(p.Mine)
 	p.Filters.normalize()
 	p.Sites = cleanSites(p.Sites)
+	p.Notify = cleanNotify(p.Notify)
 	if p.Formats != "text" {
 		p.Formats = "logos"
 	}
@@ -193,7 +207,10 @@ func (s *Server) handlePrefsPut(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad body", http.StatusBadRequest)
 		return
 	}
-	p := defaultPrefs()
+	// A partial update: fields the body leaves out keep their stored value,
+	// so the calendar (filters) and the settings page (display,
+	// notifications) each save their own part.
+	p := s.loadPrefs(r.Context(), currentUser(r).ID)
 	if err := json.Unmarshal(body, &p); err != nil {
 		http.Error(w, "bad json", http.StatusBadRequest)
 		return
@@ -201,6 +218,7 @@ func (s *Server) handlePrefsPut(w http.ResponseWriter, r *http.Request) {
 	p.Mine = cleanSources(p.Mine)
 	p.Filters.normalize()
 	p.Sites = cleanSites(p.Sites)
+	p.Notify = cleanNotify(p.Notify)
 	if p.Formats != "text" {
 		p.Formats = "logos"
 	}

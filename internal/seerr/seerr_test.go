@@ -51,20 +51,11 @@ func TestSeerr(t *testing.T) {
 	if err != nil || len(users) != 2 {
 		t.Fatalf("users: %+v %v", users, err)
 	}
-	if u, ok := UserForPlex(users, 7, "", ""); !ok || u.ID != 1 {
-		t.Fatal("match by plex id")
-	}
-	if u, ok := UserForPlex(users, 99, "friend", ""); !ok || u.ID != 2 {
-		t.Fatal("match by plex username")
-	}
-	if _, ok := UserForPlex(users, 99, "nobody", "no@x"); ok {
-		t.Fatal("false match")
-	}
-	reqs, err := c.RequestsBy(ctx, 2)
-	if err != nil || len(reqs) != 2 {
+	reqs, err := c.AllRequests(ctx)
+	if err != nil || len(reqs) != 3 {
 		t.Fatalf("requests: %+v %v", reqs, err)
 	}
-	if got := fmt.Sprint(reqs[1].MediaKeys()); got != "[tmdb:5 tvdb:6]" {
+	if got := fmt.Sprint(reqs[2].MediaKeys()); got != "[tmdbtv:5 tvdb:6]" { // a tv request: SEC-05
 		t.Fatalf("keys %s", got)
 	}
 	rs, err := c.Radarrs(ctx)

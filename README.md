@@ -10,7 +10,7 @@ Radarr, Sonarr and Seerr in one calendar. Everyone signs in with their Plex acco
 and sees everything that's coming, or just what they care about.
 
 [![CI](https://github.com/neotoxicfr/agendarr/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/neotoxicfr/agendarr/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/badge/release-v0.3.1-blue)](https://github.com/neotoxicfr/agendarr/releases)
+[![Release](https://img.shields.io/badge/release-v0.4.0-blue)](https://github.com/neotoxicfr/agendarr/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 </div>
@@ -62,6 +62,10 @@ and only the admin can open them. Agendarr gives the whole household one calenda
   title, forced, SDH). One click opens it in
   Plex; administrators also get Radarr or Sonarr. TMDB, TVDB, IMDb and
   Letterboxd links, each person picking the ones they use.
+- **Notifications.** Be told when something you requested, are watching or
+  follow from its detail sheet becomes available, or when its file is
+  upgraded (1080p to 4K, a French track added…). A bell keeps the history;
+  notifications reach the device too (Web Push), even with the app closed.
 - **Personal filters**, which can be combined: Seerr requests, shows watched in
   the last 90 days, Plex watchlist, full Plex history. Every release shows who
   requested it.

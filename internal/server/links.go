@@ -114,58 +114,171 @@ type trackEntry struct {
 const tracksTTL = 10 * time.Minute
 
 // handleTracks serves /api/tracks?group=movie:tmdb:1 (and &season=&episode=
-// for an episode): the audio and subtitle tracks Plex has for it, or an
-// empty list when Plex does not have it.
+// for an episode): the versions and tracks Plex has for it, or an empty list
+// when Plex does not have it. With &season=&episodes=1,2,3 it answers a whole
+// season bundle at once: {"episodes": {"1": [versions], ...}}.
 func (s *Server) handleTracks(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	kind, key, _ := strings.Cut(q.Get("group"), ":")
 	season, _ := strconv.Atoi(q.Get("season"))
-	episode, _ := strconv.Atoi(q.Get("episode"))
-	empty := map[string]any{"versions": []plex.Version{}}
 	rk, ok := s.plexKeys(r.Context())[key]
-	if !ok || (kind != "movie" && kind != "series") {
-		writeJSON(w, http.StatusOK, empty)
+	known := ok && (kind == "movie" || kind == "series")
+
+	if q.Has("episodes") {
+		out := map[string][]plex.Version{}
+		var err error
+		if known && kind == "series" {
+			out, err = s.seasonTracks(r.Context(), rk, season, q.Get("episodes"))
+		}
+		resp := map[string]any{"episodes": out}
+		if err != nil {
+			s.log.Info("plex season tracks", "group", q.Get("group"), "err", err)
+			resp["unreachable"] = true // Plex did not answer: not "not in Plex" (UX-07)
+		}
+		writeJSON(w, http.StatusOK, resp)
 		return
 	}
-	cacheKey := fmt.Sprintf("%s/%d/%d", rk, season, episode)
-	if kind == "movie" {
-		cacheKey = rk
+
+	versions := []plex.Version{}
+	if known {
+		episode, _ := strconv.Atoi(q.Get("episode"))
+		cacheKey, item := rk, func(*plex.Server, context.Context) (string, error) { return rk, nil }
+		if kind == "series" {
+			cacheKey = fmt.Sprintf("%s/%d/%d", rk, season, episode)
+			item = func(srv *plex.Server, ctx context.Context) (string, error) {
+				return srv.EpisodeKey(ctx, rk, season, episode)
+			}
+		}
+		if v, err := s.itemTracks(r.Context(), cacheKey, item); err == nil {
+			versions = v
+		} else {
+			s.log.Info("plex tracks", "group", q.Get("group"), "err", err)
+			writeJSON(w, http.StatusOK, map[string]any{"versions": versions, "unreachable": true})
+			return
+		}
 	}
+	writeJSON(w, http.StatusOK, map[string]any{"versions": versions})
+}
+
+// seasonTracks reads the tracks of several episodes of one season: the Plex
+// server and the show's episode list once, then four episodes at a time,
+// within the request and 30 s at most; the first failure stops the rest, so
+// a slow Plex costs one timeout, not one per episode (SEC-03).
+func (s *Server) seasonTracks(ctx context.Context, showKey string, season int, list string) (map[string][]plex.Version, error) {
+	out := map[string][]plex.Version{}
+	var episodes []int
+	for _, v := range strings.Split(list, ",") {
+		if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && n >= 0 && len(episodes) < 60 {
+			episodes = append(episodes, n)
+		}
+	}
+	if len(episodes) == 0 {
+		return out, nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	cacheKey := func(ep int) string { return fmt.Sprintf("%s/%d/%d", showKey, season, ep) }
+	var todo []int
+	for _, ep := range episodes {
+		if v, ok := s.cachedTracks(cacheKey(ep)); ok {
+			if len(v) > 0 {
+				out[strconv.Itoa(ep)] = v
+			}
+		} else {
+			todo = append(todo, ep)
+		}
+	}
+	if len(todo) == 0 {
+		return out, nil
+	}
+	srv, err := s.plexServer(ctx)
+	if err != nil {
+		return out, err
+	}
+	keys, err := srv.EpisodeKeys(ctx, showKey)
+	if err != nil {
+		return out, err
+	}
+	var mu sync.Mutex
+	var firstErr error
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 4)
+	for _, ep := range todo {
+		rk, ok := keys[[2]int{season, ep}]
+		if !ok {
+			continue // not in Plex
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			if ctx.Err() != nil {
+				return
+			}
+			v, err := srv.Tracks(ctx, rk)
+			mu.Lock()
+			defer mu.Unlock()
+			if err != nil {
+				if firstErr == nil {
+					firstErr = err
+					cancel()
+				}
+				return
+			}
+			s.storeTracks(cacheKey(ep), v)
+			if len(v) > 0 {
+				out[strconv.Itoa(ep)] = v
+			}
+		}()
+	}
+	wg.Wait()
+	return out, firstErr
+}
+
+func (s *Server) cachedTracks(key string) ([]plex.Version, bool) {
 	tc := &s.tracks
 	tc.mu.Lock()
-	if e, hit := tc.m[cacheKey]; hit && time.Since(e.at) < tracksTTL {
-		tc.mu.Unlock()
-		writeJSON(w, http.StatusOK, map[string]any{"versions": e.versions})
-		return
+	defer tc.mu.Unlock()
+	if e, hit := tc.m[key]; hit && time.Since(e.at) < tracksTTL {
+		return e.versions, true
 	}
-	tc.mu.Unlock()
+	return nil, false
+}
 
+func (s *Server) storeTracks(key string, v []plex.Version) {
+	tc := &s.tracks
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+	if tc.m == nil || len(tc.m) > 500 {
+		tc.m = map[string]trackEntry{}
+	}
+	tc.m[key] = trackEntry{at: time.Now(), versions: v}
+}
+
+// itemTracks returns the tracks of one library item, cached ten minutes;
+// item resolves its ratingKey on the Plex server.
+func (s *Server) itemTracks(ctx context.Context, cacheKey string, item func(*plex.Server, context.Context) (string, error)) ([]plex.Version, error) {
+	if v, ok := s.cachedTracks(cacheKey); ok {
+		return v, nil
+	}
 	v, err, _ := s.tracksSF.Do(cacheKey, func() (any, error) {
-		ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 15*time.Second)
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
 		defer cancel()
 		srv, err := s.plexServer(ctx)
 		if err != nil {
 			return nil, err
 		}
-		item := rk
-		if kind == "series" {
-			if item, err = srv.EpisodeKey(ctx, rk, season, episode); err != nil {
-				return nil, err
-			}
+		rk, err := item(srv, ctx)
+		if err != nil {
+			return nil, err
 		}
-		return srv.Tracks(ctx, item)
+		return srv.Tracks(ctx, rk)
 	})
 	if err != nil {
-		s.log.Info("plex tracks", "group", q.Get("group"), "err", err)
-		writeJSON(w, http.StatusOK, empty)
-		return
+		return nil, err
 	}
 	versions := v.([]plex.Version)
-	tc.mu.Lock()
-	if tc.m == nil || len(tc.m) > 500 {
-		tc.m = map[string]trackEntry{}
-	}
-	tc.m[cacheKey] = trackEntry{at: time.Now(), versions: versions}
-	tc.mu.Unlock()
-	writeJSON(w, http.StatusOK, map[string]any{"versions": versions})
+	s.storeTracks(cacheKey, versions)
+	return versions, nil
 }

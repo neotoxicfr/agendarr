@@ -78,23 +78,6 @@ func (c *Client) Users(ctx context.Context) ([]User, error) {
 	}
 }
 
-// UserForPlex finds the Seerr user linked to a Plex account.
-func UserForPlex(users []User, plexID int64, plexUsername, email string) (User, bool) {
-	for _, u := range users {
-		if plexID != 0 && u.PlexID == plexID {
-			return u, true
-		}
-	}
-	// Users imported before Seerr stored the Plex id: match by name or email.
-	for _, u := range users {
-		if (plexUsername != "" && strings.EqualFold(u.PlexUsername, plexUsername)) ||
-			(email != "" && strings.EqualFold(u.Email, email)) {
-			return u, true
-		}
-	}
-	return User{}, false
-}
-
 // Request is a media request.
 type Request struct {
 	ID          int64  `json:"id"`
@@ -115,43 +98,16 @@ type Request struct {
 func (r Request) MediaKeys() []string {
 	var out []string
 	if r.Media.TmdbID != 0 {
-		out = append(out, fmt.Sprintf("tmdb:%d", r.Media.TmdbID))
+		k := fmt.Sprintf("tmdb:%d", r.Media.TmdbID)
+		if r.Type == "tv" {
+			k = fmt.Sprintf("tmdbtv:%d", r.Media.TmdbID) // see plex.ShowKey
+		}
+		out = append(out, k)
 	}
 	if r.Media.TvdbID != 0 {
 		out = append(out, fmt.Sprintf("tvdb:%d", r.Media.TvdbID))
 	}
 	return out
-}
-
-// RequestsBy lists every request made by a Seerr user. The requestedBy filter
-// is applied server-side where supported and re-checked here for older
-// versions that ignore it.
-func (c *Client) RequestsBy(ctx context.Context, userID int64) ([]Request, error) {
-	var out []Request
-	for skip := 0; ; {
-		var page struct {
-			PageInfo struct {
-				Results int `json:"results"`
-			} `json:"pageInfo"`
-			Results []Request `json:"results"`
-		}
-		q := url.Values{
-			"take": {"100"}, "skip": {strconv.Itoa(skip)}, "filter": {"all"},
-			"sort": {"added"}, "requestedBy": {strconv.FormatInt(userID, 10)},
-		}
-		if err := c.Get(ctx, "/api/v1/request", q, &page); err != nil {
-			return nil, err
-		}
-		for _, r := range page.Results {
-			if r.RequestedBy.ID == userID {
-				out = append(out, r)
-			}
-		}
-		skip += len(page.Results)
-		if len(page.Results) == 0 || skip >= page.PageInfo.Results || skip >= 10000 {
-			return out, nil
-		}
-	}
 }
 
 // AllRequests lists every request (a household has a few hundred), which

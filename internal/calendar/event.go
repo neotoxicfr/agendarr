@@ -62,10 +62,13 @@ type Event struct {
 	ArrLinks []Link `json:"arrLinks,omitempty"`
 	// Ext opens it on TMDB, TVDB and IMDb.
 	Ext []Link `json:"ext,omitempty"`
+	// Followed is true when the viewer follows it by hand (set per response).
+	Followed bool `json:"followed,omitempty"`
 }
 
 // Media sums up one file: quality, video, audio and subtitles.
 type Media struct {
+	InstanceID int64    `json:"-"` // stable across renames (SEC-01)
 	Instance   string   `json:"instance"`
 	Resolution string   `json:"resolution,omitempty"`
 	VideoCodec string   `json:"videoCodec,omitempty"` // x265
@@ -106,13 +109,19 @@ func (e Event) sortKey() string {
 	return e.Date + t + strings.ToLower(e.Title) + fmt.Sprintf("%03d%03d", e.Season, e.Episode)
 }
 
-func keys(tmdb, tvdb int64, imdb string) []string {
+// keys lists a release's external ids. TMDB numbers movies and shows
+// separately: a show's TMDB id is "tmdbtv:" (SEC-05, see plex.ShowKey).
+func keys(tmdb, tvdb int64, imdb string, show bool) []string {
 	var out []string
 	if tvdb != 0 {
 		out = append(out, fmt.Sprintf("tvdb:%d", tvdb))
 	}
 	if tmdb != 0 {
-		out = append(out, fmt.Sprintf("tmdb:%d", tmdb))
+		p := "tmdb"
+		if show {
+			p = "tmdbtv"
+		}
+		out = append(out, fmt.Sprintf("%s:%d", p, tmdb))
 	}
 	if imdb != "" {
 		out = append(out, "imdb:"+imdb)
@@ -136,10 +145,10 @@ func fromMovie(instID int64, instName string, m arr.Movie) []Event {
 		Kind: "movie", Title: m.Title, Year: m.Year, Runtime: m.Runtime,
 		HasFile: m.HasFile, Monitored: m.Monitored, Overview: m.Overview, Genres: m.Genres,
 		Poster: posterURL(instID, m.ID, m.Images), Instances: []string{instName},
-		Keys: keys(m.TmdbID, 0, m.ImdbID),
+		Keys: keys(m.TmdbID, 0, m.ImdbID, false),
 	}
 	if m.HasFile {
-		base.Media = mediaOf(instName, m.MovieFile)
+		base.Media = mediaOf(instID, instName, m.MovieFile)
 	}
 	if m.TmdbID != 0 {
 		base.Ext = append(base.Ext, Link{"tmdb", "TMDB", fmt.Sprintf("https://www.themoviedb.org/movie/%d", m.TmdbID)})
@@ -183,10 +192,10 @@ func fromEpisode(instID int64, instName string, ep arr.Episode) (Event, bool) {
 		EpTitle: ep.Title, Finale: ep.FinaleType, Premiere: ep.EpisodeNumber == 1,
 		Runtime: ep.Runtime, HasFile: ep.HasFile, Monitored: ep.Monitored, Network: s.Network,
 		Overview: ep.Overview, Poster: posterURL(instID, s.ID, s.Images), Instances: []string{instName},
-		Keys: keys(s.TmdbID, s.TvdbID, s.ImdbID),
+		Keys: keys(s.TmdbID, s.TvdbID, s.ImdbID, true),
 	}
 	if ep.HasFile {
-		e.Media = mediaOf(instName, ep.EpisodeFile)
+		e.Media = mediaOf(instID, instName, ep.EpisodeFile)
 	}
 	// TMDB and TVDB open the episode itself; IMDb, the series.
 	if s.TmdbID != 0 {

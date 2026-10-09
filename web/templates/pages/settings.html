@@ -1,0 +1,46 @@
+{{define "content"}}<div class="page settings">
+  <h1>{{index .T "title.settings"}}</h1>
+  <p class="lead">{{index .T "settings.lead"}}</p>
+  {{with .Data}}
+  <section class="settings-card" aria-labelledby="set-display">
+    <h2 id="set-display">{{index $.T "settings.display"}}</h2>
+    <fieldset class="settings-group">
+      <legend>{{index $.T "cal.formats"}}</legend>
+      <div class="segmented" role="radiogroup" aria-label="{{index $.T "cal.formats"}}">
+        <label><input type="radio" name="formats" value="logos" data-pref-formats {{if ne .Formats "text"}}checked{{end}}><span>{{index $.T "cal.formats_logos"}}</span></label>
+        <label><input type="radio" name="formats" value="text" data-pref-formats {{if eq .Formats "text"}}checked{{end}}><span>{{index $.T "cal.formats_text"}}</span></label>
+      </div>
+    </fieldset>
+    <fieldset class="settings-group">
+      <legend>{{index $.T "cal.sites"}}</legend>
+      <p class="help">{{index $.T "settings.sites_help"}}</p>
+      <div class="site-chips">
+        {{range .Sites}}<label class="site-chip"><input type="checkbox" data-pref-site="{{.ID}}" {{if .On}}checked{{end}}><span>{{.Label}}</span></label>
+        {{end}}
+      </div>
+    </fieldset>
+    <fieldset class="settings-group">
+      <legend>{{index $.T "settings.keyboard"}}</legend>
+      <label class="check"><input type="checkbox" data-pref-shortcuts {{if .Shortcuts}}checked{{end}}> {{index $.T "cal.shortcuts_toggle"}}</label>
+      <p class="help">{{index $.T "cal.shortcuts"}}</p>
+    </fieldset>
+  </section>
+
+  <section class="settings-card" id="notifications" aria-labelledby="set-notif">
+    <h2 id="set-notif">{{index $.T "notif.title"}}</h2>
+    <fieldset class="settings-group">
+      <legend>{{index $.T "notif.sources"}}</legend>
+      <label class="check"><input type="checkbox" data-notify="seerr" {{if .Notify.seerr}}checked{{end}}> {{index $.T "cal.mine_seerr"}}</label>
+      <label class="check"><input type="checkbox" data-notify="watching" {{if .Notify.watching}}checked{{end}}> {{index $.T "cal.mine_watching"}}</label>
+      <label class="check"><input type="checkbox" data-notify="watchlist" {{if .Notify.watchlist}}checked{{end}}> {{index $.T "cal.mine_watchlist"}}</label>
+      <p class="help">{{index $.T "notif.sources_help"}}</p>
+    </fieldset>
+    <fieldset class="settings-group">
+      <legend>{{index $.T "settings.device"}}</legend>
+      <label class="check"><input type="checkbox" data-push> {{index $.T "notif.push"}}</label>
+      <p class="help" data-push-help role="status"></p>
+    </fieldset>
+  </section>
+  <p class="settings-status" data-settings-status role="status"></p>
+  {{end}}
+</div>{{end}}

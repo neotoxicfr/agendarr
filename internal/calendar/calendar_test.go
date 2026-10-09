@@ -186,12 +186,12 @@ func TestMediaOf(t *testing.T) {
 	f.MediaInfo = &arr.MediaInfo{AudioChannels: 5.1, AudioCodec: "EAC3 Atmos", AudioLanguages: "fre/eng",
 		VideoBitDepth: 10, VideoCodec: "x265", VideoDynamicRangeType: "DV HDR10Plus", Resolution: "3840x1606",
 		Subtitles: "fre/fre/fre/eng/eng/und"}
-	got, _ := json.Marshal(mediaOf("Radarr 4K", f))
+	got, _ := json.Marshal(mediaOf(1, "Radarr 4K", f))
 	want := `[{"instance":"Radarr 4K","resolution":"4K","videoCodec":"x265","bitDepth":10,"hdr":"DV HDR10Plus","audioCodec":"EAC3 Atmos","channels":"5.1","audioLangs":["fr","en"],"subs":["fr","en"],"size":5}]`
 	if string(got) != want {
 		t.Fatalf("got  %s\nwant %s", got, want)
 	}
-	if mediaOf("x", nil) != nil {
+	if mediaOf(1, "x", nil) != nil {
 		t.Fatal("no file, no media")
 	}
 	for in, want := range map[string]string{"1920x800": "1080p", "1280x720": "720p", "720x576": "SD", "": ""} {

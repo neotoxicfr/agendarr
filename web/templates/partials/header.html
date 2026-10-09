@@ -13,12 +13,31 @@
       <svg class="nav-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.6L20 8.7M20 4v4.7h-4.7M20 12a8 8 0 0 1-13.7 5.6L4 15.3M4 20v-4.7h4.7"/></svg>
       <span>{{index $.T "nav.sync"}}</span>
     </a>
+    <a href="/settings" {{if eq $.Path "/settings"}}aria-current="page"{{end}}>
+      <svg class="nav-icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      <span>{{index $.T "nav.settings"}}</span>
+    </a>
     {{if .IsAdmin}}<a href="/admin" {{if hasPrefix $.Path "/admin"}}aria-current="page"{{end}}>
       <svg class="nav-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2.2"/><circle cx="8" cy="17" r="2.2"/></svg>
       <span>{{index $.T "nav.admin"}}</span>
     </a>{{end}}
   </nav>
   <div class="me" role="group" aria-label="{{printf (index $.T "nav.account_aria") .Username}}">
+    <div class="bell-wrap">
+      <button class="btn btn-ghost icon-btn bell" type="button" data-bell aria-expanded="false" aria-controls="notif-panel" aria-label="{{index $.T "notif.title"}}">
+        <svg class="nav-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20a2 2 0 0 0 4 0"/></svg>
+        <span class="bell-count" data-bell-count hidden></span>
+      </button>
+      <section class="notif-panel" id="notif-panel" data-notif-panel hidden aria-labelledby="notif-title">
+        <header class="notif-head">
+          <h2 id="notif-title">{{index $.T "notif.title"}}</h2>
+          <button class="btn btn-ghost notif-all" type="button" data-notif-all>{{index $.T "notif.read_all"}}</button>
+        </header>
+        <ol class="notif-list" data-notif-list></ol>
+        <p class="notif-empty" data-notif-empty hidden>{{index $.T "notif.empty"}}</p>
+        <p class="notif-foot"><a href="/settings#notifications">{{index $.T "notif.settings_link"}}</a></p>
+      </section>
+    </div>
     {{if .Thumb}}<img class="avatar" src="{{.Thumb}}" alt="" width="32" height="32" referrerpolicy="no-referrer">{{end}}
     <span class="me-name">{{.Username}}</span>
     <form method="post" action="/logout" data-confirm="{{index $.T "auth.logout_confirm"}}">

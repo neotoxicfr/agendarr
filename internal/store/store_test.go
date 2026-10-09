@@ -76,3 +76,48 @@ func TestOwnerClaim(t *testing.T) {
 		t.Fatalf("users order %+v", users)
 	}
 }
+
+func TestNotifications(t *testing.T) {
+	ctx := context.Background()
+	s := newTest(t)
+	u, err := s.SignIn(ctx, Profile{PlexID: 7, Username: "a"}, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Unix(1000, 0)
+	if err := s.SetFollow(ctx, u.ID, "series:tvdb:1", "Below", true, now); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < keepNotifications+3; i++ {
+		g := "movie:tmdb:2"
+		if i == keepNotifications+2 {
+			g = "series:tvdb:1"
+		}
+		if _, err := s.AddNotification(ctx, u.ID, Notification{At: now, Kind: "available", Group: g, Title: "x", Detail: "{}"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	list, unread, err := s.Notifications(ctx, u.ID, 500)
+	if err != nil || len(list) != keepNotifications || unread != keepNotifications {
+		t.Fatalf("trim: %d %d %v", len(list), unread, err)
+	}
+	if !list[0].Follows || list[1].Follows {
+		t.Fatalf("follows flag: %+v %+v", list[0], list[1])
+	}
+	if err := s.MarkRead(ctx, u.ID, []int64{list[0].ID, list[1].ID}); err != nil {
+		t.Fatal(err)
+	}
+	if _, unread, _ = s.Notifications(ctx, u.ID, 1); unread != keepNotifications-2 {
+		t.Fatalf("unread %d", unread)
+	}
+	_ = s.SetFollow(ctx, u.ID, "series:tvdb:1", "", false, now)
+	if f, _ := s.Followers(ctx); len(f) != 0 {
+		t.Fatalf("followers %v", f)
+	}
+	if err := s.SaveMediaStates(ctx, map[string]MediaState{"k": {true, "4K"}}, now); err != nil {
+		t.Fatal(err)
+	}
+	if m, _ := s.MediaStates(ctx); !m["k"].HasFile || m["k"].Sig != "4K" {
+		t.Fatalf("state %v", m)
+	}
+}

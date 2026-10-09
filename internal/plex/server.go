@@ -225,6 +225,15 @@ func (s *Server) Guids(ctx context.Context, keys []string) (map[string][]string,
 	return out, nil
 }
 
+// ShowKey marks a TMDB key as a show's: TMDB numbers movies and shows
+// separately, so "tmdb:1" names a movie and "tmdbtv:1" a show (SEC-05).
+func ShowKey(k string) string {
+	if v, ok := strings.CutPrefix(k, "tmdb:"); ok {
+		return "tmdbtv:" + v
+	}
+	return k
+}
+
 // GuidKey turns "tmdb://123" into "tmdb:123"; other agents give "".
 func GuidKey(guid string) string {
 	for _, p := range []string{"tmdb", "tvdb", "imdb"} {
@@ -244,6 +253,7 @@ func (c *Client) Watchlist(ctx context.Context, token string) ([]string, error) 
 			MediaContainer struct {
 				TotalSize int `json:"totalSize"`
 				Metadata  []struct {
+					Type     string `json:"type"` // movie | show
 					PlexGuid string `json:"guid"` // see Guids
 					Guid     []struct {
 						ID string `json:"id"`
@@ -259,6 +269,9 @@ func (c *Client) Watchlist(ctx context.Context, token string) ([]string, error) 
 		for _, m := range v.MediaContainer.Metadata {
 			for _, g := range m.Guid {
 				if k := GuidKey(g.ID); k != "" {
+					if m.Type == "show" {
+						k = ShowKey(k)
+					}
 					out = append(out, k)
 				}
 			}
@@ -306,6 +319,9 @@ func (s *Server) Library(ctx context.Context) (map[string]string, error) {
 		for _, m := range v.MediaContainer.Metadata {
 			for _, g := range m.Guid {
 				if k := GuidKey(g.ID); k != "" {
+					if d.Type == "show" {
+						k = ShowKey(k)
+					}
 					out[k] = m.RatingKey
 				}
 			}
@@ -375,7 +391,9 @@ func (s *Server) Tracks(ctx context.Context, ratingKey string) ([]Version, error
 			} `json:"Metadata"`
 		} `json:"MediaContainer"`
 	}
-	if err := s.get(ctx, "/library/metadata/"+url.PathEscape(ratingKey), nil, &v); err != nil {
+	if err := s.get(ctx, "/library/metadata/"+url.PathEscape(ratingKey), nil, &v); errors.Is(err, errNotFound) {
+		return nil, nil // deleted since it was listed: absent, not unreachable
+	} else if err != nil {
 		return nil, err
 	}
 	var out []Version
@@ -446,6 +464,19 @@ func resolution(r string) string {
 
 // EpisodeKey finds the ratingKey of one episode of a show.
 func (s *Server) EpisodeKey(ctx context.Context, showKey string, season, episode int) (string, error) {
+	keys, err := s.EpisodeKeys(ctx, showKey)
+	if err != nil {
+		return "", err
+	}
+	if rk, ok := keys[[2]int{season, episode}]; ok {
+		return rk, nil
+	}
+	return "", errNotFound
+}
+
+// EpisodeKeys maps every episode of a show, as {season, episode}, to its
+// ratingKey.
+func (s *Server) EpisodeKeys(ctx context.Context, showKey string) (map[[2]int]string, error) {
 	var v struct {
 		MediaContainer struct {
 			Metadata []struct {
@@ -456,12 +487,11 @@ func (s *Server) EpisodeKey(ctx context.Context, showKey string, season, episode
 		} `json:"MediaContainer"`
 	}
 	if err := s.get(ctx, "/library/metadata/"+url.PathEscape(showKey)+"/allLeaves", nil, &v); err != nil {
-		return "", err
+		return nil, err
 	}
+	out := make(map[[2]int]string, len(v.MediaContainer.Metadata))
 	for _, m := range v.MediaContainer.Metadata {
-		if m.ParentIndex == season && m.Index == episode {
-			return m.RatingKey, nil
-		}
+		out[[2]int{m.ParentIndex, m.Index}] = m.RatingKey
 	}
-	return "", errNotFound
+	return out, nil
 }

@@ -111,3 +111,19 @@ func TestFilterEventsStatus(t *testing.T) {
 		}
 	}
 }
+
+func TestFilterEventsRelease(t *testing.T) {
+	in := []calendar.Event{
+		{Kind: "movie", Title: "c", Release: calendar.ReleaseCinema, Monitored: true},
+		{Kind: "movie", Title: "d", Release: calendar.ReleaseDigital, Monitored: true},
+		{Kind: "movie", Title: "p", Release: calendar.ReleasePhysical, Monitored: true},
+		{Kind: "episode", Title: "e", Monitored: true},
+	}
+	var got []string
+	for _, e := range filterEvents(in, PrefFilters{Movies: true, Episodes: true, Status: "all", HideCinema: true, HidePhysical: true}) {
+		got = append(got, e.Title)
+	}
+	if strings.Join(got, ",") != "d,e" {
+		t.Fatalf("got %v", got)
+	}
+}

@@ -18,6 +18,7 @@
   --ok: #5fd39a;
   --warn: #ffb454;
   --danger: #ff7a7a;
+  --c4: #b48cff;
 
   --radius: 10px;
   --radius-sm: 6px;
@@ -48,6 +49,7 @@
     --ok: #0b6a3d;
     --warn: #a35a00;
     --danger: #c02f2f;
+    --c4: #6b3fc4;
   }
 }
 
@@ -319,6 +321,9 @@ main:has(.cal) { padding-top: 0; }
 .side-group { border: 0; padding: 0; margin: 16px 0 0; }
 .side-group legend { font-weight: 650; margin-bottom: 4px; padding: 0; }
 .side-group .check { display: flex; font-weight: 500; }
+.sub-checks { margin-left: 30px; }
+.sub-checks .check { font-size: var(--fs-2); }
+.check:has(input:disabled) { opacity: .5; }
 .side-note { margin-top: 24px; color: var(--text-2); font-size: var(--fs-1); }
 .filters-btn { display: none; position: relative; }
 .filters-count {
@@ -511,7 +516,7 @@ details.file-row { display: block; padding: 0; }
   unicode-range: U+1F1E6-1F1FF, U+1F3F4, U+E0062-E0063, U+E0065, U+E0067, U+E006C, U+E006E, U+E0073-E0074, U+E0077, U+E007F;
   font-display: swap; }
 .flag { font-family: "Twemoji Country Flags", "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; font-size: 1.15em; line-height: 1; }
-.langs, .langs-line { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+.langs { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
 .tracks li { display: contents; }
 .track-format { white-space: nowrap; }
 .fmt-mark { display: inline-flex; align-items: center; height: 20px; font-size: 13px; font-weight: 800; letter-spacing: .01em; line-height: 1; text-transform: uppercase; white-space: nowrap; }
@@ -540,13 +545,6 @@ details.file-row { display: block; padding: 0; }
 .tracks .logo { height: 16px; width: calc(16px * var(--r)); }
 .tracks .logo-dolby-vision, .tracks .logo-dolby-atmos { height: 11px; width: calc(11px * var(--r)); }
 .tracks .logo-dolby-digital-plus, .tracks .logo-dolby-digital, .tracks .logo-dts-hd-ma { height: 19px; width: calc(19px * var(--r)); }
-.side-settings { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 8px; }
-.side-settings > summary { cursor: pointer; font-weight: 650; min-height: 36px; display: flex; align-items: center; gap: 6px; list-style: none; }
-.side-settings > summary::-webkit-details-marker { display: none; }
-.side-settings > summary::before { content: "▸"; color: var(--text-2); transition: transform .15s ease; }
-.side-settings[open] > summary::before { transform: rotate(90deg); }
-.side-settings > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.side-settings .side-group:first-of-type { margin-top: 8px; }
 /* With a mouse, the filter rows need not be finger-sized: less scrolling on a 1080p screen. */
 @media (pointer: fine) and (min-width: 1101px) {
   .cal-side .check { min-height: 34px; }
@@ -629,9 +627,39 @@ details.file-row { display: block; padding: 0; }
   .sheet-inner::before { content: ""; display: block; width: 40px; height: 4px; margin: -8px auto 12px; border-radius: 2px; background: var(--line); }
   .poster-lg { width: 104px; height: 156px; }
 }
-.detail-episodes { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 8px; }
-.detail-episodes li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 8px 0; border-top: 1px solid var(--line); }
-.detail-episodes .status { margin-left: auto; }
+.detail-episodes { list-style: none; margin: 16px 0 0; padding: 0; display: grid; }
+.detail-episodes li { border-top: 1px solid var(--line); }
+.ep-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 10px 0; }
+.ep-head .status { margin-left: auto; }
+.ep-fold > summary { cursor: pointer; list-style: none; }
+.ep-fold > summary::-webkit-details-marker { display: none; }
+.ep-fold > summary::before { content: "▸"; color: var(--text-2); transition: transform .15s ease; }
+.ep-fold[open] > summary::before { transform: rotate(90deg); }
+.ep-fold > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.ep-body .detail-file { margin: 0 0 12px; }
+.ep-wait { margin: 0 0 12px; color: var(--text-2); font-size: var(--fs-2); }
+/* Season summary: one hollow ring per category, with its legend. */
+.rings { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 16px 12px; margin-top: 18px; padding: 14px 16px;
+  border-radius: var(--radius); background: var(--surface-2); border: 1px solid var(--line); }
+.ring-card { margin: 0; display: grid; gap: 8px; align-content: start; }
+.ring-card figcaption { color: var(--text-2); font-size: var(--fs-1); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+.ring-wrap { position: relative; width: 64px; height: 64px; }
+.ring { width: 64px; height: 64px; transform: rotate(0deg); }
+.ring circle { fill: none; stroke-width: 4.5; }
+.ring-track { stroke: var(--line); }
+.ring-total { position: absolute; inset: 0; display: grid; place-items: center; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ring-legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: var(--fs-2); }
+.ring-legend li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.ring-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.ring-count { margin-left: auto; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.ring-seg.seg-0 { stroke: var(--episode); } .ring-dot.seg-0 { background: var(--episode); }
+.ring-seg.seg-1 { stroke: var(--ok); } .ring-dot.seg-1 { background: var(--ok); }
+.ring-seg.seg-2 { stroke: var(--movie); } .ring-dot.seg-2 { background: var(--movie); }
+.ring-seg.seg-3 { stroke: var(--c4); } .ring-dot.seg-3 { background: var(--c4); }
+.ring-seg.seg-4 { stroke: var(--text-2); } .ring-dot.seg-4 { background: var(--text-2); }
+.ring-legend .logo { height: 14px; width: calc(14px * var(--r)); }
+.ring-legend .logo-dolby-vision, .ring-legend .logo-dolby-atmos { height: 10px; width: calc(10px * var(--r)); }
+.ring-legend .fmt-mark { height: 14px; font-size: 10.5px; }
 
 /* capitalised first letter (Intl gives "septembre 2026", "lundi 28 septembre") */
 .cal-title::first-letter, .agenda-date::first-letter, .week-name::first-letter,
@@ -694,3 +722,55 @@ details.file-row { display: block; padding: 0; }
   .logo-dolby-vision, .logo-dolby-atmos { height: 12px; width: calc(12px * var(--r)); }
   .logo-dolby-digital-plus, .logo-dolby-digital, .logo-dts-hd-ma { height: 20px; width: calc(20px * var(--r)); }
 }
+
+/* Notifications: the bell, its count and its panel. */
+.bell-wrap { position: relative; }
+.bell { position: relative; }
+.bell .nav-icon { display: block; }
+.bell-count { position: absolute; top: 4px; right: 2px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  background: var(--accent); color: var(--accent-ink); font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; }
+.notif-panel { position: absolute; z-index: 30; top: calc(100% + 8px); right: 0; width: min(400px, calc(100vw - 24px));
+  max-height: min(70vh, 640px); overflow: auto; overscroll-behavior: contain; padding: 12px 16px 16px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 12px 40px rgb(0 0 0 / .35); }
+.notif-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.notif-head h2 { margin: 0; font-size: var(--fs-3); }
+.notif-list { list-style: none; margin: 0; padding: 0; }
+.notif { display: grid; grid-template-columns: 40px 1fr; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+.notif:first-child { border-top: 0; }
+.notif.is-unread .notif-title strong::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--accent); vertical-align: middle; }
+.notif-poster { width: 40px; height: 60px; border-radius: 4px; object-fit: cover; background: var(--surface-2); }
+.notif-body { min-width: 0; }
+.notif-body p { margin: 0; }
+.notif-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+.notif-kind { font-size: var(--fs-1); font-weight: 600; }
+.notif-kind.kind-available { color: var(--ok); }
+.notif-kind.kind-upgraded { color: var(--episode); }
+.notif-line { color: var(--text); font-size: var(--fs-2); overflow-wrap: anywhere; }
+.notif-when { color: var(--text-2); font-size: var(--fs-1); margin-top: 2px !important; }
+.notif-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px !important; }
+.notif-actions .btn { min-height: 32px; padding: 0 10px; font-size: var(--fs-2); }
+.notif-done { color: var(--text-2); font-size: var(--fs-2); align-self: center; }
+.notif-empty { margin: 16px 0 4px; color: var(--text-2); }
+.btn-follow[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.btn-follow[aria-pressed="true"]::before { content: "✓ "; }
+@media (max-width: 720px) {
+  .notif-panel { position: fixed; top: calc(var(--topbar-h) + env(safe-area-inset-top) + 6px); left: 12px; right: 12px; width: auto;
+    max-height: calc(100dvh - var(--topbar-h) - var(--tabbar-h, 60px) - 40px); }
+}
+.notif-foot { margin: 12px 0 0; padding-top: 10px; border-top: 1px solid var(--line); font-size: var(--fs-2); }
+/* Phones: notification actions and setting chips are finger-sized (UX-06). */
+@media (max-width: 720px) {
+  .notif-actions { gap: 8px; }
+  .notif-actions .btn, .site-chip span { min-height: var(--tap); }
+}
+/* Settings page. */
+.settings-card { margin-top: 20px; padding: 16px 20px 8px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); }
+.settings-card h2 { margin: 0 0 4px; font-size: var(--fs-3); }
+.settings-group { border: 0; margin: 0; padding: 12px 0; border-top: 1px solid var(--line); }
+.settings-card h2 + .settings-group { border-top: 0; }
+/* A floated legend sits inside the fieldset, so the separator stays above it. */
+.settings-group legend { float: left; width: 100%; padding: 0; font-weight: 650; margin-bottom: 6px; }
+.settings-group legend + * { clear: both; }
+.settings-group .check { display: flex; }
+.settings-group .help { margin: 4px 0 0; }
+.settings-status { min-height: 1.5em; color: var(--text-2); }
