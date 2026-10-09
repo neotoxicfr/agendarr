@@ -18,6 +18,7 @@
   --ok: #5fd39a;
   --warn: #ffb454;
   --danger: #ff7a7a;
+  --c4: #b48cff;
 
   --radius: 10px;
   --radius-sm: 6px;
@@ -48,6 +49,7 @@
     --ok: #0b6a3d;
     --warn: #a35a00;
     --danger: #c02f2f;
+    --c4: #6b3fc4;
   }
 }
 
@@ -319,6 +321,9 @@ main:has(.cal) { padding-top: 0; }
 .side-group { border: 0; padding: 0; margin: 16px 0 0; }
 .side-group legend { font-weight: 650; margin-bottom: 4px; padding: 0; }
 .side-group .check { display: flex; font-weight: 500; }
+.sub-checks { margin-left: 30px; }
+.sub-checks .check { font-size: var(--fs-2); }
+.check:has(input:disabled) { opacity: .5; }
 .side-note { margin-top: 24px; color: var(--text-2); font-size: var(--fs-1); }
 .filters-btn { display: none; position: relative; }
 .filters-count {
@@ -629,9 +634,39 @@ details.file-row { display: block; padding: 0; }
   .sheet-inner::before { content: ""; display: block; width: 40px; height: 4px; margin: -8px auto 12px; border-radius: 2px; background: var(--line); }
   .poster-lg { width: 104px; height: 156px; }
 }
-.detail-episodes { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 8px; }
-.detail-episodes li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 8px 0; border-top: 1px solid var(--line); }
-.detail-episodes .status { margin-left: auto; }
+.detail-episodes { list-style: none; margin: 16px 0 0; padding: 0; display: grid; }
+.detail-episodes li { border-top: 1px solid var(--line); }
+.ep-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 10px 0; }
+.ep-head .status { margin-left: auto; }
+.ep-fold > summary { cursor: pointer; list-style: none; }
+.ep-fold > summary::-webkit-details-marker { display: none; }
+.ep-fold > summary::before { content: "▸"; color: var(--text-2); transition: transform .15s ease; }
+.ep-fold[open] > summary::before { transform: rotate(90deg); }
+.ep-fold > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.ep-body .detail-file { margin: 0 0 12px; }
+.ep-wait { margin: 0 0 12px; color: var(--text-2); font-size: var(--fs-2); }
+/* Season summary: one hollow ring per category, with its legend. */
+.rings { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 16px 12px; margin-top: 18px; padding: 14px 16px;
+  border-radius: var(--radius); background: var(--surface-2); border: 1px solid var(--line); }
+.ring-card { margin: 0; display: grid; gap: 8px; align-content: start; }
+.ring-card figcaption { color: var(--text-2); font-size: var(--fs-1); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+.ring-wrap { position: relative; width: 64px; height: 64px; }
+.ring { width: 64px; height: 64px; transform: rotate(0deg); }
+.ring circle { fill: none; stroke-width: 4.5; }
+.ring-track { stroke: var(--line); }
+.ring-total { position: absolute; inset: 0; display: grid; place-items: center; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ring-legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: var(--fs-2); }
+.ring-legend li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.ring-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.ring-count { margin-left: auto; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.ring-seg.seg-0 { stroke: var(--episode); } .ring-dot.seg-0 { background: var(--episode); }
+.ring-seg.seg-1 { stroke: var(--ok); } .ring-dot.seg-1 { background: var(--ok); }
+.ring-seg.seg-2 { stroke: var(--movie); } .ring-dot.seg-2 { background: var(--movie); }
+.ring-seg.seg-3 { stroke: var(--c4); } .ring-dot.seg-3 { background: var(--c4); }
+.ring-seg.seg-4 { stroke: var(--text-2); } .ring-dot.seg-4 { background: var(--text-2); }
+.ring-legend .logo { height: 14px; width: calc(14px * var(--r)); }
+.ring-legend .logo-dolby-vision, .ring-legend .logo-dolby-atmos { height: 10px; width: calc(10px * var(--r)); }
+.ring-legend .fmt-mark { height: 14px; font-size: 10.5px; }
 
 /* capitalised first letter (Intl gives "septembre 2026", "lundi 28 septembre") */
 .cal-title::first-letter, .agenda-date::first-letter, .week-name::first-letter,

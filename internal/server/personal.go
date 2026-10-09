@@ -126,12 +126,16 @@ func cleanSites(in []string) []string {
 
 // PrefFilters mirror the filter panel.
 type PrefFilters struct {
-	Movies          bool            `json:"movies"`
-	Episodes        bool            `json:"episodes"`
-	Status          string          `json:"status"`                   // all | available | upcoming
-	HideDownloaded  bool            `json:"hideDownloaded,omitempty"` // before Status; read once, then dropped
-	HideUnmonitored bool            `json:"hideUnmonitored"`
-	Instances       map[string]bool `json:"instances"`
+	Movies          bool   `json:"movies"`
+	Episodes        bool   `json:"episodes"`
+	Status          string `json:"status"`                   // all | available | upcoming
+	HideDownloaded  bool   `json:"hideDownloaded,omitempty"` // before Status; read once, then dropped
+	HideUnmonitored bool   `json:"hideUnmonitored"`
+	// Movie release types to leave out; all shown by default.
+	HideCinema   bool            `json:"hideCinema,omitempty"`
+	HideDigital  bool            `json:"hideDigital,omitempty"`
+	HidePhysical bool            `json:"hidePhysical,omitempty"`
+	Instances    map[string]bool `json:"instances"`
 }
 
 // normalize maps the old hideDownloaded checkbox onto Status and drops

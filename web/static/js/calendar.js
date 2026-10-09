@@ -134,6 +134,7 @@
     const f = state.filters;
     if (e.kind === "movie" && !f.movies) return false;
     if (e.kind === "episode" && !f.episodes) return false;
+    if (e.kind === "movie" && e.release && f["hide" + e.release[0].toUpperCase() + e.release.slice(1)]) return false;
     if (f.status === "available" && !e.hasFile) return false;
     if (f.status === "upcoming" && e.hasFile) return false;
     if (f.hideUnmonitored && !e.monitored) return false;
@@ -142,7 +143,7 @@
   };
   const activeFilterCount = () => {
     const f = state.filters;
-    return (!f.movies) + (!f.episodes) + (f.status !== "all") + f.hideUnmonitored + Object.values(f.instances).filter((v) => v === false).length + state.mine.length;
+    return (!f.movies) + (!f.episodes) + (f.status !== "all") + f.hideUnmonitored + !!f.hideCinema + !!f.hideDigital + !!f.hidePhysical + Object.values(f.instances).filter((v) => v === false).length + state.mine.length;
   };
   const knownInstances = new Set();
   function syncInstanceFilters(events) {
@@ -537,8 +538,9 @@
     const x = ev.target;
     if (x.name === "view") setView(x.value);
     else if (x.name === "status") { state.filters.status = x.value; saveFilters(); }
+    else if (x.dataset.release) { state.filters["hide" + x.dataset.release] = !x.checked; saveFilters(); }
     else if (x.name === "formats") { state.formats = x.value; store.set("formats", x.value); savePrefs(); }
-    else if (x.dataset.filter) { state.filters[x.dataset.filter] = x.checked; saveFilters(); }
+    else if (x.dataset.filter) { state.filters[x.dataset.filter] = x.checked; syncControls(); saveFilters(); }
     else if (x.dataset.instance) { state.filters.instances[x.dataset.instance] = x.checked; saveFilters(); }
     else if (x.dataset.mine) {
       state.mine = [...root.querySelectorAll("[data-mine]:checked")].map((c) => c.dataset.mine);
@@ -577,6 +579,7 @@
   function syncControls() {
     root.querySelectorAll("[data-filter]").forEach((x) => { x.checked = !!state.filters[x.dataset.filter]; });
     root.querySelectorAll("input[name=status]").forEach((x) => { x.checked = x.value === state.filters.status; });
+    root.querySelectorAll("[data-release]").forEach((x) => { x.checked = !state.filters["hide" + x.dataset.release]; x.disabled = !state.filters.movies; });
     root.querySelectorAll("input[name=formats]").forEach((x) => { x.checked = x.value === state.formats; });
     root.querySelectorAll("[data-mine]").forEach((x) => { x.checked = state.mine.includes(x.dataset.mine); });
     root.querySelectorAll("[data-site]").forEach((x) => { x.checked = state.sites.includes(x.dataset.site); });
@@ -798,11 +801,89 @@
     slot.replaceChildren(...(versions.length ? versions.map((v) => plexFile(v, versions.length > 1)) : files(e)));
   }
 
+  // A season bundle: each available episode unfolds its own file card, and a
+  // summary on top shows how the season splits (video, audio and subtitle
+  // languages), as rings.
+  const episodeItem = (e, x) => {
+    const head = [
+      el("strong", { text: t("cal.episode_code", { s: pad(x.season), e: pad(x.episode) }) }),
+      x.epTitle ? el("span", { class: "ep-title", text: ` · ${x.epTitle}` }) : null,
+      el("span", { class: `status status-${statusOf(x)}`, text: t("cal.status_" + statusOf(x)) }),
+    ];
+    if (!(x.hasFile && e.plexUrl)) return el("li", {}, el("div", { class: "ep-head" }, head));
+    return el("li", {}, el("details", { class: "ep-fold", "data-episode": x.episode },
+      el("summary", { class: "ep-head" }, head),
+      el("div", { class: "ep-body" }, el("p", { class: "ep-wait", text: t("cal.loading") }))));
+  };
+  const svg = (tag, attrs) => {
+    const n = document.createElementNS("http://www.w3.org/2000/svg", tag);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    return n;
+  };
+  // A hollow ring of up to five shares; the rest is grouped as "other".
+  const ring = (title, groups, total) => {
+    const top = groups.slice(0, 4);
+    const rest = groups.slice(4).reduce((n, g) => n + g.count, 0);
+    if (rest) top.push({ label: el("span", { text: t("cal.other") }), count: rest });
+    const pie = svg("svg", { viewBox: "0 0 36 36", class: "ring", "aria-hidden": "true" });
+    pie.append(svg("circle", { cx: 18, cy: 18, r: 15.9155, class: "ring-track" }));
+    let at = 25; // start at 12 o'clock (the circle's length is 100)
+    top.forEach((g, i) => {
+      const share = (100 * g.count) / total;
+      pie.append(svg("circle", { cx: 18, cy: 18, r: 15.9155, class: `ring-seg seg-${i}`,
+        "stroke-dasharray": `${Math.max(share - 0.6, 0.4)} ${100 - Math.max(share - 0.6, 0.4)}`, "stroke-dashoffset": at }));
+      at -= share;
+    });
+    return el("figure", { class: "ring-card" },
+      el("figcaption", { text: t(title) }),
+      el("div", { class: "ring-wrap" }, pie, el("span", { class: "ring-total", text: String(total) })),
+      el("ul", { class: "ring-legend" }, top.map((g, i) => el("li", {},
+        el("span", { class: `ring-dot seg-${i}`, "aria-hidden": "true" }), g.label,
+        el("span", { class: "ring-count", text: t("cal.of_episodes", { n: g.count, total }) })))));
+  };
+  // Group episodes by a key, keeping how to draw it; the most frequent first.
+  const groupBy = (items, keyOf, labelOf) => {
+    const m = new Map();
+    for (const it of items) {
+      const k = keyOf(it);
+      if (!m.has(k)) m.set(k, { label: labelOf(it), count: 0 });
+      m.get(k).count++;
+    }
+    return [...m.values()].sort((a, b) => b.count - a.count);
+  };
+  async function loadSeason(e, article, slot) {
+    const eps = e.bundle.filter((x) => x.hasFile);
+    const q = new URLSearchParams({ group: e.group, season: e.season, episodes: eps.map((x) => x.episode).join(",") });
+    let data = {};
+    try { data = (await (await fetch("/api/tracks?" + q)).json()).episodes || {}; } catch { /* Plex unreachable */ }
+    if (!article.isConnected) return;
+    // Fill each episode's fold.
+    article.querySelectorAll("[data-episode]").forEach((d) => {
+      const versions = (data[d.dataset.episode] || []).filter((v) => v.videoCodec || v.audio?.length || v.subs?.length);
+      d.querySelector(".ep-body").replaceChildren(...(versions.length
+        ? versions.map((v) => plexFile(v, versions.length > 1))
+        : [el("p", { class: "ep-wait", text: t("cal.not_in_plex") })]));
+    });
+    // The season summary, from each episode's first version.
+    const firsts = Object.values(data).map((vs) => vs[0]).filter(Boolean);
+    if (firsts.length < 2) return;
+    const langs = (list) => uniq((list || []).map((x) => x.lang)).sort();
+    slot.replaceChildren(el("div", { class: "rings" },
+      ring("cal.detail_video", groupBy(firsts,
+        (v) => videoBadges(v.resolution, v.hdr || [], v.videoCodec, v.bitDepth).join(" "),
+        (v) => badges(videoBadges(v.resolution, v.hdr || [], v.videoCodec, v.bitDepth))), firsts.length),
+      ring("cal.detail_audio", groupBy(firsts, (v) => langs(v.audio).join("+"),
+        (v) => langList(langs(v.audio)) || el("span", { text: "—" })), firsts.length),
+      ring("cal.detail_subs", groupBy(firsts, (v) => langs(v.subs).join("+"),
+        (v) => langList(langs(v.subs)) || el("span", { text: t("cal.none") })), firsts.length)));
+  }
+
   function openDetail(e) {
     const day = parseKey(dayOf(e));
     const when = [fDayFull.format(day), timeOf(e)].filter(Boolean).join(" · ");
     fileFor = null;
     const fromPlex = e.hasFile && e.plexUrl && !e.bundle;
+    const seasonSlot = el("div", { class: "season-summary" });
     const slot = el("div", { class: "detail-files" }, ...(fromPlex ? [] : files(e)));
     const article = el("article", { class: `detail is-${e.kind}` },
       el("div", { class: "detail-top" },
@@ -824,13 +905,11 @@
       e.bundle ? null : slot,
       links(e),
       e.bundle
-        ? el("ol", { class: "detail-episodes" }, e.bundle.map((x) => el("li", {},
-          el("strong", { text: t("cal.episode_code", { s: pad(x.season), e: pad(x.episode) }) }),
-          x.epTitle ? ` · ${x.epTitle}` : "",
-          el("span", { class: `status status-${statusOf(x)}`, text: t("cal.status_" + statusOf(x)) }))))
+        ? [seasonSlot, el("ol", { class: "detail-episodes" }, e.bundle.map((x) => episodeItem(e, x)))]
         : e.overview ? el("p", { class: "detail-overview", text: e.overview }) : null);
     show(article);
     if (fromPlex) loadFile(e, article, slot);
+    if (e.bundle && e.plexUrl && e.bundle.some((x) => x.hasFile)) loadSeason(e, article, seasonSlot);
   }
 
   function openDay(day, list) {

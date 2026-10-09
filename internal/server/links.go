@@ -114,51 +114,113 @@ type trackEntry struct {
 const tracksTTL = 10 * time.Minute
 
 // handleTracks serves /api/tracks?group=movie:tmdb:1 (and &season=&episode=
-// for an episode): the audio and subtitle tracks Plex has for it, or an
-// empty list when Plex does not have it.
+// for an episode): the versions and tracks Plex has for it, or an empty list
+// when Plex does not have it. With &season=&episodes=1,2,3 it answers a whole
+// season bundle at once: {"episodes": {"1": [versions], ...}}.
 func (s *Server) handleTracks(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	kind, key, _ := strings.Cut(q.Get("group"), ":")
 	season, _ := strconv.Atoi(q.Get("season"))
-	episode, _ := strconv.Atoi(q.Get("episode"))
-	empty := map[string]any{"versions": []plex.Version{}}
 	rk, ok := s.plexKeys(r.Context())[key]
-	if !ok || (kind != "movie" && kind != "series") {
-		writeJSON(w, http.StatusOK, empty)
+	known := ok && (kind == "movie" || kind == "series")
+
+	if list := q.Get("episodes"); list != "" {
+		out := map[string][]plex.Version{}
+		if known && kind == "series" {
+			out = s.seasonTracks(r.Context(), rk, season, list)
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"episodes": out})
 		return
 	}
-	cacheKey := fmt.Sprintf("%s/%d/%d", rk, season, episode)
-	if kind == "movie" {
-		cacheKey = rk
+
+	versions := []plex.Version{}
+	if known {
+		episode, _ := strconv.Atoi(q.Get("episode"))
+		cacheKey, item := rk, func(*plex.Server, context.Context) (string, error) { return rk, nil }
+		if kind == "series" {
+			cacheKey = fmt.Sprintf("%s/%d/%d", rk, season, episode)
+			item = func(srv *plex.Server, ctx context.Context) (string, error) {
+				return srv.EpisodeKey(ctx, rk, season, episode)
+			}
+		}
+		if v, err := s.itemTracks(r.Context(), cacheKey, item); err == nil {
+			versions = v
+		} else {
+			s.log.Info("plex tracks", "group", q.Get("group"), "err", err)
+		}
 	}
+	writeJSON(w, http.StatusOK, map[string]any{"versions": versions})
+}
+
+// seasonTracks reads the tracks of several episodes of one season: the
+// show's episode list once, then four episodes at a time.
+func (s *Server) seasonTracks(ctx context.Context, showKey string, season int, list string) map[string][]plex.Version {
+	out := map[string][]plex.Version{}
+	var episodes []int
+	for _, v := range strings.Split(list, ",") {
+		if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && n >= 0 && len(episodes) < 60 {
+			episodes = append(episodes, n)
+		}
+	}
+	var keys map[[2]int]string
+	var keysErr error
+	var once sync.Once
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 4)
+	for _, ep := range episodes {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			v, err := s.itemTracks(ctx, fmt.Sprintf("%s/%d/%d", showKey, season, ep), func(srv *plex.Server, ctx context.Context) (string, error) {
+				once.Do(func() { keys, keysErr = srv.EpisodeKeys(ctx, showKey) })
+				if keysErr != nil {
+					return "", keysErr
+				}
+				if rk, ok := keys[[2]int{season, ep}]; ok {
+					return rk, nil
+				}
+				return "", fmt.Errorf("S%02dE%02d not in Plex", season, ep)
+			})
+			if err != nil {
+				return
+			}
+			mu.Lock()
+			out[strconv.Itoa(ep)] = v
+			mu.Unlock()
+		}()
+	}
+	wg.Wait()
+	return out
+}
+
+// itemTracks returns the tracks of one library item, cached ten minutes;
+// item resolves its ratingKey on the Plex server.
+func (s *Server) itemTracks(ctx context.Context, cacheKey string, item func(*plex.Server, context.Context) (string, error)) ([]plex.Version, error) {
 	tc := &s.tracks
 	tc.mu.Lock()
 	if e, hit := tc.m[cacheKey]; hit && time.Since(e.at) < tracksTTL {
 		tc.mu.Unlock()
-		writeJSON(w, http.StatusOK, map[string]any{"versions": e.versions})
-		return
+		return e.versions, nil
 	}
 	tc.mu.Unlock()
-
 	v, err, _ := s.tracksSF.Do(cacheKey, func() (any, error) {
-		ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 15*time.Second)
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
 		defer cancel()
 		srv, err := s.plexServer(ctx)
 		if err != nil {
 			return nil, err
 		}
-		item := rk
-		if kind == "series" {
-			if item, err = srv.EpisodeKey(ctx, rk, season, episode); err != nil {
-				return nil, err
-			}
+		rk, err := item(srv, ctx)
+		if err != nil {
+			return nil, err
 		}
-		return srv.Tracks(ctx, item)
+		return srv.Tracks(ctx, rk)
 	})
 	if err != nil {
-		s.log.Info("plex tracks", "group", q.Get("group"), "err", err)
-		writeJSON(w, http.StatusOK, empty)
-		return
+		return nil, err
 	}
 	versions := v.([]plex.Version)
 	tc.mu.Lock()
@@ -167,5 +229,5 @@ func (s *Server) handleTracks(w http.ResponseWriter, r *http.Request) {
 	}
 	tc.m[cacheKey] = trackEntry{at: time.Now(), versions: versions}
 	tc.mu.Unlock()
-	writeJSON(w, http.StatusOK, map[string]any{"versions": versions})
+	return versions, nil
 }

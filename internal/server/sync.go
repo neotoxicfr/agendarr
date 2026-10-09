@@ -162,13 +162,26 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 	_, _ = buf.WriteTo(w)
 }
 
+// hiddenRelease reports whether a movie event's release type is filtered out.
+func hiddenRelease(e calendar.Event, f PrefFilters) bool {
+	switch e.Release {
+	case calendar.ReleaseCinema:
+		return f.HideCinema
+	case calendar.ReleaseDigital:
+		return f.HideDigital
+	case calendar.ReleasePhysical:
+		return f.HidePhysical
+	}
+	return false
+}
+
 // filterEvents applies the filter panel's settings, as the browser does.
 func filterEvents(in []calendar.Event, f PrefFilters) []calendar.Event {
 	out := make([]calendar.Event, 0, len(in))
 	for _, e := range in {
 		if (e.Kind == "movie" && !f.Movies) || (e.Kind == "episode" && !f.Episodes) ||
 			(f.Status == "available" && !e.HasFile) || (f.Status == "upcoming" && e.HasFile) ||
-			(f.HideUnmonitored && !e.Monitored) {
+			(f.HideUnmonitored && !e.Monitored) || hiddenRelease(e, f) {
 			continue
 		}
 		hidden := len(e.Instances) > 0

@@ -48,10 +48,19 @@ func fakeUpstream(t *testing.T) *httptest.Server {
 		j(w, `{"MediaContainer":{"totalSize":1,"Metadata":[{"type":"episode","ratingKey":"7","grandparentKey":"/library/metadata/2199","viewedAt":1790000000}]}}`)
 	})
 	mux.HandleFunc("GET /plex/library/sections", func(w http.ResponseWriter, r *http.Request) {
-		j(w, `{"MediaContainer":{"Directory":[{"key":"1","type":"movie"},{"key":"9","type":"artist"}]}}`)
+		j(w, `{"MediaContainer":{"Directory":[{"key":"1","type":"movie"},{"key":"2","type":"show"},{"key":"9","type":"artist"}]}}`)
 	})
 	mux.HandleFunc("GET /plex/library/sections/1/all", func(w http.ResponseWriter, r *http.Request) {
 		j(w, `{"MediaContainer":{"Metadata":[{"ratingKey":"55","guid":"plex://movie/x","Guid":[{"id":"tmdb://100"}]}]}}`)
+	})
+	mux.HandleFunc("GET /plex/library/sections/2/all", func(w http.ResponseWriter, r *http.Request) {
+		j(w, `{"MediaContainer":{"Metadata":[{"ratingKey":"2199","Guid":[{"id":"tvdb://73871"}]}]}}`)
+	})
+	mux.HandleFunc("GET /plex/library/metadata/2199/allLeaves", func(w http.ResponseWriter, r *http.Request) {
+		j(w, `{"MediaContainer":{"Metadata":[{"ratingKey":"301","parentIndex":1,"index":2},{"ratingKey":"302","parentIndex":1,"index":3}]}}`)
+	})
+	mux.HandleFunc("GET /plex/library/metadata/301", func(w http.ResponseWriter, r *http.Request) {
+		j(w, `{"MediaContainer":{"Metadata":[{"Media":[{"videoResolution":"1080","Part":[{"size":5,"Stream":[{"streamType":1,"codec":"h264"},{"streamType":2,"codec":"aac","languageTag":"ja"}]}]}]}]}}`)
 	})
 	mux.HandleFunc("GET /plex/library/metadata/55", func(w http.ResponseWriter, r *http.Request) {
 		j(w, `{"MediaContainer":{"Metadata":[{"ratingKey":"55","Media":[{"videoResolution":"4k","Part":[{"size":6632526039,"Stream":[
@@ -282,5 +291,10 @@ func TestEventLinksAndMedia(t *testing.T) {
 	}
 	if got := tracks("group=movie:tmdb:999"); got != `{"versions":[]}` {
 		t.Fatalf("unknown: %s", got)
+	}
+	// A season bundle at once: E02 is in Plex, E03 is listed but has no
+	// metadata, E09 is not in Plex.
+	if got := tracks("group=series:tvdb:73871&season=1&episodes=2,3,9"); got != `{"episodes":{"2":[{"resolution":"1080p","videoCodec":"h264","size":5,"audio":[{"codec":"aac","lang":"ja"}],"subs":null}]}}` {
+		t.Fatalf("season: %s", got)
 	}
 }
