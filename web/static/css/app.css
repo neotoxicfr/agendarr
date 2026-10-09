@@ -475,9 +475,30 @@ main:has(.cal) { padding-top: 0; }
 .detail-facts dt { color: var(--text-2); }
 .detail-facts dd { margin: 0; }
 .detail-overview { margin: 16px 0 0; color: var(--text-2); line-height: 1.6; }
-.detail-file { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
-.detail-file h3 { margin: 0; font-size: var(--fs-2); color: var(--text-2); }
-.detail-file .detail-facts { margin-top: 6px; }
+/* The file card: one row per category (video, audio, subtitles), label |
+   summary | "n tracks"; audio and subtitles unfold their tracks below. */
+.detail-file { margin-top: 18px; padding: 12px 16px 6px; border-radius: var(--radius); background: var(--surface-2); border: 1px solid var(--line); }
+.detail-file + .detail-file { margin-top: 10px; }
+.file-row { border-top: 1px solid var(--line); }
+/* Label and "n tracks" on one line, the formats under them at full width. */
+.file-row, .file-row > summary { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 6px 12px; padding: 10px 0; }
+.file-row > .file-value, .file-row > summary > .file-value { grid-column: 1 / -1; grid-row: 2; }
+.file-row > summary > .file-more { grid-column: 2; grid-row: 1; }
+details.file-row { display: block; padding: 0; }
+.file-row > summary { cursor: pointer; list-style: none; }
+.file-row > summary::-webkit-details-marker { display: none; }
+.file-row > summary:hover .file-more { color: var(--text); }
+.file-row > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.file-label { color: var(--text-2); font-size: var(--fs-1); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+.file-value { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-width: 0; }
+.file-more { display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); font-size: var(--fs-1); white-space: nowrap; }
+.file-more::after { content: "▸"; transition: transform .15s ease; }
+.file-row[open] .file-more::after { transform: rotate(90deg); }
+.tracks { list-style: none; margin: 2px 0 12px; padding: 10px 0 0; border-top: 1px dashed var(--line); display: grid; grid-template-columns: max-content max-content 1fr; gap: 8px 12px; align-items: center; font-size: var(--fs-2); }
+.fmts { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.file-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.detail-file h3 { margin: 0; font-size: var(--fs-1); font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: .05em; }
+.file-size { color: var(--text-2); font-size: var(--fs-2); font-variant-numeric: tabular-nums; }
 .detail-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 0; }
 .detail-ext { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 12px 0 0; color: var(--text-2); font-size: var(--fs-2); }
 .detail-ext span { margin-right: 4px; }
@@ -491,17 +512,52 @@ main:has(.cal) { padding-top: 0; }
   font-display: swap; }
 .flag { font-family: "Twemoji Country Flags", "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; font-size: 1.15em; line-height: 1; }
 .langs, .langs-line { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
-.tracks { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-.tracks li { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
-.fmts { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.tracks li { display: contents; }
+.track-format { white-space: nowrap; }
+.fmt-mark { display: inline-flex; align-items: center; height: 20px; font-size: 13px; font-weight: 800; letter-spacing: .01em; line-height: 1; text-transform: uppercase; white-space: nowrap; }
+.tracks .fmt-mark { height: 16px; font-size: 11px; }
+.logo { display: inline-block; height: 20px; width: calc(20px * var(--r)); background: currentColor;
+  -webkit-mask: var(--logo) center / contain no-repeat; mask: var(--logo) center / contain no-repeat; }
+.logo-dolby-vision { --r: 6.743; --logo: url("/static/logos/dolby-vision.svg?v=1"); }
+.logo-dolby-atmos { --r: 7.081; --logo: url("/static/logos/dolby-atmos.svg?v=1"); }
+.logo-dolby-truehd { --r: 4.087; --logo: url("/static/logos/dolby-truehd.svg?v=1"); }
+.logo-dolby-digital-plus { --r: 2.672; --logo: url("/static/logos/dolby-digital-plus.svg?v=1"); }
+.logo-dolby-digital { --r: 2.686; --logo: url("/static/logos/dolby-digital.svg?v=1"); }
+.logo-dts { --r: 2.55; --logo: url("/static/logos/dts.svg?v=2"); }
+.logo-dts-hd-ma { --r: 2.895; --logo: url("/static/logos/dts-hd-ma.svg?v=1"); }
+.logo-hdr10 { --r: 2.804; --logo: url("/static/logos/hdr10.svg?v=1"); }
+.logo-hdr10plus { --r: 2.804; --logo: url("/static/logos/hdr10plus.svg?v=1"); }
+.logo-ultra-hd { --r: 2.558; --logo: url("/static/logos/ultra-hd.svg?v=1"); }
+.logo-hd { --r: 1.333; --logo: url("/static/logos/hd.svg?v=1"); }
+.logo-av1 { --r: 1.802; --logo: url("/static/logos/av1.svg?v=1"); }
+.logo-flac { --r: 2.015; --logo: url("/static/logos/flac.svg?v=1"); }
+.logo-opus { --r: 1.761; --logo: url("/static/logos/opus.svg?v=1"); }
+.logo-aac { --r: 0.905; --logo: url("/static/logos/aac.svg?v=1"); }
+/* Wide wordmarks (Dolby Vision, Dolby Atmos) would dwarf the rest at full height. */
+.logo-dolby-vision, .logo-dolby-atmos { height: 13px; width: calc(13px * var(--r)); }
+/* Two-line marks (DOLBY / DIGITAL PLUS, dts-HD / Master Audio) need more height to stay legible. */
+.logo-dolby-digital-plus, .logo-dolby-digital, .logo-dts-hd-ma { height: 22px; width: calc(22px * var(--r)); }
+.tracks .logo { height: 16px; width: calc(16px * var(--r)); }
+.tracks .logo-dolby-vision, .tracks .logo-dolby-atmos { height: 11px; width: calc(11px * var(--r)); }
+.tracks .logo-dolby-digital-plus, .tracks .logo-dolby-digital, .tracks .logo-dts-hd-ma { height: 19px; width: calc(19px * var(--r)); }
+.side-settings { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 8px; }
+.side-settings > summary { cursor: pointer; font-weight: 650; min-height: 36px; display: flex; align-items: center; gap: 6px; list-style: none; }
+.side-settings > summary::-webkit-details-marker { display: none; }
+.side-settings > summary::before { content: "▸"; color: var(--text-2); transition: transform .15s ease; }
+.side-settings[open] > summary::before { transform: rotate(90deg); }
+.side-settings > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.side-settings .side-group:first-of-type { margin-top: 8px; }
+/* With a mouse, the filter rows need not be finger-sized: less scrolling on a 1080p screen. */
+@media (pointer: fine) and (min-width: 1101px) {
+  .cal-side .check { min-height: 34px; }
+  .cal-side .side-group { margin-top: 12px; }
+  .cal-side .segmented span { min-height: 34px; }
+  .site-chip span { min-height: 30px; }
+}
+.track-more { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
 .fmt { display: inline-flex; align-items: center; padding: 1px 6px; border: 1px solid var(--line); border-radius: 4px;
   background: var(--surface-2); font-size: var(--fs-1); font-weight: 700; letter-spacing: .03em; line-height: 1.5; white-space: nowrap; }
-.detail-tracks summary { cursor: pointer; font-weight: 600; min-height: 32px; display: flex; align-items: center; gap: 6px; list-style: none; }
-.detail-tracks summary::-webkit-details-marker { display: none; }
-.detail-tracks summary::before { content: "▸"; color: var(--text-2); transition: transform .15s ease; }
-.detail-tracks[open] summary::before { transform: rotate(90deg); }
-.detail-tracks summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.detail-tracks h3 { margin: 8px 0 0; }
+
 .site-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .site-chip { position: relative; }
 .site-chip input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
@@ -630,3 +686,11 @@ main:has(.cal) { padding-top: 0; }
 /* Week status: a badge on the big desktop posters, in the meta line on phones. */
 @media (min-width: 721px) { .week .card-meta .status { display: none; } }
 @media (max-width: 720px) { .poster-badge { display: none; } }
+/* Phones: a tighter card and slightly smaller logos keep each strip on one line. */
+@media (max-width: 560px) {
+  .detail-file { padding: 10px 12px 4px; }
+  .fmts, .file-value { gap: 8px; }
+  .logo { height: 18px; width: calc(18px * var(--r)); }
+  .logo-dolby-vision, .logo-dolby-atmos { height: 12px; width: calc(12px * var(--r)); }
+  .logo-dolby-digital-plus, .logo-dolby-digital, .logo-dts-hd-ma { height: 20px; width: calc(20px * var(--r)); }
+}

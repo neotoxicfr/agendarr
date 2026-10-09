@@ -29,20 +29,30 @@
       <legend>{{index .T "cal.instances"}}</legend>
       <div data-instances></div>
     </fieldset>
-    <fieldset class="side-group">
-      <legend>{{index .T "cal.sites"}}</legend>
-      <p class="side-help">{{index .T "cal.sites_help"}}</p>
-      <div class="site-chips">
-        <label class="site-chip"><input type="checkbox" data-site="tmdb"><span>TMDB</span></label>
-        <label class="site-chip"><input type="checkbox" data-site="tvdb"><span>TVDB</span></label>
-        <label class="site-chip"><input type="checkbox" data-site="imdb"><span>IMDb</span></label>
-        <label class="site-chip"><input type="checkbox" data-site="letterboxd"><span>Letterboxd</span></label>
-      </div>
-    </fieldset>
-    <fieldset class="side-group">
-      <label class="check"><input type="checkbox" data-shortcuts checked> {{index .T "cal.shortcuts_toggle"}}</label>
-      <p class="side-note" data-shortcuts-note>{{index .T "cal.shortcuts"}}</p>
-    </fieldset>
+    <details class="side-settings" data-side-settings>
+      <summary>{{index .T "cal.settings"}}</summary>
+      <fieldset class="side-group">
+        <legend>{{index .T "cal.formats"}}</legend>
+        <div class="segmented segmented-fill" role="radiogroup" aria-label="{{index .T "cal.formats"}}">
+          <label><input type="radio" name="formats" value="logos" checked><span>{{index .T "cal.formats_logos"}}</span></label>
+          <label><input type="radio" name="formats" value="text"><span>{{index .T "cal.formats_text"}}</span></label>
+        </div>
+      </fieldset>
+      <fieldset class="side-group">
+        <legend>{{index .T "cal.sites"}}</legend>
+                <div class="site-chips">
+          <label class="site-chip"><input type="checkbox" data-site="tmdb"><span>TMDB</span></label>
+          <label class="site-chip"><input type="checkbox" data-site="tvdb"><span>TVDB</span></label>
+          <label class="site-chip"><input type="checkbox" data-site="imdb"><span>IMDb</span></label>
+          <label class="site-chip"><input type="checkbox" data-site="letterboxd"><span>Letterboxd</span></label>
+          <label class="site-chip"><input type="checkbox" data-site="mdblist"><span>MDBList</span></label>
+        </div>
+      </fieldset>
+      <fieldset class="side-group">
+        <label class="check"><input type="checkbox" data-shortcuts checked> {{index .T "cal.shortcuts_toggle"}}</label>
+        <p class="side-note" data-shortcuts-note>{{index .T "cal.shortcuts"}}</p>
+      </fieldset>
+    </details>
   </aside>
 
   <section class="cal-main" aria-labelledby="cal-title">

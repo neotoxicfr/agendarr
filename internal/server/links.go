@@ -44,6 +44,10 @@ func (s *Server) plexKeys(ctx context.Context) map[string]string {
 	return l.keys
 }
 
+// WarmPlexLibrary starts indexing the Plex library at startup, so the first
+// calendar after a restart already has its Plex links and tracks.
+func (s *Server) WarmPlexLibrary(ctx context.Context) { s.plexKeys(ctx) }
+
 func (s *Server) buildPlexKeys(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
