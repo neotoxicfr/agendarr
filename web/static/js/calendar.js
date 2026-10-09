@@ -695,14 +695,15 @@
   // In "logos" mode, Dolby, DTS and HDR formats show their logo; each one's
   // file and proportions live in app.css (.logo-*), the CSP forbids inline styles.
   const LOGO = { DV: "dolby-vision", HDR10: "hdr10", "HDR10+": "hdr10plus", Atmos: "dolby-atmos", "E-AC3": "dolby-digital-plus",
-    AC3: "dolby-digital", TrueHD: "dolby-truehd", DTS: "dts", "DTS-HD MA": "dts-hd-ma" };
-  // Formats without an official logo (resolution, codec, bit depth, channels)
-  // are drawn in the style of the HDR10 mark: an outlined box, bold capitals.
-  const MARK = { "4K": "4K UHD", "1440p": "QHD", "1080p": "FULL HD", "720p": "HD", "H.264": "AVC" };
+    AC3: "dolby-digital", TrueHD: "dolby-truehd", DTS: "dts", "DTS-HD MA": "dts-hd-ma", "4K": "ultra-hd", "720p": "hd",
+    AV1: "av1", FLAC: "flac", Opus: "opus", AAC: "aac" };
+  // Formats no logo exists for (HEVC, H.264, Full HD, 10-bit, channels,
+  // subtitle formats) read as a bold wordmark next to the logos.
+  const MARK = { "1440p": "QHD", "1080p": "FULL HD", "H.264": "AVC" };
   const badge = (x) => {
     if (state.formats === "text") return el("span", { class: "fmt", text: x, title: FULL[x] });
     const logo = LOGO[x];
-    if (!logo) return el("span", { class: "fmt-logo", text: MARK[x] || x, title: FULL[x] || (MARK[x] ? x : null) });
+    if (!logo) return el("span", { class: "fmt-mark", text: MARK[x] || x, title: FULL[x] || (MARK[x] ? x : null) });
     return el("span", { class: `logo logo-${logo}`, role: "img", "aria-label": FULL[x] || x, title: FULL[x] || x });
   };
   const badges = (list) => {
