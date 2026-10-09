@@ -26,15 +26,27 @@ func TestReleaseWatcher(t *testing.T) {
 			next(w, r)
 		}
 	}
+	down := false
 	mux.HandleFunc("GET /radarr/api/v3/calendar", asJSON(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		defer mu.Unlock()
+		if down {
+			http.Error(w, "down", 500)
+			return
+		}
 		io.WriteString(w, "["+movie+"]")
 	}))
 	mux.HandleFunc("GET /seerr/api/v1/user", asJSON(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, `{"pageInfo":{"results":2},"results":[{"id":1,"plexId":1,"displayName":"neo"},{"id":2,"plexId":2,"displayName":"Friend"}]}`)
 	}))
+	gate := make(chan struct{}) // a slow Seerr, opened by the test
+	close(gate)
+	var gateMu sync.Mutex
 	mux.HandleFunc("GET /seerr/api/v1/request", asJSON(func(w http.ResponseWriter, r *http.Request) {
+		gateMu.Lock()
+		g := gate
+		gateMu.Unlock()
+		<-g
 		io.WriteString(w, `{"pageInfo":{"results":1},"results":[{"id":1,"type":"movie","requestedBy":{"id":2},"media":{"tmdbId":100}}]}`)
 	}))
 	up := httptest.NewServer(mux)
@@ -61,6 +73,7 @@ func TestReleaseWatcher(t *testing.T) {
 		movie = strings.Replace(movie, movie[strings.Index(movie, `"hasFile"`):], file+"}", 1)
 		mu.Unlock()
 		h.srv.instancesChanged() // drop the calendar cache
+		now = now.Add(watchEvery)
 		if err := h.srv.checkReleases(ctx, now); err != nil {
 			t.Fatal(err)
 		}
@@ -105,6 +118,25 @@ func TestReleaseWatcher(t *testing.T) {
 
 	// First sight: remembered, nothing said.
 	check(`"hasFile":false`)
+	// Available while Seerr's index is not built yet: the watcher does not
+	// wait (PERF-01), the change waits for the next check (SEC-04).
+	h.srv.personal = h.srv.newPersonal()
+	gateMu.Lock()
+	gate = make(chan struct{})
+	gateMu.Unlock()
+	check(`"hasFile":true,"movieFile":{"size":1,"mediaInfo":{"resolution":"1920x1080","videoCodec":"x264","audioCodec":"AAC","audioChannels":2,"audioLanguages":"eng"}}`)
+	if l, _ := list(friend); len(l) != 0 {
+		t.Fatalf("delivered before the sources were ready: %+v", l)
+	}
+	gateMu.Lock()
+	close(gate)
+	gateMu.Unlock()
+	for n := 0; n < 50; n++ { // the background index build
+		if h.srv.personal.RequestIndex(ctx) != nil {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 	if l, _ := list(friend); len(l) != 0 {
 		t.Fatalf("first run: %+v", l)
 	}
@@ -141,6 +173,28 @@ func TestReleaseWatcher(t *testing.T) {
 	}
 	if l, unread := list(friend); len(l) != 2 || unread != 2 {
 		t.Fatalf("friend upgrade: %+v", l)
+	}
+	// SEC-01: renaming the instance, or Radarr failing then coming back,
+	// says nothing.
+	insts, _ := h.srv.store.Instances(ctx)
+	for _, i := range insts {
+		if i.Kind == "radarr" {
+			i.Name = "Radarr HD"
+			h.srv.store.SaveInstance(ctx, i)
+		}
+	}
+	same := `"hasFile":true,"movieFile":{"size":2,"mediaInfo":{"resolution":"3840x2160","videoCodec":"x265","videoDynamicRangeType":"DV","audioCodec":"EAC3","audioChannels":5.1,"audioLanguages":"eng/fre"}}`
+	check(same)
+	mu.Lock()
+	down = true
+	mu.Unlock()
+	check(same)
+	mu.Lock()
+	down = false
+	mu.Unlock()
+	check(same)
+	if l, _ := list(friend); len(l) != 2 {
+		t.Fatalf("rename/outage notified: %+v", l)
 	}
 	// Acknowledge one, then all.
 	if code := send(friend, "POST", "/api/notifications/read", `{"ids":[`+jsonInt(l[0].ID)+`]}`); code != 204 {
@@ -188,5 +242,20 @@ func TestPushBody(t *testing.T) {
 	}
 	if got := h.srv.pushBody("en", c, notifyDetail{}); got != "Available" {
 		t.Fatalf("movie: %q", got)
+	}
+}
+
+// SEC-01: only a file that changed on the same instance is an upgrade.
+func TestUpgradeDiffs(t *testing.T) {
+	a := "1|1080p||x264|AAC|2.0|en|"
+	b := "1|2160p|DV|x265|EAC3|5.1|en+fr|"
+	if d := upgradeDiffs(a, b); len(d) == 0 || d[0].What != "resolution" || d[0].To != "2160p" {
+		t.Fatalf("same instance: %+v", d)
+	}
+	if d := upgradeDiffs(a, a+"\n2|2160p||x265|EAC3|5.1|en|"); d != nil {
+		t.Fatalf("instance added: %+v", d)
+	}
+	if d := upgradeDiffs("Radarr|1080p||x264|AAC|2.0|en|", a); d != nil {
+		t.Fatalf("old name-keyed signature: %+v", d)
 	}
 }

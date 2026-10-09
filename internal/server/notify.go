@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -74,12 +75,14 @@ func stateKey(e calendar.Event) string {
 	return e.ID
 }
 
-// mediaSig sums up the files of a release; "" when nothing is known.
+// mediaSig sums up the files of a release, one line per instance keyed by
+// its id (a rename must not look like a new file; SEC-01); "" when nothing
+// is known.
 func mediaSig(e calendar.Event) string {
 	var parts []string
 	for _, m := range e.Media {
-		parts = append(parts, strings.Join([]string{m.Instance, m.Resolution, m.HDR, m.VideoCodec, m.AudioCodec, m.Channels,
-			strings.Join(m.AudioLangs, "+"), strings.Join(m.Subs, "+")}, "|"))
+		parts = append(parts, strings.Join([]string{strconv.FormatInt(m.InstanceID, 10), m.Resolution, m.HDR, m.VideoCodec,
+			m.AudioCodec, m.Channels, strings.Join(m.AudioLangs, "+"), strings.Join(m.Subs, "+")}, "|"))
 	}
 	sort.Strings(parts)
 	return strings.Join(parts, "\n")
@@ -131,21 +134,44 @@ func diffMedia(prev, cur calendar.Media) []diff {
 	return out
 }
 
-// sigMedia reads back the first file of a signature written by mediaSig.
-func sigMedia(sig string) calendar.Media {
-	line, _, _ := strings.Cut(sig, "\n")
-	f := strings.Split(line, "|")
-	if len(f) != 8 {
-		return calendar.Media{}
-	}
+// sigMedia reads back a signature written by mediaSig, per instance id.
+// Older signatures (keyed by instance name) match no id: no diff, no notice.
+func sigMedia(sig string) map[string]calendar.Media {
+	out := map[string]calendar.Media{}
 	split := func(s string) []string {
 		if s == "" {
 			return nil
 		}
 		return strings.Split(s, "+")
 	}
-	return calendar.Media{Instance: f[0], Resolution: f[1], HDR: f[2], VideoCodec: f[3], AudioCodec: f[4], Channels: f[5],
-		AudioLangs: split(f[6]), Subs: split(f[7])}
+	for _, line := range strings.Split(sig, "\n") {
+		f := strings.Split(line, "|")
+		if len(f) != 8 {
+			continue
+		}
+		out[f[0]] = calendar.Media{Resolution: f[1], HDR: f[2], VideoCodec: f[3], AudioCodec: f[4], Channels: f[5],
+			AudioLangs: split(f[6]), Subs: split(f[7])}
+	}
+	return out
+}
+
+// upgradeDiffs compares the files of the instances present before and now;
+// an instance added or removed is not an upgrade.
+func upgradeDiffs(prev, cur string) []diff {
+	before, after := sigMedia(prev), sigMedia(cur)
+	ids := make([]string, 0, len(after))
+	for id := range after {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		if old, ok := before[id]; ok {
+			if d := diffMedia(old, after[id]); len(d) > 0 {
+				return d
+			}
+		}
+	}
+	return nil
 }
 
 func (s *Server) checkReleases(ctx context.Context, now time.Time) error {
@@ -164,17 +190,25 @@ func (s *Server) checkReleases(ctx context.Context, now time.Time) error {
 		if _, done := cur[k]; done {
 			continue
 		}
+		// An instance that did not answer is missing from the merge: its
+		// releases would look like files coming and going (SEC-01).
+		if slices.ContainsFunc(e.Instances, func(n string) bool { return slices.Contains(res.Failing, n) }) {
+			continue
+		}
 		st := store.MediaState{HasFile: e.HasFile, Sig: mediaSig(e)}
 		cur[k] = st
 		p, known := prev[k]
 		var kind string
+		var diffs []diff
 		switch {
 		case !known:
 			// First sight: remember it, nothing to say.
 		case !p.HasFile && st.HasFile:
 			kind = "available"
-		case p.HasFile && st.HasFile && p.Sig != "" && st.Sig != "" && p.Sig != st.Sig:
-			kind = "upgraded"
+		case p.HasFile && st.HasFile && p.Sig != st.Sig:
+			if diffs = upgradeDiffs(p.Sig, st.Sig); len(diffs) > 0 {
+				kind = "upgraded"
+			}
 		}
 		if kind == "" {
 			continue
@@ -187,20 +221,32 @@ func (s *Server) checkReleases(ctx context.Context, now time.Time) error {
 		if e.Kind == "episode" {
 			c.episodes = append(c.episodes, e)
 		}
-		if kind == "upgraded" && len(c.diffs) == 0 {
-			c.diffs = diffMedia(sigMedia(p.Sig), sigMedia(st.Sig))
+		if len(c.diffs) == 0 {
+			c.diffs = diffs
 		}
 	}
 	if err := s.store.SaveMediaStates(ctx, cur, now); err != nil {
 		return err
 	}
-	if len(byGroup) == 0 {
+	if len(byGroup) == 0 && len(s.pending) == 0 {
 		return nil
 	}
 	return s.deliver(ctx, byGroup, now)
 }
 
-// deliver records and pushes each change to the people it concerns.
+// pendingChange is a change a user could not be matched against yet (one
+// of their sources was not ready); it is retried on the next checks (SEC-04).
+type pendingChange struct {
+	c  *change
+	at time.Time
+}
+
+// pendingFor keeps retries for a day at most.
+const pendingFor = 24 * time.Hour
+
+// deliver records and pushes each change to the people it concerns. It never
+// waits on a personal sync (PERF-01): a user whose sources are not ready gets
+// the changes retried on the next checks instead of losing them (SEC-04).
 func (s *Server) deliver(ctx context.Context, changes map[string]*change, now time.Time) error {
 	users, err := s.store.Users(ctx)
 	if err != nil {
@@ -210,22 +256,54 @@ func (s *Server) deliver(ctx context.Context, changes map[string]*change, now ti
 	if err != nil {
 		return err
 	}
+	if s.pending == nil {
+		s.pending = map[int64]map[string]pendingChange{}
+	}
 	for _, u := range users {
 		if u.Disabled {
+			delete(s.pending, u.ID)
+			continue
+		}
+		todo := map[string]pendingChange{}
+		for k, p := range s.pending[u.ID] {
+			if now.Sub(p.at) < pendingFor {
+				todo[k] = p
+			}
+		}
+		for k, c := range changes {
+			todo[k] = pendingChange{c, now}
+		}
+		// A retried change was already checked against the follows of its
+		// time: following it later does not bring back an old notice.
+		retried := func(p pendingChange) bool { return p.at.Before(now) }
+		if len(todo) == 0 {
 			continue
 		}
 		sources := cleanNotify(s.loadPrefs(ctx, u.ID).Notify)
 		var keys map[string]bool
+		ready := true
 		if len(sources) > 0 {
-			keys = s.personal.For(ctx, u, sources).Keys
+			pr := s.personal.Peek(ctx, u, sources)
+			keys, ready = pr.Keys, len(pr.Errors) == 0
 		}
-		for _, c := range changes {
-			if !slices.Contains(followers[c.event.Group], u.ID) && !anyKey(c.event.Keys, keys) {
+		left := map[string]pendingChange{}
+		for k, p := range todo {
+			c := p.c
+			followed := !retried(p) && slices.Contains(followers[c.event.Group], u.ID)
+			if !followed && !anyKey(c.event.Keys, keys) {
+				if !ready {
+					left[k] = p
+				}
 				continue
 			}
 			if err := s.notifyUser(ctx, u, c, now); err != nil {
 				s.log.Warn("notify", "user", u.Username, "err", err)
 			}
+		}
+		if len(left) > 0 {
+			s.pending[u.ID] = left
+		} else {
+			delete(s.pending, u.ID)
 		}
 	}
 	return nil
@@ -505,4 +583,25 @@ func (s *Server) handleNotifySources(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"notify": p.Notify})
+}
+
+// handleSettings shows the display and notification settings.
+func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
+	p := s.loadPrefs(r.Context(), currentUser(r).ID)
+	type site struct {
+		ID, Label string
+		On        bool
+	}
+	labels := map[string]string{"tmdb": "TMDB", "tvdb": "TVDB", "imdb": "IMDb", "letterboxd": "Letterboxd", "mdblist": "MDBList"}
+	var sites []site
+	for _, id := range calendar.Sites {
+		sites = append(sites, site{id, labels[id], slices.Contains(p.Sites, id)})
+	}
+	notify := map[string]bool{}
+	for _, n := range cleanNotify(p.Notify) {
+		notify[n] = true
+	}
+	s.render(w, r, http.StatusOK, "settings", pageData{Title: "title.settings", Data: map[string]any{
+		"Formats": p.Formats, "Shortcuts": p.Keys == nil || *p.Keys, "Notify": notify, "Sites": sites,
+	}})
 }

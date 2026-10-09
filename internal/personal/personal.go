@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"sort"
 	"sync"
 	"time"
 
@@ -98,26 +97,6 @@ type seerrIndex struct {
 	users  map[int64]seerr.User       // seerr id -> user
 }
 
-// Requesters returns who requested each of keys (display names, deduplicated).
-func (s *Service) Requesters(ctx context.Context, keys []string) []string {
-	idx, err := s.seerr(ctx)
-	if err != nil || idx == nil {
-		return nil
-	}
-	seen := map[string]bool{}
-	var out []string
-	for _, k := range keys {
-		for _, n := range idx.byKey[k] {
-			if !seen[n] {
-				seen[n] = true
-				out = append(out, n)
-			}
-		}
-	}
-	sort.Strings(out)
-	return out
-}
-
 // RequestIndex returns a lookup from media key to requesters, for annotating
 // many events at once. It is nil when Seerr is not configured or down.
 func (s *Service) RequestIndex(ctx context.Context) map[string][]string {
@@ -150,6 +129,12 @@ func (s *Service) seerr(ctx context.Context) (*seerrIndex, error) {
 			_, _, _ = s.sf.Do("seerr-index", func() (any, error) { return s.buildSeerr(context.WithoutCancel(ctx)) })
 		}()
 		return idx, nil
+	}
+	if noWait(ctx) {
+		go func() {
+			_, _, _ = s.sf.Do("seerr-index", func() (any, error) { return s.buildSeerr(context.WithoutCancel(ctx)) })
+		}()
+		return nil, ErrSyncing
 	}
 	v, err, _ := s.sf.Do("seerr-index", func() (any, error) { return s.buildSeerr(context.WithoutCancel(ctx)) })
 	if err != nil {
@@ -282,6 +267,16 @@ func Code(err error) string {
 }
 
 // For returns the union of the requested sources for user u.
+// Peek is For without waiting on a sync: what is not ready yet comes back as
+// ErrSyncing while the sync goes on. For background work (PERF-01).
+func (s *Service) Peek(ctx context.Context, u store.User, sources []string) Result {
+	return s.For(context.WithValue(ctx, noWaitKey{}, true), u, sources)
+}
+
+type noWaitKey struct{}
+
+func noWait(ctx context.Context) bool { v, _ := ctx.Value(noWaitKey{}).(bool); return v }
+
 func (s *Service) For(ctx context.Context, u store.User, sources []string) Result {
 	res := Result{Keys: map[string]bool{}, Errors: map[string]string{}}
 	var mu sync.Mutex
@@ -370,6 +365,9 @@ func (s *Service) source(ctx context.Context, u store.User, src string) (map[str
 	// for it, but not past the HTTP write timeout; a long history keeps
 	// syncing in the background and shows up on a reload.
 	ch := s.sf.DoChan(key, sync)
+	if noWait(ctx) {
+		return nil, ErrSyncing // the sync goes on; the caller retries later
+	}
 	select {
 	case r := <-ch:
 		if r.Err != nil {
@@ -425,8 +423,12 @@ func (s *Service) fetch(ctx context.Context, u store.User, src string) ([]string
 			return nil, err
 		}
 		seen := map[string]bool{}
+		shows := map[string]bool{} // ratingKeys of shows, for their TMDB keys
 		var rks []string
 		for _, h := range hist {
+			if h.Type == "episode" {
+				shows[h.RatingKey] = true
+			}
 			// "Shows in progress" are shows; movies watched are over.
 			if src == SourceWatching && h.Type != "episode" {
 				continue
@@ -436,13 +438,13 @@ func (s *Service) fetch(ctx context.Context, u store.User, src string) ([]string
 				rks = append(rks, h.RatingKey)
 			}
 		}
-		return s.resolve(ctx, srv, rks)
+		return s.resolve(ctx, srv, rks, shows)
 	}
 	return nil, fmt.Errorf("unknown source %q", src)
 }
 
 // resolve turns ratingKeys into external ids, through the plex_guids cache.
-func (s *Service) resolve(ctx context.Context, srv *plex.Server, rks []string) ([]string, error) {
+func (s *Service) resolve(ctx context.Context, srv *plex.Server, rks []string, shows map[string]bool) ([]string, error) {
 	cached, err := s.d.Store.PlexGuids(ctx, rks)
 	if err != nil {
 		return nil, err
@@ -472,7 +474,12 @@ func (s *Service) resolve(ctx context.Context, srv *plex.Server, rks []string) (
 	}
 	var out []string
 	for _, rk := range rks {
-		out = append(out, cached[rk]...)
+		for _, k := range cached[rk] {
+			if shows[rk] {
+				k = plex.ShowKey(k)
+			}
+			out = append(out, k)
+		}
 	}
 	return out, nil
 }

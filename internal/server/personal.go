@@ -53,6 +53,8 @@ type plexConn struct {
 	mu     sync.Mutex
 	uri    string
 	picked time.Time
+	err    error // last failure, served for plexLibraryBackoff (SEC-03)
+	failed time.Time
 }
 
 // plexServer returns a client for the bound Plex server with the owner's
@@ -85,10 +87,15 @@ func (s *Server) plexServer(ctx context.Context) (*plex.Server, error) {
 	}
 	var conns []plex.Connection
 	_ = json.Unmarshal([]byte(raw), &conns)
+	if s.plexConn.err != nil && time.Since(s.plexConn.failed) < plexLibraryBackoff {
+		return nil, s.plexConn.err
+	}
 	uri, err := plex.PickConnection(ctx, conns, token, s.plex.ClientID)
 	if err != nil {
+		s.plexConn.err, s.plexConn.failed = err, time.Now()
 		return nil, err
 	}
+	s.plexConn.err = nil
 	s.plexConn.uri, s.plexConn.picked = uri, time.Now()
 	srv.BaseURL = uri
 	return srv, nil
@@ -200,7 +207,10 @@ func (s *Server) handlePrefsPut(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad body", http.StatusBadRequest)
 		return
 	}
-	p := defaultPrefs()
+	// A partial update: fields the body leaves out keep their stored value,
+	// so the calendar (filters) and the settings page (display,
+	// notifications) each save their own part.
+	p := s.loadPrefs(r.Context(), currentUser(r).ID)
 	if err := json.Unmarshal(body, &p); err != nil {
 		http.Error(w, "bad json", http.StatusBadRequest)
 		return
@@ -208,10 +218,6 @@ func (s *Server) handlePrefsPut(w http.ResponseWriter, r *http.Request) {
 	p.Mine = cleanSources(p.Mine)
 	p.Filters.normalize()
 	p.Sites = cleanSites(p.Sites)
-	if p.Notify == nil {
-		// Set from the bell, not the calendar: keep what is stored.
-		p.Notify = s.loadPrefs(r.Context(), currentUser(r).ID).Notify
-	}
 	p.Notify = cleanNotify(p.Notify)
 	if p.Formats != "text" {
 		p.Formats = "logos"

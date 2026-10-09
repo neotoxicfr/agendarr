@@ -89,17 +89,23 @@
   };
 
   // --- data --------------------------------------------------------------------
-  const cache = new Map();
+  // Slices are kept five minutes (the server refreshes Radarr and Sonarr at
+  // that pace): loading more weeks of the agenda only fetches the new slice
+  // (PERF-02).
+  const cache = new Map(); // key -> { data, at }
+  const CACHE_MS = 5 * 60_000;
   async function load(from, to, signal) {
     const mine = state.mine.join(",");
     const key = `${keyOf(from)}_${keyOf(to)}_${mine}`;
-    if (cache.has(key)) return cache.get(key);
+    const now = Date.now();
+    for (const [k, v] of cache) if (now - v.at > 2 * CACHE_MS) cache.delete(k);
+    const hit = cache.get(key);
+    if (hit && now - hit.at < CACHE_MS) return hit.data;
     const res = await fetch(`/api/calendar?from=${keyOf(from)}&to=${keyOf(to)}${mine ? "&mine=" + mine : ""}`, { signal });
     if (res.status === 401) { location.assign("/login"); throw new Error("signed out"); }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    cache.set(key, data);
-    setTimeout(() => cache.delete(key), 60_000);
+    cache.set(key, { data, at: Date.now() });
     return data;
   }
 
@@ -539,24 +545,13 @@
     if (x.name === "view") setView(x.value);
     else if (x.name === "status") { state.filters.status = x.value; saveFilters(); }
     else if (x.dataset.release) { state.filters["hide" + x.dataset.release] = !x.checked; saveFilters(); }
-    else if (x.name === "formats") { state.formats = x.value; store.set("formats", x.value); savePrefs(); }
     else if (x.dataset.filter) { state.filters[x.dataset.filter] = x.checked; syncControls(); saveFilters(); }
     else if (x.dataset.instance) { state.filters.instances[x.dataset.instance] = x.checked; saveFilters(); }
     else if (x.dataset.mine) {
       state.mine = [...root.querySelectorAll("[data-mine]:checked")].map((c) => c.dataset.mine);
       saveFilters();
-    } else if (x.hasAttribute("data-shortcuts")) { state.shortcuts = x.checked; syncControls(); savePrefs(); }
-    else if (x.dataset.site) {
-      state.sites = [...root.querySelectorAll("[data-site]:checked")].map((c) => c.dataset.site);
-      store.set("sites", state.sites);
-      savePrefs();
     }
   });
-  const settingsFold = root.querySelector("[data-side-settings]");
-  if (settingsFold) {
-    settingsFold.open = store.get("settingsOpen", false);
-    settingsFold.addEventListener("toggle", () => store.set("settingsOpen", settingsFold.open));
-  }
   function saveFilters() {
     store.set("filters", state.filters);
     store.set("mine", state.mine);
@@ -572,7 +567,8 @@
     saveTimer = setTimeout(() => {
       fetch("/api/prefs", {
         method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mine: state.mine, filters: state.filters, shortcuts: state.shortcuts, sites: state.sites, formats: state.formats }),
+        // Only the calendar's own part: the settings page saves the rest.
+        body: JSON.stringify({ mine: state.mine, filters: state.filters }),
       }).catch(() => {});
     }, 400);
   }
@@ -580,19 +576,14 @@
     root.querySelectorAll("[data-filter]").forEach((x) => { x.checked = !!state.filters[x.dataset.filter]; });
     root.querySelectorAll("input[name=status]").forEach((x) => { x.checked = x.value === state.filters.status; });
     root.querySelectorAll("[data-release]").forEach((x) => { x.checked = !state.filters["hide" + x.dataset.release]; x.disabled = !state.filters.movies; });
-    root.querySelectorAll("input[name=formats]").forEach((x) => { x.checked = x.value === state.formats; });
     root.querySelectorAll("[data-mine]").forEach((x) => { x.checked = state.mine.includes(x.dataset.mine); });
-    root.querySelectorAll("[data-site]").forEach((x) => { x.checked = state.sites.includes(x.dataset.site); });
-    const sc = $("[data-shortcuts]");
-    sc.checked = state.shortcuts;
-    $("[data-shortcuts-note]").hidden = !state.shortcuts;
   }
   syncControls();
 
   document.addEventListener("keydown", (ev) => {
     if (!state.shortcuts || ev.defaultPrevented || ev.altKey || ev.ctrlKey || ev.metaKey || dialog.open) return;
     if (root.classList.contains("filters-open")) return;
-    if (ev.target.closest("input, textarea, select, [contenteditable]")) return;
+    if (ev.target.closest("input, textarea, select, [contenteditable], .bell-wrap")) return; // UX-08
     const k = ev.key;
     if (k === "ArrowLeft") step(-1);
     else if (k === "ArrowRight") step(1);
@@ -778,7 +769,11 @@
         const b = ev.currentTarget, on = b.getAttribute("aria-pressed") !== "true";
         const res = await fetch("/api/follows", { method: "PUT", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ group: e.group, title: e.title, on }) }).catch(() => null);
-        if (!res || !res.ok) return;
+        if (!res || !res.ok) { // UX-04: say it, do not pretend
+          b.textContent = t("settings.failed");
+          setTimeout(() => { b.textContent = t(on ? "notif.follow" : "notif.following"); }, 3000);
+          return;
+        }
         b.setAttribute("aria-pressed", String(on));
         b.textContent = t(on ? "notif.following" : "notif.follow");
         setFollowed(e.group, on);
@@ -799,7 +794,7 @@
   // Following is per movie or series: every event of the group follows suit,
   // in the loaded data (the bell can unfollow too).
   function setFollowed(group, on) {
-    for (const data of cache.values()) for (const ev of data.events || []) if (ev.group === group) ev.followed = on;
+    for (const { data } of cache.values()) for (const ev of data.events || []) if (ev.group === group) ev.followed = on;
   }
   document.addEventListener("agendarr:follow", (ev) => setFollowed(ev.detail.group, ev.detail.on));
 
@@ -816,7 +811,8 @@
       versions = (data.versions || []).filter((v) => v.videoCodec || v.audio?.length || v.subs?.length);
     } catch { /* Plex unreachable: fall back below */ }
     if (fileFor !== e || !article.isConnected) return;
-    slot.replaceChildren(...(versions.length ? versions.map((v) => plexFile(v, versions.length > 1)) : files(e)));
+    slot.removeAttribute("aria-busy");
+    if (versions.length) slot.replaceChildren(...versions.map((v) => plexFile(v, versions.length > 1)));
   }
 
   // A season bundle: each available episode unfolds its own file card, and a
@@ -872,15 +868,19 @@
   async function loadSeason(e, article, slot) {
     const eps = e.bundle.filter((x) => x.hasFile);
     const q = new URLSearchParams({ group: e.group, season: e.season, episodes: eps.map((x) => x.episode).join(",") });
-    let data = {};
-    try { data = (await (await fetch("/api/tracks?" + q)).json()).episodes || {}; } catch { /* Plex unreachable */ }
+    let data = {}, unreachable = false;
+    try {
+      const body = await (await fetch("/api/tracks?" + q)).json();
+      data = body.episodes || {};
+      unreachable = !!body.unreachable;
+    } catch { unreachable = true; }
     if (!article.isConnected) return;
     // Fill each episode's fold.
     article.querySelectorAll("[data-episode]").forEach((d) => {
       const versions = (data[d.dataset.episode] || []).filter((v) => v.videoCodec || v.audio?.length || v.subs?.length);
       d.querySelector(".ep-body").replaceChildren(...(versions.length
         ? versions.map((v) => plexFile(v, versions.length > 1))
-        : [el("p", { class: "ep-wait", text: t("cal.not_in_plex") })]));
+        : [el("p", { class: "ep-wait", text: t(unreachable ? "cal.plex_unreachable" : "cal.not_in_plex") })]));
     });
     // The season summary, from each episode's first version.
     const firsts = Object.values(data).map((vs) => vs[0]).filter(Boolean);
@@ -891,7 +891,7 @@
         (v) => videoBadges(v.resolution, v.hdr || [], v.videoCodec, v.bitDepth).join(" "),
         (v) => badges(videoBadges(v.resolution, v.hdr || [], v.videoCodec, v.bitDepth))), firsts.length),
       ring("cal.detail_audio", groupBy(firsts, (v) => langs(v.audio).join("+"),
-        (v) => langList(langs(v.audio)) || el("span", { text: "—" })), firsts.length),
+        (v) => langList(langs(v.audio)) || el("span", { text: t("cal.none") })), firsts.length),
       ring("cal.detail_subs", groupBy(firsts, (v) => langs(v.subs).join("+"),
         (v) => langList(langs(v.subs)) || el("span", { text: t("cal.none") })), firsts.length)));
   }
@@ -902,7 +902,9 @@
     fileFor = null;
     const fromPlex = e.hasFile && e.plexUrl && !e.bundle;
     const seasonSlot = el("div", { class: "season-summary" });
-    const slot = el("div", { class: "detail-files" }, ...(fromPlex ? [] : files(e)));
+    // Radarr/Sonarr's reading shows at once; Plex's replaces it when it comes,
+    // so the buttons below do not jump under the finger (UX-03).
+    const slot = el("div", { class: "detail-files", "aria-busy": fromPlex ? "true" : null }, ...files(e));
     const article = el("article", { class: `detail is-${e.kind}` },
       el("div", { class: "detail-top" },
         poster(e, "poster-lg", 500),
@@ -943,7 +945,7 @@
     const before = JSON.stringify([state.mine, state.filters]);
     state.mine = p.mine || [];
     state.filters = normFilters(Object.assign(state.filters, p.filters || {}));
-    if (typeof p.shortcuts === "boolean") state.shortcuts = p.shortcuts;
+    if (typeof p.shortcuts === "boolean") { state.shortcuts = p.shortcuts; store.set("shortcuts", state.shortcuts); }
     if (Array.isArray(p.sites)) { state.sites = p.sites; store.set("sites", state.sites); }
     if (p.formats === "text" || p.formats === "logos") { state.formats = p.formats; store.set("formats", state.formats); }
     store.set("filters", state.filters);

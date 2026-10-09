@@ -225,6 +225,15 @@ func (s *Server) Guids(ctx context.Context, keys []string) (map[string][]string,
 	return out, nil
 }
 
+// ShowKey marks a TMDB key as a show's: TMDB numbers movies and shows
+// separately, so "tmdb:1" names a movie and "tmdbtv:1" a show (SEC-05).
+func ShowKey(k string) string {
+	if v, ok := strings.CutPrefix(k, "tmdb:"); ok {
+		return "tmdbtv:" + v
+	}
+	return k
+}
+
 // GuidKey turns "tmdb://123" into "tmdb:123"; other agents give "".
 func GuidKey(guid string) string {
 	for _, p := range []string{"tmdb", "tvdb", "imdb"} {
@@ -244,6 +253,7 @@ func (c *Client) Watchlist(ctx context.Context, token string) ([]string, error) 
 			MediaContainer struct {
 				TotalSize int `json:"totalSize"`
 				Metadata  []struct {
+					Type     string `json:"type"` // movie | show
 					PlexGuid string `json:"guid"` // see Guids
 					Guid     []struct {
 						ID string `json:"id"`
@@ -259,6 +269,9 @@ func (c *Client) Watchlist(ctx context.Context, token string) ([]string, error) 
 		for _, m := range v.MediaContainer.Metadata {
 			for _, g := range m.Guid {
 				if k := GuidKey(g.ID); k != "" {
+					if m.Type == "show" {
+						k = ShowKey(k)
+					}
 					out = append(out, k)
 				}
 			}
@@ -306,6 +319,9 @@ func (s *Server) Library(ctx context.Context) (map[string]string, error) {
 		for _, m := range v.MediaContainer.Metadata {
 			for _, g := range m.Guid {
 				if k := GuidKey(g.ID); k != "" {
+					if d.Type == "show" {
+						k = ShowKey(k)
+					}
 					out[k] = m.RatingKey
 				}
 			}
@@ -375,7 +391,9 @@ func (s *Server) Tracks(ctx context.Context, ratingKey string) ([]Version, error
 			} `json:"Metadata"`
 		} `json:"MediaContainer"`
 	}
-	if err := s.get(ctx, "/library/metadata/"+url.PathEscape(ratingKey), nil, &v); err != nil {
+	if err := s.get(ctx, "/library/metadata/"+url.PathEscape(ratingKey), nil, &v); errors.Is(err, errNotFound) {
+		return nil, nil // deleted since it was listed: absent, not unreachable
+	} else if err != nil {
 		return nil, err
 	}
 	var out []Version

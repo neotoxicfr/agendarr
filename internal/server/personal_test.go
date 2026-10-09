@@ -54,7 +54,8 @@ func fakeUpstream(t *testing.T) *httptest.Server {
 		j(w, `{"MediaContainer":{"Metadata":[{"ratingKey":"55","guid":"plex://movie/x","Guid":[{"id":"tmdb://100"}]}]}}`)
 	})
 	mux.HandleFunc("GET /plex/library/sections/2/all", func(w http.ResponseWriter, r *http.Request) {
-		j(w, `{"MediaContainer":{"Metadata":[{"ratingKey":"2199","Guid":[{"id":"tvdb://73871"}]}]}}`)
+		// The show shares TMDB id 100 with the movie: it must not take its Plex link (SEC-05).
+		j(w, `{"MediaContainer":{"Metadata":[{"ratingKey":"2199","Guid":[{"id":"tvdb://73871"},{"id":"tmdb://100"}]}]}}`)
 	})
 	mux.HandleFunc("GET /plex/library/metadata/2199/allLeaves", func(w http.ResponseWriter, r *http.Request) {
 		j(w, `{"MediaContainer":{"Metadata":[{"ratingKey":"301","parentIndex":1,"index":2},{"ratingKey":"302","parentIndex":1,"index":3}]}}`)
@@ -167,12 +168,14 @@ func TestPersonalFilters(t *testing.T) {
 	}
 
 	// The old "hide available" checkbox becomes the "upcoming" status;
-	// unknown statuses fall back to "all".
-	for body, want := range map[string]string{
-		`{"filters":{"movies":true,"episodes":true,"hideDownloaded":true}}`: "upcoming",
-		`{"filters":{"movies":true,"episodes":true,"status":"hack"}}`:       "all",
-		`{"filters":{"movies":true,"episodes":true,"status":"available"}}`:  "available",
+	// unknown statuses fall back to "all". In order: each save is partial.
+	for _, c := range []struct{ body, want string }{
+		{`{"filters":{"status":"","hideDownloaded":true}}`, "upcoming"},
+		{`{"filters":{"status":"hack"}}`, "all"},
+		{`{"filters":{"status":"available"}}`, "available"},
+		{`{"view":"week"}`, "available"}, // another field: the status stays
 	} {
+		body, want := c.body, c.want
 		req, _ := http.NewRequest("PUT", h.http.URL+"/api/prefs", strings.NewReader(body))
 		req.Header.Set("Origin", h.http.URL)
 		res, err := friend.Do(req)
@@ -187,12 +190,15 @@ func TestPersonalFilters(t *testing.T) {
 		}
 	}
 
-	// "See on" sites: defaults until chosen, unknown ones dropped, none allowed.
-	for body, want := range map[string]string{
-		`{}`: "tmdb,imdb",
-		`{"sites":["imdb","trakt","imdb","letterboxd"]}`: "imdb,letterboxd",
-		`{"sites":[]}`: "",
+	// "See on" sites: defaults until chosen, unknown ones dropped, none
+	// allowed, kept by a save that does not send them.
+	for _, c := range []struct{ body, want string }{
+		{`{}`, "tmdb,imdb"},
+		{`{"sites":["imdb","trakt","imdb","letterboxd"]}`, "imdb,letterboxd"},
+		{`{"filters":{"movies":true}}`, "imdb,letterboxd"},
+		{`{"sites":[]}`, ""},
 	} {
+		body, want := c.body, c.want
 		req, _ := http.NewRequest("PUT", h.http.URL+"/api/prefs", strings.NewReader(body))
 		req.Header.Set("Origin", h.http.URL)
 		res, err := friend.Do(req)

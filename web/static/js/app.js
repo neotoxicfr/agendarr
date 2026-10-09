@@ -14,6 +14,7 @@ if ("serviceWorker" in navigator) {
 
 // Forms that need a confirmation (destructive admin actions).
 document.addEventListener("submit", (e) => {
+  if (e.defaultPrevented) return; // handled already (sign-out below)
   const msg = e.target.dataset && e.target.dataset.confirm;
   if (msg && !window.confirm(msg)) e.preventDefault();
 });
@@ -136,42 +137,79 @@ document.querySelectorAll("[data-copy]").forEach((btn) => {
   });
 });
 
-// Notifications: the bell in the top bar, its panel (history, acknowledge,
-// unfollow, sources, this device's Web Push subscription).
+// Shared helpers for the bell and the settings page.
+const tf = (key, vars = {}) => t(key).replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? "");
+const h = (tag, attrs = {}, ...kids) => {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v == null || v === false) continue;
+    if (k === "text") n.textContent = v;
+    else if (k === "class") n.className = v;
+    else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
+    else n.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of kids.flat()) if (c != null && c !== false) n.append(c);
+  return n;
+};
+const sendJSON = (method, url, body) => fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+const pageLang = document.documentElement.lang || "fr";
+
+// Web Push on this device: subscribe, unsubscribe, and drop the subscription
+// on sign-out so the next person on a shared device does not get it (SEC-02).
+const push = (() => {
+  const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+  const b64 = (s) => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(s.length / 4) * 4, "=")), (c) => c.charCodeAt(0));
+  const current = async () => (supported ? (await navigator.serviceWorker.ready).pushManager.getSubscription() : null);
+  return {
+    supported,
+    current,
+    async on(vapidKey) {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64(vapidKey) });
+      const res = await sendJSON("POST", "/api/push", { subscription: sub.toJSON(), lang: pageLang });
+      if (!res.ok) { await sub.unsubscribe(); throw new Error("refused"); }
+    },
+    async off() {
+      const sub = await current();
+      if (!sub) return;
+      await sendJSON("POST", "/api/push", { endpoint: sub.endpoint, off: true }).catch(() => {});
+      await sub.unsubscribe();
+    },
+  };
+})();
+
+// Sign-out: forget this device's push subscription first (SEC-02).
+document.querySelectorAll('form[action="/logout"]').forEach((form) => {
+  form.addEventListener("submit", async (e) => {
+    if (!push.supported) return; // the confirmation below the document handles it
+    e.preventDefault();
+    if (form.dataset.confirm && !window.confirm(form.dataset.confirm)) return;
+    try { await Promise.race([push.off(), new Promise((r) => setTimeout(r, 3000))]); } catch { /* sign out anyway */ }
+    HTMLFormElement.prototype.submit.call(form);
+  });
+});
+
+// Notifications: the bell in the top bar and its panel (history, mark read,
+// unfollow; the settings live on /settings).
 const bell = document.querySelector("[data-bell]");
 if (bell) {
+  const wrap = bell.closest(".bell-wrap");
   const panel = document.querySelector("[data-notif-panel]");
   const list = panel.querySelector("[data-notif-list]");
   const empty = panel.querySelector("[data-notif-empty]");
   const count = bell.querySelector("[data-bell-count]");
-  const pushBox = panel.querySelector("[data-push]");
-  const pushHelp = panel.querySelector("[data-push-help]");
-  const lang = document.documentElement.lang || "fr";
-  const tf = (key, vars = {}) => t(key).replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? "");
-  const h = (tag, attrs = {}, ...kids) => {
-    const n = document.createElement(tag);
-    for (const [k, v] of Object.entries(attrs)) {
-      if (v == null || v === false) continue;
-      if (k === "text") n.textContent = v;
-      else if (k === "class") n.className = v;
-      else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
-      else n.setAttribute(k, v === true ? "" : v);
-    }
-    for (const c of kids.flat()) if (c != null && c !== false) n.append(c);
-    return n;
-  };
-  const send = (method, url, body) => fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   let names = null;
-  try { names = new Intl.DisplayNames([lang], { type: "language" }); } catch { /* old browser */ }
+  try { names = new Intl.DisplayNames([pageLang], { type: "language" }); } catch { /* old browser */ }
   const langName = (c) => { try { return (names && names.of(c)) || c; } catch { return c; } };
-  const fWhen = new Intl.DateTimeFormat(lang, { dateStyle: "medium", timeStyle: "short" });
+  const fWhen = new Intl.DateTimeFormat(pageLang, { dateStyle: "medium", timeStyle: "short" });
   const pad = (n) => String(n).padStart(2, "0");
   const code = (e) => `S${pad(e.s)}E${pad(e.e)}`;
-  const colon = lang.startsWith("fr") ? " : " : ": ";
+  const colon = pageLang.startsWith("fr") ? " : " : ": ";
 
-  let state = { items: [], unread: 0, notify: [], vapidKey: "" };
+  let state = { items: [], unread: 0 };
+  let renderListSoon = false; // a refresh came while the list had the focus
 
-  function summary(n, d) {
+  function summary(d) {
     const parts = [];
     const eps = d.episodes || [];
     if (eps.length === 1) parts.push(code(eps[0]) + (eps[0].t ? ` · ${eps[0].t}` : ""));
@@ -184,102 +222,148 @@ if (bell) {
     return parts;
   }
 
-  function render() {
+  function renderCount() {
     count.hidden = state.unread === 0;
     count.textContent = state.unread > 99 ? "99+" : String(state.unread);
     bell.setAttribute("aria-label", state.unread ? `${t("notif.title")} — ${tf("notif.unread", { n: state.unread })}` : t("notif.title"));
-    panel.querySelectorAll("[data-notify]").forEach((x) => { x.checked = state.notify.includes(x.dataset.notify); });
+  }
+
+  function renderList() {
+    // Keep the keyboard where it was across a re-render (UX-01).
+    const focused = document.activeElement;
+    const at = panel.contains(focused) && focused.closest("li[data-id]");
+    const focusID = at && at.dataset.id;
+    const focusIndex = at ? [...at.querySelectorAll("button")].indexOf(focused) : -1;
     empty.hidden = state.items.length > 0;
     list.replaceChildren(...state.items.map((n) => {
       let d = {};
       try { d = JSON.parse(n.detail); } catch { /* keep empty */ }
-      const lines = summary(n, d);
-      return h("li", { class: `notif${n.read ? "" : " is-unread"}` },
+      return h("li", { class: `notif${n.read ? "" : " is-unread"}`, "data-id": n.id },
         d.poster ? h("img", { class: "notif-poster", src: d.poster + "?w=250", alt: "", loading: "lazy", width: 40, height: 60 }) : h("span", { class: "notif-poster" }),
         h("div", { class: "notif-body" },
-          h("p", { class: "notif-title" }, h("strong", { text: n.title }),
+          h("p", { class: "notif-title" },
+            n.read ? null : h("span", { class: "sr-only", text: t("notif.unread_one") }), // UX-05
+            h("strong", { text: n.title }),
             h("span", { class: `notif-kind kind-${n.kind}`, text: t("notif." + n.kind) })),
-          lines.map((l) => h("p", { class: "notif-line", text: l })),
+          summary(d).map((l) => h("p", { class: "notif-line", text: l })),
           h("p", { class: "notif-when" }, h("time", { datetime: n.at, text: fWhen.format(new Date(n.at)) })),
           h("p", { class: "notif-actions" },
             n.read ? null : h("button", { class: "btn btn-ghost", type: "button", text: t("notif.ack"), onclick: () => ack([n.id]) }),
-            n.follows ? h("button", { class: "btn btn-ghost", type: "button", text: t("notif.unfollow"), onclick: (ev) => unfollow(n, ev.currentTarget) }) : null)));
+            n.follows ? h("button", { class: "btn btn-ghost", type: "button", text: t("notif.unfollow"), onclick: () => unfollow(n) }) : null)));
     }));
+    if (focusID != null) {
+      const li = list.querySelector(`li[data-id="${focusID}"]`);
+      const btns = li ? [...li.querySelectorAll("button")] : [];
+      (btns[Math.min(Math.max(focusIndex, 0), btns.length - 1)] || li?.nextElementSibling?.querySelector("button") || panel.querySelector("#notif-title")).focus();
+    }
   }
 
-  async function load() {
+  async function load({ list: withList = !panel.hidden } = {}) {
     try {
       const res = await fetch("/api/notifications");
       if (!res.ok) return;
       state = await res.json();
-      render();
+      renderCount();
+      // Do not rebuild the list under someone reading it (UX-01).
+      if (withList && !(panel.contains(document.activeElement) && document.activeElement !== bell)) renderList();
+      else if (withList) renderListSoon = true;
     } catch { /* offline */ }
   }
   async function ack(ids) {
-    await send("POST", "/api/notifications/read", { ids });
-    await load();
+    await sendJSON("POST", "/api/notifications/read", { ids }).catch(() => {});
+    const res = await fetch("/api/notifications").catch(() => null);
+    if (res && res.ok) { state = await res.json(); renderCount(); renderList(); }
   }
-  async function unfollow(n, btn) {
-    await send("PUT", "/api/follows", { group: n.group, title: n.title, on: false });
-    btn.replaceWith(h("span", { class: "notif-done", text: t("notif.unfollowed") }));
+  async function unfollow(n) {
+    const res = await sendJSON("PUT", "/api/follows", { group: n.group, title: n.title, on: false }).catch(() => null);
+    if (!res || !res.ok) return;
+    state.items.forEach((x) => { if (x.group === n.group) x.follows = false; });
+    renderList();
     document.dispatchEvent(new CustomEvent("agendarr:follow", { detail: { group: n.group, on: false } }));
   }
 
-  // Panel: a popover under the bell, closed by Escape or a click outside.
+  // Panel: a popover under the bell, closed by Escape, a click outside, or
+  // the keyboard leaving it (UX-02).
   const setOpen = (open) => {
     panel.hidden = !open;
     bell.setAttribute("aria-expanded", String(open));
-    if (open) { load(); panel.querySelector("button, input, summary")?.focus(); }
+    if (open) { renderList(); load({ list: true }); panel.querySelector("button, a")?.focus(); }
   };
   bell.addEventListener("click", () => setOpen(panel.hidden));
   document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && !panel.hidden) { setOpen(false); bell.focus(); } });
   document.addEventListener("click", (ev) => { if (!panel.hidden && !ev.target.closest(".bell-wrap")) setOpen(false); });
+  wrap.addEventListener("focusout", (ev) => {
+    if (!panel.hidden && ev.relatedTarget && !wrap.contains(ev.relatedTarget)) setOpen(false);
+    else if (renderListSoon && !panel.contains(ev.relatedTarget)) { renderListSoon = false; renderList(); }
+  });
   panel.querySelector("[data-notif-all]").addEventListener("click", () => ack([]));
-  panel.addEventListener("change", async (ev) => {
-    if (!ev.target.dataset.notify) return;
-    const notify = [...panel.querySelectorAll("[data-notify]:checked")].map((x) => x.dataset.notify);
-    await send("PUT", "/api/notifications/sources", { notify });
-    state.notify = notify;
-  });
 
-  // Web Push on this device.
-  const b64 = (s) => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(s.length / 4) * 4, "=")), (c) => c.charCodeAt(0));
-  const pushSupported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
-  async function pushState() {
-    if (!window.isSecureContext) { pushBox.disabled = true; pushHelp.textContent = t("notif.push_https"); return; }
-    if (!pushSupported) { pushBox.disabled = true; pushHelp.textContent = t("notif.push_unsupported"); return; }
-    if (Notification.permission === "denied") { pushBox.disabled = true; pushBox.checked = false; pushHelp.textContent = t("notif.push_denied"); return; }
-    const reg = await navigator.serviceWorker.ready;
-    pushBox.checked = !!(await reg.pushManager.getSubscription());
-    pushHelp.textContent = "";
-  }
-  pushBox.addEventListener("change", async () => {
-    try {
-      const reg = await navigator.serviceWorker.ready;
-      const current = await reg.pushManager.getSubscription();
-      if (!pushBox.checked) {
-        if (current) {
-          await send("POST", "/api/push", { endpoint: current.endpoint, off: true });
-          await current.unsubscribe();
-        }
-        return;
-      }
-      if (!state.vapidKey) await load();
-      if ((await Notification.requestPermission()) !== "granted") { await pushState(); return; }
-      const sub = current || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64(state.vapidKey) });
-      const res = await send("POST", "/api/push", { subscription: sub.toJSON(), lang });
-      if (!res.ok) { await sub.unsubscribe(); pushBox.checked = false; pushHelp.textContent = t("notif.push_unsupported"); }
-    } catch {
-      pushBox.checked = false;
-      pushHelp.textContent = t("notif.push_unsupported");
-    }
-  });
-
-  load();
-  pushState().catch(() => {});
+  load({ list: false });
   // Refresh the count when coming back to the tab, and every two minutes.
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") load(); });
   setInterval(() => { if (document.visibilityState === "visible") load(); }, 120000);
   // A push message received while the page is open refreshes the bell.
   navigator.serviceWorker?.addEventListener("message", (ev) => { if (ev.data === "agendarr:notification") load(); });
+  // A subscription left by someone else on this browser now belongs to
+  // whoever is signed in (SEC-02).
+  push.current().then((sub) => { if (sub) sendJSON("POST", "/api/push", { subscription: sub.toJSON(), lang: pageLang }).catch(() => {}); }).catch(() => {});
+}
+
+// Settings page: each control saves at once; a failure says so (UX-04).
+const settings = document.querySelector(".settings");
+if (settings) {
+  const status = settings.querySelector("[data-settings-status]");
+  const say = (key) => { status.textContent = t(key); };
+  const save = async (url, method, body, revert) => {
+    const res = await sendJSON(method, url, body).catch(() => null);
+    if (res && res.ok) { say("settings.saved"); return true; }
+    say("settings.failed");
+    revert();
+    return false;
+  };
+  settings.addEventListener("change", async (ev) => {
+    const x = ev.target;
+    if (x.matches("[data-pref-formats]")) {
+      await save("/api/prefs", "PUT", { formats: x.value }, () => { settings.querySelector(`[data-pref-formats]:not([value="${x.value}"])`).checked = true; });
+      try { localStorage.setItem("agendarr.formats", JSON.stringify(x.value)); } catch { /* private mode */ }
+    } else if (x.matches("[data-pref-site]")) {
+      const sites = [...settings.querySelectorAll("[data-pref-site]:checked")].map((c) => c.dataset.prefSite);
+      if (await save("/api/prefs", "PUT", { sites }, () => { x.checked = !x.checked; })) {
+        try { localStorage.setItem("agendarr.sites", JSON.stringify(sites)); } catch { /* private mode */ }
+      }
+    } else if (x.matches("[data-pref-shortcuts]")) {
+      if (await save("/api/prefs", "PUT", { shortcuts: x.checked }, () => { x.checked = !x.checked; })) {
+        try { localStorage.setItem("agendarr.shortcuts", JSON.stringify(x.checked)); } catch { /* private mode */ }
+      }
+    } else if (x.matches("[data-notify]")) {
+      const notify = [...settings.querySelectorAll("[data-notify]:checked")].map((c) => c.dataset.notify);
+      await save("/api/notifications/sources", "PUT", { notify }, () => { x.checked = !x.checked; });
+    }
+  });
+
+  // This device's notifications.
+  const box = settings.querySelector("[data-push]");
+  const help = settings.querySelector("[data-push-help]");
+  const refresh = async () => {
+    if (!window.isSecureContext) { box.disabled = true; help.textContent = t("notif.push_https"); return; }
+    if (!push.supported) { box.disabled = true; help.textContent = t("notif.push_unsupported"); return; }
+    if (Notification.permission === "denied") { box.disabled = true; box.checked = false; help.textContent = t("notif.push_denied"); return; }
+    box.checked = !!(await push.current());
+    help.textContent = "";
+  };
+  box.addEventListener("change", async () => {
+    try {
+      if (!box.checked) { await push.off(); return; }
+      if ((await Notification.requestPermission()) !== "granted") { await refresh(); return; }
+      const res = await fetch("/api/notifications");
+      const { vapidKey } = res.ok ? await res.json() : {};
+      if (!vapidKey) throw new Error("no key");
+      await push.on(vapidKey);
+      help.textContent = "";
+    } catch {
+      box.checked = false;
+      help.textContent = t("notif.push_unsupported");
+    }
+  });
+  refresh().catch(() => {});
 }
