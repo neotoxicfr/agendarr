@@ -312,8 +312,14 @@ if (bell) {
 // Settings page: each control saves at once; a failure says so (UX-04).
 const settings = document.querySelector(".settings");
 if (settings) {
-  const status = settings.querySelector("[data-settings-status]");
-  const say = (key) => { status.textContent = t(key); };
+  // The answer shows next to the setting that changed, and is re-announced
+  // even when it says the same thing twice (PAGE-05).
+  let status = null;
+  const say = (key) => {
+    if (!status) return;
+    status.textContent = "";
+    requestAnimationFrame(() => { status.textContent = t(key); });
+  };
   const save = async (url, method, body, revert) => {
     const res = await sendJSON(method, url, body).catch(() => null);
     if (res && res.ok) { say("settings.saved"); return true; }
@@ -323,6 +329,9 @@ if (settings) {
   };
   settings.addEventListener("change", async (ev) => {
     const x = ev.target;
+    const group = x.closest(".settings-group");
+    status = group && (group.querySelector("[data-group-status]") ||
+      group.appendChild(h("p", { class: "settings-status", role: "status", "data-group-status": "" })));
     if (x.matches("[data-pref-formats]")) {
       await save("/api/prefs", "PUT", { formats: x.value }, () => { settings.querySelector(`[data-pref-formats]:not([value="${x.value}"])`).checked = true; });
       try { localStorage.setItem("agendarr.formats", JSON.stringify(x.value)); } catch { /* private mode */ }
@@ -381,7 +390,7 @@ if (mylist) {
   let items = [];
 
   const persist = () => { try { localStorage.setItem("agendarr.list", JSON.stringify({ kind: st.kind, state: st.state, sort: st.sort, src: st.src })); } catch { /* private mode */ } };
-  const stateOf = (it) => (it.hasFile ? "available" : it.next ? "upcoming" : "nodate");
+  const stateOf = (it) => (it.hasFile ? "available" : "upcoming"); // same words as the calendar (COH-02)
   const fold = (s) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 
   function sync() {
@@ -425,13 +434,15 @@ if (mylist) {
     shown.sort(by[st.sort] || by.title);
     ul.replaceChildren(...shown.map(row));
     ul.removeAttribute("aria-busy");
-    empty.hidden = shown.length > 0;
+    // Nothing at all is not "nothing matches": say how to fill the list (PAGE-04).
+    $("[data-list-none]").hidden = items.length > 0;
+    empty.hidden = shown.length > 0 || items.length === 0;
     countEl.textContent = tf("list.count", { n: shown.length, total: items.length });
   }
 
   async function remove(it, btn) {
     const res = await sendJSON("PUT", "/api/follows", { group: it.group, title: it.title, on: false }).catch(() => null);
-    if (!res || !res.ok) { btn.textContent = t("settings.failed"); return; }
+    if (!res || !res.ok) { countEl.textContent = `${t("settings.failed")} — ${it.title}`; return; } // announced (PAGE-06)
     it.sources = it.sources.filter((s) => s !== "manual");
     if (!it.sources.length) items = items.filter((x) => x !== it);
     const next = btn.closest("li").nextElementSibling;
@@ -460,8 +471,26 @@ if (mylist) {
     mylist.querySelectorAll("[data-list-src]").forEach((x) => {
       x.closest("label").hidden = x.dataset.listSrc !== "manual" && !(data.sources || []).includes(x.dataset.listSrc);
     });
-    warning.hidden = !Object.values(data.errors || {}).includes("syncing");
-    warning.textContent = t("list.syncing");
+    // Each source that could not be read says why, as on the calendar (PAGE-03).
+    const notes = Object.entries(data.errors || {}).map(([src, code]) => t("cal.mine_error_" + src).replace("{why}", t("cal.why_" + code)));
+    warning.hidden = notes.length === 0;
+    warning.textContent = notes.join(" ");
     render();
-  }).catch(() => { ul.removeAttribute("aria-busy"); countEl.textContent = t("settings.failed"); });
+  }).catch(() => { ul.removeAttribute("aria-busy"); countEl.textContent = t("list.load_failed"); }); // PAGE-07
 }
+
+// A confirmation shown after a redirect (saved, deleted…) is read out: the
+// focus moves to it (PAGE-09).
+const flash = document.querySelector(".flash");
+if (flash) { flash.tabIndex = -1; flash.focus({ preventScroll: false }); }
+
+// A Plex avatar that does not load shows the person's initial, not a broken
+// image.
+document.querySelectorAll("img.avatar").forEach((img) => {
+  const swap = () => {
+    const name = img.closest("li, .me")?.querySelector(".row-title, .me-name")?.firstChild?.textContent || "?";
+    img.replaceWith(h("span", { class: "avatar avatar-initial", "aria-hidden": "true", text: name.trim().charAt(0).toUpperCase() }));
+  };
+  if (img.complete && img.naturalWidth === 0) swap();
+  else img.addEventListener("error", swap, { once: true });
+});

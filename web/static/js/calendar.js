@@ -371,7 +371,8 @@
         el("h2", { class: "agenda-head" }, el("span", { class: "agenda-date", text: fDayLong.format(sel) })),
         list.length
           ? el("ul", { class: "agenda-list" }, list.map((e) => el("li", {}, card(e, "lg"))))
-          : el("p", { class: "cal-empty-inline", text: t("cal.empty") })));
+          : el("p", { class: "cal-empty-inline",
+            text: t(lastEvents.some((e) => dayOf(e) === selectedKey) || state.mine.length ? "cal.empty_filtered" : "cal.empty_day") })));
   }
 
   function renderWeek(events, from) {
@@ -414,6 +415,10 @@
 
   // --- render loop ---------------------------------------------------------------
   let renderSeq = 0;
+  let lastEvents = [], syncRetry = 0, syncTries = 0;
+  const live = el("p", { class: "sr-only", role: "status", "aria-live": "polite" });
+  root.append(live);
+  const announce = (msg) => { live.textContent = ""; requestAnimationFrame(() => { live.textContent = msg; }); };
   async function render({ keepScroll = false } = {}) {
     const seq = ++renderSeq;
     titleEl.textContent = title();
@@ -439,6 +444,8 @@
     const { from, to } = range();
     body.setAttribute("aria-busy", "true");
     if (!keepScroll) body.classList.add("is-loading");
+    // First load: say it is loading instead of a blank area (CAL-07).
+    if (!body.childElementCount) body.replaceChildren(el("p", { class: "cal-empty-inline", text: t("cal.loading") }));
     let data;
     // Syncing a long Plex history the first time takes a few seconds: say so.
     const slow = state.mine.length ? setTimeout(() => { warning.hidden = false; warning.textContent = t("cal.mine_loading"); }, 1500) : 0;
@@ -447,6 +454,8 @@
     } catch (err) {
       clearTimeout(slow);
       if (err.name === "AbortError" || seq !== renderSeq) return;
+      warning.hidden = true; // no "sync in progress" next to the error (CAL-06)
+      warning.replaceChildren();
       body.replaceChildren(el("div", { class: "cal-empty", role: "alert" },
         el("p", { text: t("cal.error") }),
         el("button", { type: "button", class: "btn", onclick: () => render(), text: t("cal.retry") })));
@@ -464,6 +473,12 @@
     for (const [src, code] of Object.entries(data.personal || {})) notes.push(t("cal.mine_error_" + src, { why: t("cal.why_" + code) }));
     warning.hidden = notes.length === 0;
     warning.replaceChildren(...notes.map((n) => el("p", { text: n })));
+    // A personal source still syncing: come back by itself, a few times (CAL-09).
+    clearTimeout(syncRetry);
+    if (Object.values(data.personal || {}).includes("syncing") && syncTries < 4) {
+      syncTries++;
+      syncRetry = setTimeout(() => { cache.clear(); render({ keepScroll: true }); }, 20000);
+    } else if (!Object.values(data.personal || {}).includes("syncing")) syncTries = 0;
 
     if (!data.configured) {
       body.replaceChildren(el("div", { class: "cal-empty", role: "status" },
@@ -472,6 +487,7 @@
       return;
     }
     syncInstanceFilters(data.events);
+    lastEvents = data.events;
     const events = data.events.filter(visible);
     let view;
     if (state.view === "month") view = renderMonth(events, from, to);
@@ -479,9 +495,15 @@
     else view = renderAgenda(events, from, to);
 
     const nodes = [view];
-    if (state.view !== "month" && events.length === 0) {
-      nodes.unshift(el("p", { class: "cal-empty-inline", text: t(data.events.length ? "cal.empty_filtered" : "cal.empty") }));
+    // Every view says when the filters hide everything (CAL-05); the phone
+    // month keeps its own per-day message.
+    if (events.length === 0 && !(state.view === "month" && !wide.matches)) {
+      // "For me" filters apply on the server: an empty answer then means
+      // nothing matches them, not nothing scheduled.
+      nodes.unshift(el("p", { class: "cal-empty-inline", text: t(data.events.length || state.mine.length ? "cal.empty_filtered" : "cal.empty") }));
     }
+    // Screen readers hear what a filter change left on screen (CAL-05).
+    if (keepScroll) announce(t("cal.shown_n", { n: events.length }));
     if (state.view === "agenda") {
       nodes.push(el("div", { class: "agenda-more" }, el("button", {
         type: "button", class: "btn", "data-load-more": true, text: t("cal.load_more"),
@@ -644,11 +666,25 @@
   });
 
   // --- detail sheet --------------------------------------------------------------------
-  function show(content) {
+  // The sheet: a day list or a release. A release opened from a day list gets
+  // a way back to it, and the keyboard lands on its title (CAL-04).
+  let dayContent = null;
+  function show(content, { fromDay = false } = {}) {
+    const wasOpen = dialog.open;
+    if (fromDay && dayContent) {
+      const day = dayContent;
+      content.prepend(el("button", { type: "button", class: "btn btn-ghost sheet-back", text: "‹ " + t("cal.back"),
+        onclick: () => show(day, { isDay: true }) }));
+    }
     detailBody.replaceChildren(content);
-    if (!dialog.open) dialog.showModal();
-    detailBody.scrollTop = 0;
+    if (!wasOpen) dialog.showModal();
+    (dialog.querySelector(".sheet-inner") || detailBody).scrollTop = 0; // the element that scrolls (CAL-03)
+    if (wasOpen) {
+      const h = content.querySelector("#detail-title");
+      if (h) { h.tabIndex = -1; h.focus({ preventScroll: true }); }
+    }
   }
+  dialog.addEventListener("close", () => { dayContent = null; });
   dialog.addEventListener("click", (ev) => { if (ev.target === dialog) dialog.close(); });
   $("[data-detail-close]").addEventListener("click", () => dialog.close());
 
@@ -776,19 +812,18 @@
     // "Notify me": a bell, filled once on.
     const bellIcon = () => { const n = svg("svg", { class: "nav-icon", viewBox: "0 0 24 24", "aria-hidden": "true" });
       n.append(svg("path", { d: "M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20a2 2 0 0 0 4 0" })); return n; };
-    const followLabel = el("span", { text: t(e.followed ? "notif.following" : "notif.follow") });
-    const follow = el("button", { class: "btn btn-follow", type: "button", "aria-pressed": String(!!e.followed), title: t("notif.follow_help"),
+    const followLabel = el("span", { text: t("notif.follow") });
+    const follow = el("button", { class: "btn btn-follow", type: "button", "aria-pressed": String(isFollowed(e)), title: t("notif.follow_help"),
       onclick: async (ev) => {
         const b = ev.currentTarget, on = b.getAttribute("aria-pressed") !== "true";
         const res = await fetch("/api/follows", { method: "PUT", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ group: e.group, title: e.title, on }) }).catch(() => null);
         if (!res || !res.ok) { // UX-04: say it, do not pretend
           followLabel.textContent = t("settings.failed");
-          setTimeout(() => { followLabel.textContent = t(on ? "notif.follow" : "notif.following"); }, 3000);
+          setTimeout(() => { followLabel.textContent = t("notif.follow"); }, 3000);
           return;
         }
         b.setAttribute("aria-pressed", String(on));
-        followLabel.textContent = t(on ? "notif.following" : "notif.follow");
         setFollowed(e.group, on);
       } }, bellIcon(), followLabel);
     const list = [
@@ -806,7 +841,12 @@
 
   // Following is per movie or series: every event of the group follows suit,
   // in the loaded data (the bell can unfollow too).
+  // Episodes are copies of the loaded events: the state lives here too, by
+  // movie or series, so reopening any of them shows it (CAL-02).
+  const followedState = new Map();
+  const isFollowed = (e) => (followedState.has(e.group) ? followedState.get(e.group) : !!e.followed);
   function setFollowed(group, on) {
+    followedState.set(group, on);
     for (const { data } of cache.values()) for (const ev of data.events || []) if (ev.group === group) ev.followed = on;
   }
   document.addEventListener("agendarr:follow", (ev) => setFollowed(ev.detail.group, ev.detail.on));
@@ -940,15 +980,16 @@
       e.bundle
         ? [seasonSlot, el("ol", { class: "detail-episodes" }, e.bundle.map((x) => episodeItem(e, x)))]
         : e.overview ? el("p", { class: "detail-overview", text: e.overview }) : null);
-    show(article);
+    show(article, { fromDay: dialog.open && !!dayContent && dayContent.isConnected });
     if (fromPlex) loadFile(e, article, slot);
     if (e.bundle && e.plexUrl && e.bundle.some((x) => x.hasFile)) loadSeason(e, article, seasonSlot);
   }
 
   function openDay(day, list) {
-    show(el("article", { class: "detail day-sheet" },
+    dayContent = el("article", { class: "detail day-sheet" },
       el("h2", { id: "detail-title", text: fDayFull.format(day) }),
-      el("ul", { class: "agenda-list" }, list.filter(visible).map((e) => el("li", {}, card(e, "lg"))))));
+      el("ul", { class: "agenda-list" }, list.filter(visible).map((e) => el("li", {}, card(e, "lg")))));
+    show(dayContent);
   }
 
   // Re-render when crossing the phone/desktop breakpoint (month cells change shape).

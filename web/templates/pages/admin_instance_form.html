@@ -43,8 +43,8 @@
     <div class="field">
       <label for="f-key">{{index .T "inst.api_key"}}</label>
       <input id="f-key" name="api_key" type="password" autocomplete="off" spellcheck="false" {{if not $f.HasKey}}required{{end}}
-        aria-describedby="f-key-help{{if index $f.Errors "api_key"}} f-key-err{{end}}" {{if index $f.Errors "api_key"}}aria-invalid="true"{{end}}>
-      {{with index $f.Errors "api_key"}}<p class="error" id="f-key-err">{{index $.T .}}</p>{{end}}
+        aria-describedby="f-key-help{{if or (index $f.Errors "api_key") $f.KeyLost}} f-key-err{{end}}" {{if index $f.Errors "api_key"}}aria-invalid="true"{{end}}>
+      {{with index $f.Errors "api_key"}}<p class="error" id="f-key-err">{{index $.T .}}</p>{{else}}{{if $f.KeyLost}}<p class="error" id="f-key-err">{{index $.T "inst.key_lost"}}</p>{{end}}{{end}}
       <p class="help" id="f-key-help">
         <span data-kind-help="arr">{{index .T "inst.api_key_help_arr"}}</span>
         <span data-kind-help="seerr">{{index .T "inst.api_key_help_seerr"}}</span>

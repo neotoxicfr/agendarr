@@ -24,7 +24,10 @@ var kindNames = map[string]string{store.KindRadarr: "Radarr", store.KindSonarr: 
 type instanceForm struct {
 	store.Instance
 	HasKey bool
-	Errors map[string]string // field -> i18n key
+	// KeyLost: a key was typed but the form came back for another error, and
+	// password fields are not filled back in (PAGE-02).
+	KeyLost bool
+	Errors  map[string]string // field -> i18n key
 }
 
 func (s *Server) handleAdminInstances(w http.ResponseWriter, r *http.Request) {
@@ -122,9 +125,12 @@ func (s *Server) parseInstance(r *http.Request, existing *store.Instance) (insta
 		// The stored key is only reused for the address it was given for:
 		// otherwise an admin could send it to a host of their choosing.
 		plainKey, _ = s.box.Open(f.APIKey)
+	case f.HasKey && existing != nil:
+		f.Errors["api_key"] = "inst.err_key_url" // the address changed (PAGE-01)
 	default:
 		f.Errors["api_key"] = "inst.err_key"
 	}
+	f.KeyLost = key != "" && len(f.Errors) > 0
 	return f, plainKey
 }
 

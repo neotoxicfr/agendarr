@@ -5,7 +5,7 @@
   <ul class="rows">
     {{range .Data.Users}}
     <li class="row">
-      {{if .Thumb}}<img class="avatar" src="{{.Thumb}}" alt="" width="40" height="40" referrerpolicy="no-referrer">{{else}}<span class="avatar avatar-empty" aria-hidden="true"></span>{{end}}
+      {{if .Thumb}}<img class="avatar" src="{{.Thumb}}" alt="" width="40" height="40" referrerpolicy="no-referrer">{{else}}<span class="avatar avatar-initial" aria-hidden="true">{{with .Username}}{{slice . 0 1}}{{end}}</span>{{end}}
       <div class="row-main">
         <span class="row-title">{{.Username}}
           {{if .IsOwner}}<span class="tag tag-accent">{{index $.T "admin.tag_owner"}}</span>{{else if .IsAdmin}}<span class="tag">{{index $.T "admin.tag_admin"}}</span>{{end}}

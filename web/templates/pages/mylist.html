@@ -14,7 +14,6 @@
         <option value="all">{{index .T "cal.status_all"}}</option>
         <option value="available">{{index .T "cal.status_available"}}</option>
         <option value="upcoming">{{index .T "list.upcoming"}}</option>
-        <option value="nodate">{{index .T "list.nodate"}}</option>
       </select></label>
     <label class="list-select">{{index .T "list.sort"}}
       <select data-list-sort>
@@ -34,4 +33,5 @@
   <p class="list-warning" data-list-warning hidden></p>
   <ul class="list-items" data-list-items aria-busy="true"></ul>
   <p class="list-empty" data-list-empty hidden>{{index .T "list.empty"}}</p>
+  <p class="list-empty" data-list-none hidden>{{index .T "list.none"}} <a href="/settings#notifications">{{index .T "title.settings"}}</a></p>
 </div>{{end}}
