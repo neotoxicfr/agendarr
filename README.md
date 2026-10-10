@@ -65,7 +65,7 @@ and only the admin can open them. Agendarr gives the whole household one calenda
 
 - **Every instance in one place.** Add as many Radarr and Sonarr instances as you
   run (4K, anime…); a release seen by several of them shows once. Movies show
-  their cinema, digital and DVD / Blu-ray releases, which you can narrow down.
+  their cinema, digital and physical releases, which you can narrow down.
   Episodes show their air time in each viewer's time zone, and premieres and
   finales are flagged.
 - **Plex sign-in.** On first run, the owner of the Plex server becomes the
