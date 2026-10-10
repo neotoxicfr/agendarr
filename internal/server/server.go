@@ -55,6 +55,7 @@ type Server struct {
 	personal           *personal.Service
 	plexConn           plexConn
 	plexLib            plexLibrary
+	catalog            catalog
 	tracks             trackCache
 	pending            map[int64]map[string]pendingChange // watcher only
 	pushMu             sync.Mutex
@@ -142,6 +143,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /img/{inst}/{id}", s.requireUser(s.handlePoster))
 	mux.HandleFunc("GET /sync", s.requireUser(s.handleSync))
 	mux.HandleFunc("GET /settings", s.requireUser(s.handleSettings))
+	mux.HandleFunc("GET /list", s.requireUser(s.handleMyList))
+	mux.HandleFunc("GET /api/mylist", s.requireUser(s.handleMyListAPI))
 	mux.HandleFunc("POST /sync/new", s.requireUser(s.handleSyncNew))
 	mux.HandleFunc("POST /sync/revoke", s.requireUser(s.handleSyncRevoke))
 	mux.HandleFunc("GET /sync/qr.png", s.requireUser(s.handleSyncQR))
@@ -206,7 +209,7 @@ type pageData struct {
 }
 
 // jsPrefixes are the label groups exposed to app.js.
-var jsPrefixes = []string{"login.", "js.", "cal.", "notif.", "settings."}
+var jsPrefixes = []string{"login.", "js.", "cal.", "notif.", "settings.", "list."}
 
 // render executes a page into a buffer first, so a template error becomes a
 // clean 500 instead of a half-written page.

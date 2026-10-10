@@ -1,0 +1,37 @@
+{{define "content"}}<div class="page mylist" data-mylist>
+  <h1>{{index .T "title.mylist"}}</h1>
+  <p class="lead">{{index .T "list.lead"}}</p>
+  <div class="list-tools" role="search">
+    <label class="list-search"><span class="sr-only">{{index .T "list.search"}}</span>
+      <input type="search" data-list-q placeholder="{{index .T "list.search"}}" autocomplete="off"></label>
+    <div class="segmented" role="radiogroup" aria-label="{{index .T "list.kind"}}">
+      <label><input type="radio" name="list-kind" value="all" checked><span>{{index .T "cal.status_all"}}</span></label>
+      <label><input type="radio" name="list-kind" value="movie"><span>{{index .T "cal.movies"}}</span></label>
+      <label><input type="radio" name="list-kind" value="series"><span>{{index .T "list.series"}}</span></label>
+    </div>
+    <label class="list-select">{{index .T "list.state"}}
+      <select data-list-state>
+        <option value="all">{{index .T "cal.status_all"}}</option>
+        <option value="available">{{index .T "cal.status_available"}}</option>
+        <option value="upcoming">{{index .T "list.upcoming"}}</option>
+        <option value="nodate">{{index .T "list.nodate"}}</option>
+      </select></label>
+    <label class="list-select">{{index .T "list.sort"}}
+      <select data-list-sort>
+        <option value="title">{{index .T "list.sort_title"}}</option>
+        <option value="next">{{index .T "list.sort_next"}}</option>
+        <option value="added">{{index .T "list.sort_added"}}</option>
+      </select></label>
+  </div>
+  <fieldset class="list-sources">
+    <legend class="sr-only">{{index .T "list.sources"}}</legend>
+    <label class="src-chip src-seerr"><input type="checkbox" data-list-src="seerr" checked><span>{{index .T "list.src_seerr"}}</span></label>
+    <label class="src-chip src-watching"><input type="checkbox" data-list-src="watching" checked><span>{{index .T "list.src_watching"}}</span></label>
+    <label class="src-chip src-watchlist"><input type="checkbox" data-list-src="watchlist" checked><span>{{index .T "list.src_watchlist"}}</span></label>
+    <label class="src-chip src-manual"><input type="checkbox" data-list-src="manual" checked><span>{{index .T "list.src_manual"}}</span></label>
+  </fieldset>
+  <p class="list-count" data-list-count role="status"></p>
+  <p class="list-warning" data-list-warning hidden></p>
+  <ul class="list-items" data-list-items aria-busy="true"></ul>
+  <p class="list-empty" data-list-empty hidden>{{index .T "list.empty"}}</p>
+</div>{{end}}

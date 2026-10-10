@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -33,6 +34,14 @@ func fakeUpstream(t *testing.T) *httptest.Server {
 		        "series":{"id":3,"title":"Watched Show","tvdbId":73871,"tmdbId":615}},
 		       {"id":10,"seasonNumber":1,"episodeNumber":1,"airDateUtc":"2026-10-05T20:00:00Z","monitored":true,
 		        "series":{"id":4,"title":"Unknown Show","tvdbId":5555}}]`)
+	})
+	mux.HandleFunc("GET /radarr/api/v3/movie", func(w http.ResponseWriter, r *http.Request) {
+		j(w, `[{"id":1,"title":"Requested Movie","year":2026,"tmdbId":100,"hasFile":true,"monitored":true},
+		       {"id":2,"title":"Other Movie","tmdbId":200,"monitored":true,"digitalRelease":"2099-01-01T00:00:00Z"}]`)
+	})
+	mux.HandleFunc("GET /sonarr/api/v3/series", func(w http.ResponseWriter, r *http.Request) {
+		j(w, `[{"id":3,"title":"Watched Show","tvdbId":73871,"tmdbId":615,"status":"continuing","monitored":true,"nextAiring":"2099-01-02T00:00:00Z"},
+		       {"id":4,"title":"Unknown Show","tvdbId":5555,"status":"ended"}]`)
 	})
 	mux.HandleFunc("GET /seerr/api/v1/user", func(w http.ResponseWriter, r *http.Request) {
 		j(w, `{"pageInfo":{"results":2},"results":[{"id":1,"plexId":1,"displayName":"neo"},{"id":2,"plexId":2,"displayName":"Friend"}]}`)
@@ -302,5 +311,54 @@ func TestEventLinksAndMedia(t *testing.T) {
 	// metadata, E09 is not in Plex.
 	if got := tracks("group=series:tvdb:73871&season=1&episodes=2,3,9"); got != `{"episodes":{"2":[{"resolution":"1080p","videoCodec":"h264","size":5,"audio":[{"codec":"aac","lang":"ja"}],"subs":null}]}}` {
 		t.Fatalf("season: %s", got)
+	}
+}
+
+// My list: library items matching the notification sources, with where they
+// come from; alerts set by hand, even on titles gone from the libraries.
+func TestMyList(t *testing.T) {
+	up := fakeUpstream(t)
+	h := newHarness(t, config.Config{DataDir: t.TempDir(), PlexServerURL: up.URL + "/plex"})
+	h.signIn("owner")
+	friend, _ := h.signIn("friend")
+	ctx := context.Background()
+	for _, i := range []store.Instance{
+		{Kind: "radarr", Name: "Radarr", URL: up.URL + "/radarr"},
+		{Kind: "sonarr", Name: "Sonarr", URL: up.URL + "/sonarr"},
+		{Kind: "seerr", Name: "Seerr", URL: up.URL + "/seerr"},
+	} {
+		i.APIKey, i.Enabled = h.srv.box.Seal("k"), true
+		if _, err := h.srv.store.SaveInstance(ctx, i); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h.srv.instancesChanged()
+	u := mustUser(t, h, 2)
+	h.srv.personal.For(ctx, *u, []string{"seerr", "watching"}) // let the sources sync
+	h.srv.store.SetFollow(ctx, u.ID, "series:tvdb:5555", "Unknown Show", true, time.Now())
+	h.srv.store.SetFollow(ctx, u.ID, "movie:tmdb:999", "Gone Movie", true, time.Now())
+
+	res, err := friend.Get(h.http.URL + "/api/mylist")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	var body struct {
+		Items []struct {
+			Title     string
+			Sources   []string
+			HasFile   bool
+			InLibrary bool
+			Next      *time.Time
+		}
+	}
+	json.NewDecoder(res.Body).Decode(&body)
+	var got []string
+	for _, it := range body.Items {
+		got = append(got, fmt.Sprintf("%s=%s/%v/%v", it.Title, strings.Join(it.Sources, "+"), it.InLibrary, it.Next != nil))
+	}
+	want := "Gone Movie=manual/false/false Requested Movie=seerr/true/false Unknown Show=manual/true/false Watched Show=watching/true/true"
+	if strings.Join(got, " ") != want {
+		t.Fatalf("got  %s\nwant %s", strings.Join(got, " "), want)
 	}
 }

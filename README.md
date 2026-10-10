@@ -81,10 +81,13 @@ and only the admin can open them. Agendarr gives the whole household one calenda
   Sonarr. *See on* links to TMDB, TVDB, IMDb, Letterboxd or MDBList, each
   person picking the ones they use.
 - **Notifications.** Be told when something you requested in Seerr, are
-  watching, or follow from its detail sheet becomes available, or when its file
-  is upgraded (*Resolution: 1080p → 4K*, *Audio: + French*). A bell keeps the
-  history; with Web Push, notifications reach your phone or computer even with
-  Agendarr closed.
+  watching in Plex, or turned on **Notify me** for from its detail sheet becomes
+  available, or when its file is upgraded (*Resolution: 1080p → 4K*, *Audio: +
+  French*). A bell keeps the history; with Web Push, notifications reach your
+  phone or computer even with Agendarr closed.
+- **My list.** Everything you will be notified about in one page, each title
+  marked by where it comes from (Seerr request, Plex, or set by hand), with
+  search, filters and sorting; alerts set by hand are removed from there.
 - **Personal filters**, which can be combined: Seerr requests, shows watched in
   the last 90 days, Plex watchlist, full Plex history. Every release shows who
   requested it.
@@ -270,6 +273,9 @@ can't be read (people would have to turn notifications on again).
   server with the owner's token and resolved to TMDB/TVDB/IMDb ids once. The
   Plex library is indexed by those ids every 30 minutes; a detail sheet then
   asks Plex for that item's file and tracks.
+- *My list* matches each person's Seerr requests, Plex shows and alerts with the
+  Radarr and Sonarr libraries (read every 30 minutes) for titles, posters and
+  next release dates.
 - Every five minutes a watcher compares each release's file (from a month back
   to two weeks ahead) with the one it saw before: a file that appears is
   *available*, one that changes on the same instance is a *new version*. It

@@ -19,6 +19,7 @@
   --warn: #ffb454;
   --danger: #ff7a7a;
   --c4: #b48cff;
+  --plex: #f0b429;
 
   --radius: 10px;
   --radius-sm: 6px;
@@ -50,6 +51,7 @@
     --warn: #a35a00;
     --danger: #c02f2f;
     --c4: #6b3fc4;
+    --plex: #8a5a00;
   }
 }
 
@@ -751,8 +753,9 @@ details.file-row { display: block; padding: 0; }
 .notif-actions .btn { min-height: 32px; padding: 0 10px; font-size: var(--fs-2); }
 .notif-done { color: var(--text-2); font-size: var(--fs-2); align-self: center; }
 .notif-empty { margin: 16px 0 4px; color: var(--text-2); }
+.btn-follow { display: inline-flex; align-items: center; gap: 8px; }
 .btn-follow[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
-.btn-follow[aria-pressed="true"]::before { content: "✓ "; }
+.btn-follow[aria-pressed="true"] .nav-icon { fill: currentColor; }
 @media (max-width: 720px) {
   .notif-panel { position: fixed; top: calc(var(--topbar-h) + env(safe-area-inset-top) + 6px); left: 12px; right: 12px; width: auto;
     max-height: calc(100dvh - var(--topbar-h) - var(--tabbar-h, 60px) - 40px); }
@@ -774,3 +777,40 @@ details.file-row { display: block; padding: 0; }
 .settings-group .check { display: flex; }
 .settings-group .help { margin: 4px 0 0; }
 .settings-status { min-height: 1.5em; color: var(--text-2); }
+/* My list. Origins have a colour and always their name: Seerr violet, Plex
+   amber, Agendarr (by hand) blue. */
+.list-tools { display: flex; flex-wrap: wrap; align-items: end; gap: 12px 16px; margin-top: 16px; }
+.list-search input { min-height: var(--tap); width: min(320px, 100%); padding: 0 12px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--text); font: inherit; }
+.list-search { flex: 1 1 220px; }
+.list-search input { width: 100%; }
+.list-select { display: grid; gap: 4px; color: var(--text-2); font-size: var(--fs-1); }
+.list-select select { min-height: 40px; padding: 0 10px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--text); font: inherit; font-size: var(--fs-2); }
+.list-sources { border: 0; margin: 12px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.src-chip { position: relative; }
+.src-chip input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.src-chip span { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); color: var(--text-2); font-weight: 600; }
+.src-chip span::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--src); opacity: .35; }
+.src-chip input:checked + span { color: var(--text); border-color: var(--src); background: color-mix(in srgb, var(--src) 14%, transparent); }
+.src-chip input:checked + span::before { opacity: 1; }
+.src-chip input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 1px; }
+.src-seerr { --src: var(--c4); } .src-watching, .src-watchlist { --src: var(--plex); } .src-manual { --src: var(--episode); }
+.list-count { margin: 12px 0 0; color: var(--text-2); font-size: var(--fs-2); }
+.list-warning { margin: 8px 0 0; color: var(--warn); font-size: var(--fs-2); }
+.list-items { list-style: none; margin: 8px 0 0; padding: 0; }
+.list-item { display: grid; grid-template-columns: 48px 1fr auto; align-items: center; gap: 14px; padding: 12px 0; border-top: 1px solid var(--line); }
+.list-poster { width: 48px; height: 72px; border-radius: 4px; object-fit: cover; background: var(--surface-2); }
+.list-body { min-width: 0; }
+.list-body p { margin: 0; }
+.list-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.list-year, .list-kind { color: var(--text-2); font-size: var(--fs-2); }
+.list-srcs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px !important; }
+.src-badge { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 11px; font-size: var(--fs-1); font-weight: 650;
+  color: var(--src); background: color-mix(in srgb, var(--src) 16%, transparent); }
+.list-info { margin-top: 4px !important; color: var(--text-2); font-size: var(--fs-2); }
+.list-item.is-available .list-info { color: var(--ok); }
+.list-empty { margin: 16px 0; color: var(--text-2); }
+@media (max-width: 560px) {
+  .list-item { grid-template-columns: 48px 1fr; }
+  .list-remove { grid-column: 2; justify-self: start; min-height: var(--tap); }
+  .src-chip span { min-height: var(--tap); }
+}

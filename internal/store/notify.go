@@ -6,10 +6,31 @@ import (
 	"time"
 )
 
-// Follow is a release a user follows by hand.
+// Follow is a release a user asked to be notified about, by hand.
 type Follow struct {
-	Group string
-	Title string
+	Group   string
+	Title   string
+	Created time.Time
+}
+
+// FollowList returns what a user follows by hand, by group.
+func (s *Store) FollowList(ctx context.Context, userID int64) (map[string]Follow, error) {
+	rows, err := s.DB.QueryContext(ctx, `SELECT grp, title, created_at FROM follows WHERE user_id = ?`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]Follow{}
+	for rows.Next() {
+		var f Follow
+		var at int64
+		if err := rows.Scan(&f.Group, &f.Title, &at); err != nil {
+			return nil, err
+		}
+		f.Created = time.Unix(at, 0)
+		out[f.Group] = f
+	}
+	return out, rows.Err()
 }
 
 // SetFollow follows (on) or unfollows a movie or series.

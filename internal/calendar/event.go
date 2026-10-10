@@ -165,7 +165,7 @@ func fromMovie(instID int64, instName string, m arr.Movie) []Event {
 	if m.TitleSlug != "" {
 		base.Arr = []ArrRef{{InstanceID: instID, Instance: instName, Path: "/movie/" + url.PathEscape(m.TitleSlug)}}
 	}
-	base.Group = "movie:" + firstKey(base.Keys, fmt.Sprintf("radarr%d-%d", instID, m.ID))
+	base.Group = MovieGroup(instID, m.ID, base.Keys)
 	var out []Event
 	for _, r := range []struct {
 		kind string
@@ -227,10 +227,26 @@ func fromEpisode(instID int64, instName string, ep arr.Episode) (Event, bool) {
 	default:
 		return e, false
 	}
-	e.Group = "series:" + firstKey(e.Keys, fmt.Sprintf("sonarr%d-%d", instID, s.ID))
+	e.Group = SeriesGroup(instID, s.ID, e.Keys)
 	e.ID = fmt.Sprintf("%s:s%02de%02d", e.Group, ep.SeasonNumber, ep.EpisodeNumber)
 	return e, true
 }
+
+// Keys lists the external ids of a movie (show false) or series, as the
+// calendar does.
+func Keys(tmdb, tvdb int64, imdb string, show bool) []string { return keys(tmdb, tvdb, imdb, show) }
+
+// MovieGroup and SeriesGroup name a movie or series as calendar events do.
+func MovieGroup(instID, movieID int64, k []string) string {
+	return "movie:" + firstKey(k, fmt.Sprintf("radarr%d-%d", instID, movieID))
+}
+
+func SeriesGroup(instID, seriesID int64, k []string) string {
+	return "series:" + firstKey(k, fmt.Sprintf("sonarr%d-%d", instID, seriesID))
+}
+
+// PosterURL is the poster proxy path of a movie or series, "" without one.
+func PosterURL(instID, mediaID int64, images []arr.Image) string { return posterURL(instID, mediaID, images) }
 
 func firstKey(k []string, fallback string) string {
 	if len(k) > 0 {

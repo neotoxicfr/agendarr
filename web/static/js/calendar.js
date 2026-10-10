@@ -773,20 +773,24 @@
     });
   };
   const links = (e) => {
+    // "Notify me": a bell, filled once on.
+    const bellIcon = () => { const n = svg("svg", { class: "nav-icon", viewBox: "0 0 24 24", "aria-hidden": "true" });
+      n.append(svg("path", { d: "M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20a2 2 0 0 0 4 0" })); return n; };
+    const followLabel = el("span", { text: t(e.followed ? "notif.following" : "notif.follow") });
     const follow = el("button", { class: "btn btn-follow", type: "button", "aria-pressed": String(!!e.followed), title: t("notif.follow_help"),
-      text: t(e.followed ? "notif.following" : "notif.follow"), onclick: async (ev) => {
+      onclick: async (ev) => {
         const b = ev.currentTarget, on = b.getAttribute("aria-pressed") !== "true";
         const res = await fetch("/api/follows", { method: "PUT", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ group: e.group, title: e.title, on }) }).catch(() => null);
         if (!res || !res.ok) { // UX-04: say it, do not pretend
-          b.textContent = t("settings.failed");
-          setTimeout(() => { b.textContent = t(on ? "notif.follow" : "notif.following"); }, 3000);
+          followLabel.textContent = t("settings.failed");
+          setTimeout(() => { followLabel.textContent = t(on ? "notif.follow" : "notif.following"); }, 3000);
           return;
         }
         b.setAttribute("aria-pressed", String(on));
-        b.textContent = t(on ? "notif.following" : "notif.follow");
+        followLabel.textContent = t(on ? "notif.following" : "notif.follow");
         setFollowed(e.group, on);
-      } });
+      } }, bellIcon(), followLabel);
     const list = [
       e.plexUrl ? el("a", { class: "btn btn-primary", href: e.plexUrl, target: "_blank", rel: "noopener", text: t("cal.open_plex") }) : null,
       ...(e.arrLinks || []).map((l) => el("a", { class: "btn", href: l.url, target: "_blank", rel: "noopener", text: t("cal.open_in", { name: l.label }) })),

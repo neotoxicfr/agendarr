@@ -367,3 +367,101 @@ if (settings) {
   });
   refresh().catch(() => {});
 }
+
+// "My list": what the person is notified about, with where it comes from;
+// alerts added by hand can be removed. Filters and sort stay on the device.
+const mylist = document.querySelector("[data-mylist]");
+if (mylist) {
+  const $ = (s) => mylist.querySelector(s);
+  const ul = $("[data-list-items]"), empty = $("[data-list-empty]"), countEl = $("[data-list-count]"), warning = $("[data-list-warning]");
+  const SRC = ["seerr", "watching", "watchlist", "manual"];
+  const fDate = new Intl.DateTimeFormat(pageLang, { dateStyle: "medium" });
+  const saved = (() => { try { return JSON.parse(localStorage.getItem("agendarr.list")) || {}; } catch { return {}; } })();
+  const st = Object.assign({ q: "", kind: "all", state: "all", sort: "title", src: SRC.slice() }, saved, { q: "" });
+  let items = [];
+
+  const persist = () => { try { localStorage.setItem("agendarr.list", JSON.stringify({ kind: st.kind, state: st.state, sort: st.sort, src: st.src })); } catch { /* private mode */ } };
+  const stateOf = (it) => (it.hasFile ? "available" : it.next ? "upcoming" : "nodate");
+  const fold = (s) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+
+  function sync() {
+    $("[data-list-q]").value = st.q;
+    mylist.querySelectorAll("input[name=list-kind]").forEach((x) => { x.checked = x.value === st.kind; });
+    $("[data-list-state]").value = st.state;
+    $("[data-list-sort]").value = st.sort;
+    mylist.querySelectorAll("[data-list-src]").forEach((x) => { x.checked = st.src.includes(x.dataset.listSrc); });
+  }
+
+  function row(it) {
+    const info = [];
+    if (!it.inLibrary) info.push(t("list.not_in_library"));
+    else if (it.hasFile) info.push(t("cal.status_downloaded"));
+    if (it.next) info.push(tf("list.next", { date: fDate.format(new Date(it.next)) }));
+    else if (it.status === "ended") info.push(t("list.ended"));
+    if (it.inLibrary && !it.monitored) info.push(t("list.unmonitored"));
+    const manual = it.sources.includes("manual");
+    return h("li", { class: `list-item is-${stateOf(it)}`, "data-group": it.group },
+      it.poster ? h("img", { class: "list-poster", src: it.poster + "?w=250", alt: "", loading: "lazy", width: 48, height: 72 }) : h("span", { class: "list-poster" }),
+      h("div", { class: "list-body" },
+        h("p", { class: "list-title" }, h("strong", { text: it.title }), it.year ? h("span", { class: "list-year", text: String(it.year) }) : null,
+          h("span", { class: "list-kind", text: t(it.kind === "movie" ? "cal.movies" : "list.series") })),
+        h("p", { class: "list-srcs" }, it.sources.map((s) => h("span", { class: `src-badge src-${s}`, text: t("list.src_" + s) }))),
+        info.length ? h("p", { class: "list-info", text: info.join(" · ") }) : null),
+      manual ? h("button", { class: "btn btn-ghost list-remove", type: "button", text: t("list.remove"),
+        "aria-label": `${t("list.remove")} : ${it.title}`, onclick: (ev) => remove(it, ev.currentTarget) }) : null);
+  }
+
+  function render() {
+    const q = fold(st.q.trim());
+    const shown = items.filter((it) => (st.kind === "all" || it.kind === st.kind)
+      && (st.state === "all" || stateOf(it) === st.state)
+      && it.sources.some((s) => st.src.includes(s))
+      && (!q || fold(it.title).includes(q)));
+    const by = {
+      title: (a, b) => a.title.localeCompare(b.title, pageLang, { sensitivity: "base" }),
+      next: (a, b) => (a.next ? Date.parse(a.next) : Infinity) - (b.next ? Date.parse(b.next) : Infinity) || by.title(a, b),
+      added: (a, b) => (b.added ? Date.parse(b.added) : 0) - (a.added ? Date.parse(a.added) : 0) || by.title(a, b),
+    };
+    shown.sort(by[st.sort] || by.title);
+    ul.replaceChildren(...shown.map(row));
+    ul.removeAttribute("aria-busy");
+    empty.hidden = shown.length > 0;
+    countEl.textContent = tf("list.count", { n: shown.length, total: items.length });
+  }
+
+  async function remove(it, btn) {
+    const res = await sendJSON("PUT", "/api/follows", { group: it.group, title: it.title, on: false }).catch(() => null);
+    if (!res || !res.ok) { btn.textContent = t("settings.failed"); return; }
+    it.sources = it.sources.filter((s) => s !== "manual");
+    if (!it.sources.length) items = items.filter((x) => x !== it);
+    const next = btn.closest("li").nextElementSibling;
+    render();
+    // Keep the keyboard in the list after the row changed or left.
+    (ul.querySelector(`li[data-group="${CSS.escape(it.group)}"] button`) || (next && ul.querySelector(`li[data-group="${CSS.escape(next.dataset.group)}"] button`)) || $("[data-list-q]")).focus();
+    countEl.textContent = t("list.removed") + " — " + countEl.textContent;
+  }
+
+  mylist.addEventListener("input", (ev) => { if (ev.target.matches("[data-list-q]")) { st.q = ev.target.value; render(); } });
+  mylist.addEventListener("change", (ev) => {
+    const x = ev.target;
+    if (x.name === "list-kind") st.kind = x.value;
+    else if (x.matches("[data-list-state]")) st.state = x.value;
+    else if (x.matches("[data-list-sort]")) st.sort = x.value;
+    else if (x.matches("[data-list-src]")) st.src = [...mylist.querySelectorAll("[data-list-src]:checked")].map((c) => c.dataset.listSrc);
+    else return;
+    persist();
+    render();
+  });
+
+  sync();
+  fetch("/api/mylist").then((r) => (r.ok ? r.json() : Promise.reject())).then((data) => {
+    items = data.items || [];
+    // Sources not used for notifications are not offered as filters.
+    mylist.querySelectorAll("[data-list-src]").forEach((x) => {
+      x.closest("label").hidden = x.dataset.listSrc !== "manual" && !(data.sources || []).includes(x.dataset.listSrc);
+    });
+    warning.hidden = !Object.values(data.errors || {}).includes("syncing");
+    warning.textContent = t("list.syncing");
+    render();
+  }).catch(() => { ul.removeAttribute("aria-busy"); countEl.textContent = t("settings.failed"); });
+}
