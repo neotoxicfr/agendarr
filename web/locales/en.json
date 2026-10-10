@@ -318,5 +318,6 @@
   "inst.key_lost": "Key not kept: enter it again.",
   "admin.promoted": "%s is now an administrator.",
   "admin.demoted": "%s is no longer an administrator.",
-  "admin.deleted": "%s was deleted."
+  "admin.deleted": "%s was deleted.",
+  "list.search_label": "Search"
 }

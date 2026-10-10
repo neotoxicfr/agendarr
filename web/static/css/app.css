@@ -271,10 +271,13 @@ main:focus { outline: none; }
 .error { margin: 6px 0 0; color: var(--danger); font-size: var(--fs-1); font-weight: 600; }
 .check { display: inline-flex; align-items: center; gap: 10px; min-height: var(--tap); cursor: pointer; font-weight: 500 !important; }
 .check input { width: 20px; height: 20px; flex: none; accent-color: var(--accent); }
-.segmented { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 4px; border-radius: var(--radius); background: var(--bg); border: 1px solid var(--line); }
+/* A segmented control is exactly as tall as a button or a field (44 px with
+   its border and padding), so a row of controls lines up; each option's
+   touch area spills over the padding to stay 44 px high. */
+.segmented { display: inline-flex; flex-wrap: wrap; gap: 3px; padding: 3px; border-radius: var(--radius); background: var(--bg); border: 1px solid var(--line); }
 .segmented label { position: relative; }
-.segmented input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
-.segmented span { display: inline-flex; align-items: center; min-height: 40px; padding: 0 16px; border-radius: var(--radius-sm); color: var(--text-2); font-weight: 600; }
+.segmented input { position: absolute; opacity: 0; inset: -4px 0; margin: 0; cursor: pointer; }
+.segmented span { display: inline-flex; align-items: center; min-height: calc(var(--tap) - 8px); padding: 0 16px; border-radius: var(--radius-sm); color: var(--text-2); font-weight: 600; }
 .segmented input:checked + span { background: var(--surface-2); color: var(--text); box-shadow: inset 0 0 0 1px var(--line); }
 .segmented input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 1px; }
 .segmented-fill { display: flex; flex-wrap: nowrap; margin: 6px 0; }
@@ -559,7 +562,6 @@ details.file-row { display: block; padding: 0; }
 @media (pointer: fine) and (min-width: 1101px) {
   .cal-side .check { min-height: 34px; }
   .cal-side .side-group { margin-top: 12px; }
-  .cal-side .segmented span { min-height: 34px; }
   .site-chip span { min-height: 30px; }
 }
 .track-more { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
@@ -790,11 +792,13 @@ details.file-row { display: block; padding: 0; }
 /* My list. Origins have a colour and always their name: Seerr violet, Plex
    amber, Agendarr (by hand) blue. */
 .list-tools { display: flex; flex-wrap: wrap; align-items: end; gap: 12px 16px; margin-top: 16px; }
-.list-search input { min-height: var(--tap); width: min(320px, 100%); padding: 0 12px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--text); font: inherit; }
-.list-search { flex: 1 1 220px; }
-.list-search input { width: 100%; }
+.list-field { display: grid; gap: 4px; color: var(--text-2); font-size: var(--fs-1); }
+/* The labels above are small; the controls keep the site's text size. */
+.list-tools input, .list-tools select, .list-tools .segmented { font-size: var(--fs-2); color: var(--text); }
+.list-search input { min-height: var(--tap); width: 100%; padding: 0 12px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--text); font: inherit; font-size: var(--fs-2); }
+.list-search { flex: 1 1 220px; display: grid; gap: 4px; color: var(--text-2); font-size: var(--fs-1); }
 .list-select { display: grid; gap: 4px; color: var(--text-2); font-size: var(--fs-1); }
-.list-select select { min-height: 40px; padding: 0 10px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--text); font: inherit; font-size: var(--fs-2); }
+.list-select select { min-height: var(--tap); padding: 0 10px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--text); font: inherit; font-size: var(--fs-2); }
 .list-sources { border: 0; margin: 12px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
 .src-chip { position: relative; }
 .src-chip input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
@@ -827,7 +831,7 @@ details.file-row { display: block; padding: 0; }
 .settings-group .settings-status { margin: 6px 0 0; min-height: 0; font-size: var(--fs-1); }
 /* Phones: every control is finger-sized (COH-07). */
 @media (max-width: 720px) {
-  .btn-sm, .segmented span, .list-select select, .src-chip span, .list-remove, .sheet-back { min-height: var(--tap); }
+  .btn-sm, .list-select select, .src-chip span, .list-remove, .sheet-back { min-height: var(--tap); }
   .row-actions { gap: 12px; }
 }
 .chip.is-unmonitored .chip-dot { box-shadow: none; border: 1.5px dashed var(--c); box-sizing: border-box; }

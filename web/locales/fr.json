@@ -318,5 +318,6 @@
   "inst.key_lost": "Clé non conservée : ressaisis-la.",
   "admin.promoted": "%s est maintenant administrateur.",
   "admin.demoted": "%s n'est plus administrateur.",
-  "admin.deleted": "%s a été supprimé."
+  "admin.deleted": "%s a été supprimé.",
+  "list.search_label": "Rechercher"
 }

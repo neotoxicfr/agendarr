@@ -2,12 +2,15 @@
   <h1>{{index .T "title.mylist"}}</h1>
   <p class="lead">{{index .T "list.lead"}}</p>
   <div class="list-tools" role="search">
-    <label class="list-search"><span class="sr-only">{{index .T "list.search"}}</span>
+    <label class="list-search">{{index .T "list.search_label"}}
       <input type="search" data-list-q placeholder="{{index .T "list.search"}}" autocomplete="off"></label>
-    <div class="segmented" role="radiogroup" aria-label="{{index .T "list.kind"}}">
-      <label><input type="radio" name="list-kind" value="all" checked><span>{{index .T "cal.status_all"}}</span></label>
-      <label><input type="radio" name="list-kind" value="movie"><span>{{index .T "cal.movies"}}</span></label>
-      <label><input type="radio" name="list-kind" value="series"><span>{{index .T "list.series"}}</span></label>
+    <div class="list-field">
+      <span id="list-kind-label">{{index .T "list.kind"}}</span>
+      <div class="segmented" role="radiogroup" aria-labelledby="list-kind-label">
+        <label><input type="radio" name="list-kind" value="all" checked><span>{{index .T "cal.status_all"}}</span></label>
+        <label><input type="radio" name="list-kind" value="movie"><span>{{index .T "cal.movies"}}</span></label>
+        <label><input type="radio" name="list-kind" value="series"><span>{{index .T "list.series"}}</span></label>
+      </div>
     </div>
     <label class="list-select">{{index .T "list.state"}}
       <select data-list-state>
