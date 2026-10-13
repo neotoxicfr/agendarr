@@ -125,7 +125,12 @@ func TestInstances(t *testing.T) {
 	json.NewDecoder(res.Body).Decode(&tr)
 	res.Body.Close()
 	res = h.form(owner, "/admin/instances/"+id, url.Values{"name": {"x"}, "url": {evil.URL}})
+	page, _ := io.ReadAll(res.Body)
 	res.Body.Close()
+	// The form says why the key is needed again (PAGE-01).
+	if !strings.Contains(string(page), "ressaisis la clé") && !strings.Contains(string(page), "enter the API key again") {
+		t.Fatalf("no reason given for the key")
+	}
 	if sawKey.get() || tr["ok"] != false || res.StatusCode != http.StatusUnprocessableEntity {
 		t.Fatalf("stored key reused for a new URL: saw=%v test=%v save=%d", sawKey.get(), tr, res.StatusCode)
 	}

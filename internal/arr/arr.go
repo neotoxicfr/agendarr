@@ -90,6 +90,13 @@ type Series struct {
 	Overview  string  `json:"overview"`
 	Runtime   int     `json:"runtime"`
 	Images    []Image `json:"images"`
+	// Library fields (/api/v3/series), absent from calendar entries.
+	Status     string     `json:"status"` // continuing | ended | upcoming
+	Monitored  bool       `json:"monitored"`
+	NextAiring *time.Time `json:"nextAiring"`
+	Statistics struct {
+		EpisodeFileCount int `json:"episodeFileCount"`
+	} `json:"statistics"`
 }
 
 // Episode is a Sonarr calendar entry.
@@ -132,6 +139,20 @@ func window(start, end time.Time) url.Values {
 	q.Set("end", end.UTC().Format(time.RFC3339))
 	q.Set("unmonitored", "true")
 	return q
+}
+
+// AllMovies returns every movie of a Radarr instance.
+func (c *Client) AllMovies(ctx context.Context) ([]Movie, error) {
+	var out []Movie
+	err := c.Get(ctx, "/api/v3/movie", nil, &out)
+	return out, err
+}
+
+// AllSeries returns every series of a Sonarr instance.
+func (c *Client) AllSeries(ctx context.Context) ([]Series, error) {
+	var out []Series
+	err := c.Get(ctx, "/api/v3/series", nil, &out)
+	return out, err
 }
 
 // Movies returns the Radarr calendar between start and end.

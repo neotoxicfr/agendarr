@@ -9,7 +9,7 @@ const SHELL = `shell-${VERSION}`;
 const IMG = `img-${VERSION}`;
 const API = `api-${VERSION}`;
 const PRECACHE = ["/offline", `/static/css/app.css?v=${VERSION}`, `/static/js/app.js?v=${VERSION}`,
-  `/static/js/calendar.js?v=${VERSION}`, `/static/icons/icon.svg?v=${VERSION}`];
+  `/static/js/calendar.js?v=${VERSION}`, `/static/js/formats.js?v=${VERSION}`, `/static/icons/icon.svg?v=${VERSION}`];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(SHELL).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting()));

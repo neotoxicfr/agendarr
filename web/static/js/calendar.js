@@ -200,19 +200,28 @@
 
   // --- items -------------------------------------------------------------------
   // Compact chip for month cells.
+  // Its accessible name starts with what it shows (time, title), then what a
+  // narrow cell leaves out, so a voice command naming the title hits it
+  // (WCAG 2.5.3, label in name).
   const chip = (e) => el("button", {
-    type: "button", class: `chip is-${e.kind} is-${statusOf(e)}`, "aria-label": describe(e), title: describe(e), "data-id": e.id,
+    type: "button", class: `chip is-${e.kind} is-${statusOf(e)}`, title: describe(e), "data-id": e.id,
     onclick: () => openDetail(e),
   },
   el("span", { class: "chip-dot", "aria-hidden": "true" }),
   timeOf(e) ? el("span", { class: "chip-time", text: timeOf(e) }) : null,
   el("span", { class: "chip-title", text: e.title }),
-  e.bundle ? el("span", { class: "chip-code", text: `×${e.bundle.length}` }) : null);
+  e.bundle ? el("span", { class: "chip-code", "aria-hidden": "true", text: `×${e.bundle.length}` }) : null,
+  el("span", { class: "sr-only", text: ", " + [
+    e.kind === "episode" ? (e.bundle ? `${code(e)} (${t("cal.episodes_n", { n: e.bundle.length })})` : code(e)) : null,
+    e.kind === "episode" && !e.bundle && e.epTitle ? e.epTitle : null,
+    ...tagsOf(e), t("cal.status_" + statusOf(e)),
+  ].filter(Boolean).join(", ") }));
 
   // Card with poster for week and agenda.
   const statusEl = (e) => el("span", { class: `status status-${statusOf(e)}`, text: t("cal.status_" + statusOf(e)) });
   const card = (e, size) => el("button", {
-    type: "button", class: `card card-${size} is-${e.kind} is-${statusOf(e)}`, "aria-label": describe(e), "data-id": e.id,
+    // Named by its own text (WCAG 2.5.3): title, episode, time, tags, status.
+    type: "button", class: `card card-${size} is-${e.kind} is-${statusOf(e)}`, "data-id": e.id,
     onclick: () => openDetail(e),
   },
   (() => {
@@ -362,7 +371,8 @@
         el("h2", { class: "agenda-head" }, el("span", { class: "agenda-date", text: fDayLong.format(sel) })),
         list.length
           ? el("ul", { class: "agenda-list" }, list.map((e) => el("li", {}, card(e, "lg"))))
-          : el("p", { class: "cal-empty-inline", text: t("cal.empty") })));
+          : el("p", { class: "cal-empty-inline",
+            text: t(lastEvents.some((e) => dayOf(e) === selectedKey) || state.mine.length ? "cal.empty_filtered" : "cal.empty_day") })));
   }
 
   function renderWeek(events, from) {
@@ -405,6 +415,10 @@
 
   // --- render loop ---------------------------------------------------------------
   let renderSeq = 0;
+  let lastEvents = [], syncRetry = 0, syncTries = 0;
+  const live = el("p", { class: "sr-only", role: "status", "aria-live": "polite" });
+  root.append(live);
+  const announce = (msg) => { live.textContent = ""; requestAnimationFrame(() => { live.textContent = msg; }); };
   async function render({ keepScroll = false } = {}) {
     const seq = ++renderSeq;
     titleEl.textContent = title();
@@ -430,6 +444,8 @@
     const { from, to } = range();
     body.setAttribute("aria-busy", "true");
     if (!keepScroll) body.classList.add("is-loading");
+    // First load: say it is loading instead of a blank area (CAL-07).
+    if (!body.childElementCount) body.replaceChildren(el("p", { class: "cal-empty-inline", text: t("cal.loading") }));
     let data;
     // Syncing a long Plex history the first time takes a few seconds: say so.
     const slow = state.mine.length ? setTimeout(() => { warning.hidden = false; warning.textContent = t("cal.mine_loading"); }, 1500) : 0;
@@ -438,6 +454,8 @@
     } catch (err) {
       clearTimeout(slow);
       if (err.name === "AbortError" || seq !== renderSeq) return;
+      warning.hidden = true; // no "sync in progress" next to the error (CAL-06)
+      warning.replaceChildren();
       body.replaceChildren(el("div", { class: "cal-empty", role: "alert" },
         el("p", { text: t("cal.error") }),
         el("button", { type: "button", class: "btn", onclick: () => render(), text: t("cal.retry") })));
@@ -455,6 +473,12 @@
     for (const [src, code] of Object.entries(data.personal || {})) notes.push(t("cal.mine_error_" + src, { why: t("cal.why_" + code) }));
     warning.hidden = notes.length === 0;
     warning.replaceChildren(...notes.map((n) => el("p", { text: n })));
+    // A personal source still syncing: come back by itself, a few times (CAL-09).
+    clearTimeout(syncRetry);
+    if (Object.values(data.personal || {}).includes("syncing") && syncTries < 4) {
+      syncTries++;
+      syncRetry = setTimeout(() => { cache.clear(); render({ keepScroll: true }); }, 20000);
+    } else if (!Object.values(data.personal || {}).includes("syncing")) syncTries = 0;
 
     if (!data.configured) {
       body.replaceChildren(el("div", { class: "cal-empty", role: "status" },
@@ -463,6 +487,7 @@
       return;
     }
     syncInstanceFilters(data.events);
+    lastEvents = data.events;
     const events = data.events.filter(visible);
     let view;
     if (state.view === "month") view = renderMonth(events, from, to);
@@ -470,9 +495,15 @@
     else view = renderAgenda(events, from, to);
 
     const nodes = [view];
-    if (state.view !== "month" && events.length === 0) {
-      nodes.unshift(el("p", { class: "cal-empty-inline", text: t(data.events.length ? "cal.empty_filtered" : "cal.empty") }));
+    // Every view says when the filters hide everything (CAL-05); the phone
+    // month keeps its own per-day message.
+    if (events.length === 0 && !(state.view === "month" && !wide.matches)) {
+      // "For me" filters apply on the server: an empty answer then means
+      // nothing matches them, not nothing scheduled.
+      nodes.unshift(el("p", { class: "cal-empty-inline", text: t(data.events.length || state.mine.length ? "cal.empty_filtered" : "cal.empty") }));
     }
+    // Screen readers hear what a filter change left on screen (CAL-05).
+    if (keepScroll) announce(t("cal.shown_n", { n: events.length }));
     if (state.view === "agenda") {
       nodes.push(el("div", { class: "agenda-more" }, el("button", {
         type: "button", class: "btn", "data-load-more": true, text: t("cal.load_more"),
@@ -635,43 +666,32 @@
   });
 
   // --- detail sheet --------------------------------------------------------------------
-  function show(content) {
+  // The sheet: a day list or a release. A release opened from a day list gets
+  // a way back to it, and the keyboard lands on its title (CAL-04).
+  let dayContent = null;
+  function show(content, { fromDay = false } = {}) {
+    const wasOpen = dialog.open;
+    if (fromDay && dayContent) {
+      const day = dayContent;
+      content.prepend(el("button", { type: "button", class: "btn btn-ghost sheet-back", text: "‹ " + t("cal.back"),
+        onclick: () => show(day, { isDay: true }) }));
+    }
     detailBody.replaceChildren(content);
-    if (!dialog.open) dialog.showModal();
-    detailBody.scrollTop = 0;
+    if (!wasOpen) dialog.showModal();
+    (dialog.querySelector(".sheet-inner") || detailBody).scrollTop = 0; // the element that scrolls (CAL-03)
+    if (wasOpen) {
+      const h = content.querySelector("#detail-title");
+      if (h) { h.tabIndex = -1; h.focus({ preventScroll: true }); }
+    }
   }
+  dialog.addEventListener("close", () => { dayContent = null; });
   dialog.addEventListener("click", (ev) => { if (ev.target === dialog) dialog.close(); });
   $("[data-detail-close]").addEventListener("click", () => dialog.close());
 
   // File details from Radarr/Sonarr: one block per instance holding a file.
-  const langName = (() => {
-    let dn = null;
-    try { dn = new Intl.DisplayNames([lang], { type: "language" }); } catch { /* old browser */ }
-    return (c) => { try { return (dn && dn.of(c)) || c; } catch { return c; } };
-  })();
-  // Languages show as flags (the name stays for tooltips and screen readers).
-  // A language is not a country: a tag's own region wins (en-US, fr-CA),
-  // and a language without an obvious flag stays written out.
-  const REGION = { fr: "FR", en: "GB", ja: "JP", de: "DE", es: "ES", it: "IT", pt: "PT", ru: "RU", ko: "KR", zh: "CN",
-    nl: "NL", sv: "SE", da: "DK", no: "NO", nb: "NO", nn: "NO", fi: "FI", pl: "PL", cs: "CZ", sk: "SK", hu: "HU",
-    ro: "RO", el: "GR", tr: "TR", uk: "UA", he: "IL", hi: "IN", th: "TH", vi: "VN", id: "ID", ms: "MY", bg: "BG",
-    hr: "HR", sr: "RS", sl: "SI", et: "EE", lv: "LV", lt: "LT", is: "IS", ga: "IE", fa: "IR", fil: "PH", tl: "PH" };
-  const flagOf = (tag) => {
-    const [base, region] = String(tag || "").split("-");
-    const r = /^[A-Za-z]{2}$/.test(region || "") ? region.toUpperCase() : REGION[base.toLowerCase()];
-    return r ? String.fromCodePoint(...[...r].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65)) : "";
-  };
-  const langBadge = (tag) => {
-    const name = tag ? langName(tag) : "?";
-    const f = flagOf(tag);
-    return f ? el("span", { class: "flag", role: "img", "aria-label": name, title: name, text: f }) : el("span", { text: name });
-  };
-  const langList = (tags) => (tags || []).length ? el("span", { class: "langs" }, tags.map(langBadge)) : null;
-  const CODEC = { eac3: "E-AC3", ac3: "AC3", truehd: "TrueHD", dca: "DTS", dts: "DTS", aac: "AAC", flac: "FLAC", opus: "Opus",
-    mp3: "MP3", pcm: "PCM", srt: "SRT", subrip: "SRT", pgs: "PGS", hdmv_pgs_subtitle: "PGS", ass: "ASS", ssa: "SSA",
-    vobsub: "VobSub", dvd_subtitle: "VobSub", mov_text: "TX3G", webvtt: "WebVTT" };
-  const LAYOUT = { mono: "1.0", stereo: "2.0" };
-  const codecName = (c) => CODEC[(c || "").toLowerCase()] || (c || "").toUpperCase();
+  // Formats, flags and logos are shared with the bell (formats.js).
+  const { langName, langBadge, langList, codecName, badges, hdrNames, videoName, audioBadges } = window.AgFormats;
+  const fSize = new Intl.NumberFormat(lang, { style: "unit", unit: "gigabyte", maximumFractionDigits: 1 });
   // Tracks line up in a grid: format | flag | title and tags.
   const trackItem = (x, audio) => {
     const title = x.title;
@@ -685,41 +705,6 @@
         ...tags.map((k) => el("span", { class: "pill", text: t(k) }))));
   };
   const trackList = (list, audio) => (list?.length ? el("ul", { class: "tracks" }, list.map((x) => trackItem(x, audio))) : null);
-  const fSize = new Intl.NumberFormat(lang, { style: "unit", unit: "gigabyte", maximumFractionDigits: 1 });
-  // Formats read as badges: "4K", "WEBRip", "Dolby Vision", "HEVC", "Atmos".
-  // In "logos" mode, Dolby, DTS and HDR formats show their logo; each one's
-  // file and proportions live in app.css (.logo-*), the CSP forbids inline styles.
-  const LOGO = { DV: "dolby-vision", HDR10: "hdr10", "HDR10+": "hdr10plus", Atmos: "dolby-atmos", "E-AC3": "dolby-digital-plus",
-    AC3: "dolby-digital", TrueHD: "dolby-truehd", DTS: "dts", "DTS-HD MA": "dts-hd-ma", "4K": "ultra-hd", "720p": "hd",
-    AV1: "av1", FLAC: "flac", Opus: "opus", AAC: "aac" };
-  // Formats no logo exists for (HEVC, H.264, Full HD, 10-bit, channels,
-  // subtitle formats) read as a bold wordmark next to the logos.
-  const MARK = { "1440p": "QHD", "1080p": "FULL HD", "H.264": "AVC" };
-  const badge = (x) => {
-    if (state.formats === "text") return el("span", { class: "fmt", text: x, title: FULL[x] });
-    const logo = LOGO[x];
-    if (!logo) return el("span", { class: "fmt-mark", text: MARK[x] || x, title: FULL[x] || (MARK[x] ? x : null) });
-    return el("span", { class: `logo logo-${logo}`, role: "img", "aria-label": FULL[x] || x, title: FULL[x] || x });
-  };
-  const badges = (list) => {
-    const items = list.filter(Boolean);
-    return items.length ? el("span", { class: "fmts" }, items.map(badge)) : null;
-  };
-  const FULL = { DV: "Dolby Vision", "E-AC3": "Dolby Digital Plus", AC3: "Dolby Digital", TrueHD: "Dolby TrueHD", Atmos: "Dolby Atmos",
-    "DTS-HD MA": "DTS-HD Master Audio" };
-  const HDR = { DV: "DV", HDR10PLUS: "HDR10+", HDR10: "HDR10", HLG: "HLG", PQ: "HDR" };
-  const hdrNames = (h) => (h || "").split(/\s+/).filter(Boolean).map((x) => HDR[x.toUpperCase()] || x);
-  const VIDEO = { X265: "HEVC", H265: "HEVC", HEVC: "HEVC", X264: "H.264", H264: "H.264", AVC: "H.264", AV1: "AV1", VP9: "VP9",
-    MPEG2: "MPEG-2", MPEG2VIDEO: "MPEG-2", VC1: "VC-1", XVID: "Xvid", DIVX: "DivX" };
-  const videoName = (c) => VIDEO[(c || "").toUpperCase().replace(/[^A-Z0-9]/g, "")] || c;
-  // "EAC3 Atmos" from Radarr, "eac3" + profile from Plex: the same badges.
-  const DTS = { ma: "DTS-HD MA", hra: "DTS-HD HRA", x: "DTS:X", "dts:x": "DTS:X", es: "DTS-ES" };
-  const audioBadges = (codec, channels, profile = "") => {
-    const atmos = /atmos/i.test(codec || "") || /atmos/i.test(profile);
-    const base = (codec || "").replace(/\s*atmos\s*/i, " ").trim();
-    const name = /^(dca|dts)$/i.test(base) && DTS[profile.toLowerCase()] ? DTS[profile.toLowerCase()] : codecName(base);
-    return [name, atmos ? "Atmos" : "", LAYOUT[channels] || channels];
-  };
   const row = (label, value, extra = {}) => (value
     ? [el("dt", { text: t(label), ...extra }), el("dd", extra, value)] : null);
   // The file block, from Radarr/Sonarr's reading of the file: only used when
@@ -764,20 +749,23 @@
     });
   };
   const links = (e) => {
-    const follow = el("button", { class: "btn btn-follow", type: "button", "aria-pressed": String(!!e.followed), title: t("notif.follow_help"),
-      text: t(e.followed ? "notif.following" : "notif.follow"), onclick: async (ev) => {
+    // "Notify me": a bell, filled once on.
+    const bellIcon = () => { const n = svg("svg", { class: "nav-icon", viewBox: "0 0 24 24", "aria-hidden": "true" });
+      n.append(svg("path", { d: "M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20a2 2 0 0 0 4 0" })); return n; };
+    const followLabel = el("span", { text: t("notif.follow") });
+    const follow = el("button", { class: "btn btn-follow", type: "button", "aria-pressed": String(isFollowed(e)), title: t("notif.follow_help"),
+      onclick: async (ev) => {
         const b = ev.currentTarget, on = b.getAttribute("aria-pressed") !== "true";
         const res = await fetch("/api/follows", { method: "PUT", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ group: e.group, title: e.title, on }) }).catch(() => null);
         if (!res || !res.ok) { // UX-04: say it, do not pretend
-          b.textContent = t("settings.failed");
-          setTimeout(() => { b.textContent = t(on ? "notif.follow" : "notif.following"); }, 3000);
+          followLabel.textContent = t("settings.failed");
+          setTimeout(() => { followLabel.textContent = t("notif.follow"); }, 3000);
           return;
         }
         b.setAttribute("aria-pressed", String(on));
-        b.textContent = t(on ? "notif.following" : "notif.follow");
         setFollowed(e.group, on);
-      } });
+      } }, bellIcon(), followLabel);
     const list = [
       e.plexUrl ? el("a", { class: "btn btn-primary", href: e.plexUrl, target: "_blank", rel: "noopener", text: t("cal.open_plex") }) : null,
       ...(e.arrLinks || []).map((l) => el("a", { class: "btn", href: l.url, target: "_blank", rel: "noopener", text: t("cal.open_in", { name: l.label }) })),
@@ -793,7 +781,12 @@
 
   // Following is per movie or series: every event of the group follows suit,
   // in the loaded data (the bell can unfollow too).
+  // Episodes are copies of the loaded events: the state lives here too, by
+  // movie or series, so reopening any of them shows it (CAL-02).
+  const followedState = new Map();
+  const isFollowed = (e) => (followedState.has(e.group) ? followedState.get(e.group) : !!e.followed);
   function setFollowed(group, on) {
+    followedState.set(group, on);
     for (const { data } of cache.values()) for (const ev of data.events || []) if (ev.group === group) ev.followed = on;
   }
   document.addEventListener("agendarr:follow", (ev) => setFollowed(ev.detail.group, ev.detail.on));
@@ -927,15 +920,16 @@
       e.bundle
         ? [seasonSlot, el("ol", { class: "detail-episodes" }, e.bundle.map((x) => episodeItem(e, x)))]
         : e.overview ? el("p", { class: "detail-overview", text: e.overview }) : null);
-    show(article);
+    show(article, { fromDay: dialog.open && !!dayContent && dayContent.isConnected });
     if (fromPlex) loadFile(e, article, slot);
     if (e.bundle && e.plexUrl && e.bundle.some((x) => x.hasFile)) loadSeason(e, article, seasonSlot);
   }
 
   function openDay(day, list) {
-    show(el("article", { class: "detail day-sheet" },
+    dayContent = el("article", { class: "detail day-sheet" },
       el("h2", { id: "detail-title", text: fDayFull.format(day) }),
-      el("ul", { class: "agenda-list" }, list.filter(visible).map((e) => el("li", {}, card(e, "lg"))))));
+      el("ul", { class: "agenda-list" }, list.filter(visible).map((e) => el("li", {}, card(e, "lg")))));
+    show(dayContent);
   }
 
   // Re-render when crossing the phone/desktop breakpoint (month cells change shape).
@@ -947,7 +941,7 @@
     state.filters = normFilters(Object.assign(state.filters, p.filters || {}));
     if (typeof p.shortcuts === "boolean") { state.shortcuts = p.shortcuts; store.set("shortcuts", state.shortcuts); }
     if (Array.isArray(p.sites)) { state.sites = p.sites; store.set("sites", state.sites); }
-    if (p.formats === "text" || p.formats === "logos") { state.formats = p.formats; store.set("formats", state.formats); }
+    if (p.formats === "text" || p.formats === "logos") { state.formats = p.formats; store.set("formats", state.formats); window.AgFormats.setMode(p.formats); }
     store.set("filters", state.filters);
     store.set("mine", state.mine);
     syncControls();

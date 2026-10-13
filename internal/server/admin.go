@@ -53,13 +53,19 @@ func (s *Server) handleAdminUserAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
+	target, err := s.store.UserByID(ctx, id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	var done string
 	switch r.PathValue("action") {
 	case "promote":
-		err = s.store.SetAdmin(ctx, id, true)
+		err, done = s.store.SetAdmin(ctx, id, true), "admin.promoted"
 	case "demote":
-		err = s.store.SetAdmin(ctx, id, false)
+		err, done = s.store.SetAdmin(ctx, id, false), "admin.demoted"
 	case "delete":
-		err = s.store.DeleteUser(ctx, id)
+		err, done = s.store.DeleteUser(ctx, id), "admin.deleted"
 	default:
 		http.NotFound(w, r)
 		return
@@ -68,6 +74,8 @@ func (s *Server) handleAdminUserAction(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
+	// Say it, as the instance pages do (PAGE-08).
+	s.flash(r, done, target.Username)
 	http.Redirect(w, r, "/admin/users", http.StatusSeeOther)
 }
 

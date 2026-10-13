@@ -6,10 +6,31 @@ import (
 	"time"
 )
 
-// Follow is a release a user follows by hand.
+// Follow is a release a user asked to be notified about, by hand.
 type Follow struct {
-	Group string
-	Title string
+	Group   string
+	Title   string
+	Created time.Time
+}
+
+// FollowList returns what a user follows by hand, by group.
+func (s *Store) FollowList(ctx context.Context, userID int64) (map[string]Follow, error) {
+	rows, err := s.DB.QueryContext(ctx, `SELECT grp, title, created_at FROM follows WHERE user_id = ?`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]Follow{}
+	for rows.Next() {
+		var f Follow
+		var at int64
+		if err := rows.Scan(&f.Group, &f.Title, &at); err != nil {
+			return nil, err
+		}
+		f.Created = time.Unix(at, 0)
+		out[f.Group] = f
+	}
+	return out, rows.Err()
 }
 
 // SetFollow follows (on) or unfollows a movie or series.
@@ -92,7 +113,7 @@ func (s *Store) AddNotification(ctx context.Context, userID int64, n Notificatio
 func (s *Store) Notifications(ctx context.Context, userID int64, limit int) ([]Notification, int, error) {
 	rows, err := s.DB.QueryContext(ctx, `SELECT n.id, n.created_at, n.kind, n.grp, n.title, n.detail, n.read, f.grp IS NOT NULL
 		FROM notifications n LEFT JOIN follows f ON f.user_id = n.user_id AND f.grp = n.grp
-		WHERE n.user_id = ? ORDER BY n.id DESC LIMIT ?`, userID, limit)
+		WHERE n.user_id = ? ORDER BY n.created_at DESC, n.id DESC LIMIT ?`, userID, limit)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -126,6 +147,21 @@ func (s *Store) MarkRead(ctx context.Context, userID int64, ids []int64) error {
 		args = append(args, id)
 	}
 	_, err := s.DB.ExecContext(ctx, `UPDATE notifications SET read = 1 WHERE user_id = ? AND id IN (?`+
+		strings.Repeat(",?", len(ids)-1)+`)`, args...)
+	return err
+}
+
+// DeleteNotifications removes some notifications of a user, or all when ids is empty.
+func (s *Store) DeleteNotifications(ctx context.Context, userID int64, ids []int64) error {
+	if len(ids) == 0 {
+		_, err := s.DB.ExecContext(ctx, `DELETE FROM notifications WHERE user_id = ?`, userID)
+		return err
+	}
+	args := []any{userID}
+	for _, id := range ids {
+		args = append(args, id)
+	}
+	_, err := s.DB.ExecContext(ctx, `DELETE FROM notifications WHERE user_id = ? AND id IN (?`+
 		strings.Repeat(",?", len(ids)-1)+`)`, args...)
 	return err
 }
