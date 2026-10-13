@@ -467,8 +467,8 @@ if (mylist) {
           h("span", { class: "list-kind", text: t(it.kind === "movie" ? "cal.movies" : "list.series") })),
         h("p", { class: "list-srcs" }, it.sources.map((s) => h("span", { class: `src-badge src-${s}`, text: t("list.src_" + s) }))),
         info.length ? h("p", { class: "list-info", text: info.join(" · ") }) : null),
-      manual ? h("button", { class: "btn btn-ghost list-remove", type: "button", text: t("list.remove"),
-        "aria-label": `${t("list.remove")} : ${it.title}`, onclick: (ev) => remove(it, ev.currentTarget) }) : null);
+      manual ? h("button", { class: "btn btn-ghost icon-act act-unfollow list-remove", type: "button", title: t("list.remove"),
+        "aria-label": `${t("list.remove")} : ${it.title}`, onclick: (ev) => remove(it, ev.currentTarget) }, notifView.icon("unfollow")) : null);
   }
 
   function render() {

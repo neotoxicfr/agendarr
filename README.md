@@ -10,7 +10,7 @@ Radarr, Sonarr and Seerr in one calendar. Everyone signs in with their Plex acco
 sees what's coming or just what they care about, and gets told when it lands.
 
 [![CI](https://github.com/neotoxicfr/agendarr/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/neotoxicfr/agendarr/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/badge/release-v0.4.0-blue)](https://github.com/neotoxicfr/agendarr/releases)
+[![Release](https://img.shields.io/badge/release-v0.5.0-blue)](https://github.com/neotoxicfr/agendarr/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 </div>
@@ -58,6 +58,17 @@ and only the admin can open them. Agendarr gives the whole household one calenda
   <tr>
     <td align="center">A whole season at a glance</td>
     <td align="center">Notifications</td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/desktop-mylist.png" alt="My list: everything you will be notified about, each title marked by its source (Seerr request, series you are watching, Notify me), with search, filters and sorting"></td>
+    <td width="50%"><img src="docs/screenshots/desktop-notifications.png" alt="The notifications page: search, filters, sorting and bulk actions; an upgrade shows Full HD to Ultra HD, Dolby Vision, HDR10+ and a French audio track added as logos and flags"></td>
+  </tr>
+  <tr>
+    <td align="center">My list</td>
+    <td align="center">Every notification, to sort and clean up</td>
   </tr>
 </table>
 
