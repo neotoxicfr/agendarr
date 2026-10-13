@@ -113,6 +113,9 @@ type Prefs struct {
 	Formats string `json:"formats"`
 	// Notify lists the automatic sources of notifications (see notify.go).
 	Notify []string `json:"notify"`
+	// NotifyKinds lists what is worth a notification: available, quality,
+	// audio, subs (all by default).
+	NotifyKinds []string `json:"notifyKinds"`
 }
 
 // defaultSites are shown until a user picks their own.
@@ -175,6 +178,7 @@ func (s *Server) loadPrefs(ctx context.Context, userID int64) Prefs {
 	p.Filters.normalize()
 	p.Sites = cleanSites(p.Sites)
 	p.Notify = cleanNotify(p.Notify)
+	p.NotifyKinds = cleanKinds(p.NotifyKinds)
 	if p.Formats != "text" {
 		p.Formats = "logos"
 	}
@@ -219,6 +223,7 @@ func (s *Server) handlePrefsPut(w http.ResponseWriter, r *http.Request) {
 	p.Filters.normalize()
 	p.Sites = cleanSites(p.Sites)
 	p.Notify = cleanNotify(p.Notify)
+	p.NotifyKinds = cleanKinds(p.NotifyKinds)
 	if p.Formats != "text" {
 		p.Formats = "logos"
 	}

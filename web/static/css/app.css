@@ -748,7 +748,7 @@ details.file-row { display: block; padding: 0; }
 .notif-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .notif-head h2 { margin: 0; font-size: var(--fs-3); }
 .notif-list { list-style: none; margin: 0; padding: 0; }
-.notif { display: grid; grid-template-columns: 40px 1fr; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+.notif { display: grid; grid-template-columns: 40px 1fr auto; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
 .notif:first-child { border-top: 0; }
 .notif.is-unread .notif-title strong::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--accent); vertical-align: middle; }
 .notif-poster { width: 40px; height: 60px; border-radius: 4px; object-fit: cover; background: var(--surface-2); }
@@ -760,8 +760,6 @@ details.file-row { display: block; padding: 0; }
 .notif-kind.kind-upgraded { color: var(--mine); }
 .notif-line { color: var(--text); font-size: var(--fs-2); overflow-wrap: anywhere; }
 .notif-when { color: var(--text-2); font-size: var(--fs-1); margin-top: 2px !important; }
-.notif-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px !important; }
-.notif-actions .btn { min-height: 32px; padding: 0 10px; font-size: var(--fs-2); }
 .notif-done { color: var(--text-2); font-size: var(--fs-2); align-self: center; }
 .notif-empty { margin: 16px 0 4px; color: var(--text-2); }
 .btn-follow { display: inline-flex; align-items: center; gap: 8px; }
@@ -775,8 +773,7 @@ details.file-row { display: block; padding: 0; }
 .notif-foot { margin: 12px 0 0; padding-top: 10px; border-top: 1px solid var(--line); font-size: var(--fs-2); }
 /* Phones: notification actions and setting chips are finger-sized (UX-06). */
 @media (max-width: 720px) {
-  .notif-actions { gap: 8px; }
-  .notif-actions .btn, .site-chip span { min-height: var(--tap); }
+  .site-chip span { min-height: var(--tap); }
 }
 /* Settings page. */
 .settings-card { margin-top: 20px; padding: 16px 20px 8px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); }
@@ -819,7 +816,8 @@ details.file-row { display: block; padding: 0; }
 .list-year, .list-kind { color: var(--text-2); font-size: var(--fs-2); }
 .list-srcs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px !important; }
 .src-badge { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 11px; font-size: var(--fs-1); font-weight: 650;
-  color: var(--src); background: color-mix(in srgb, var(--src) 16%, transparent); }
+  /* The text leans to the body colour so it stays readable on its tint (AA). */
+  color: color-mix(in srgb, var(--src) 60%, var(--text)); background: color-mix(in srgb, var(--src) 16%, transparent); }
 .list-info { margin-top: 4px !important; color: var(--text-2); font-size: var(--fs-2); }
 .list-item.is-available .list-info { color: var(--ok); }
 .list-empty { margin: 16px 0; color: var(--text-2); }
@@ -835,3 +833,28 @@ details.file-row { display: block; padding: 0; }
   .row-actions { gap: 12px; }
 }
 .chip.is-unmonitored .chip-dot { box-shadow: none; border: 1.5px dashed var(--c); box-sizing: border-box; }
+/* Notifications: what changed, with the same badges as a detail sheet. */
+.notif-diff { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.notif-label { color: var(--text-2); }
+.notif-label::after { content: " :"; }
+:lang(en) .notif-label::after { content: ":"; }
+.notif-arrow { color: var(--text-2); }
+.notif-foot { display: flex; flex-wrap: wrap; gap: 6px 20px; }
+.notif.is-selectable { grid-template-columns: auto 40px 1fr auto; align-items: start; }
+.notif-check { width: 20px; height: 20px; margin: 10px 0 0; accent-color: var(--accent); }
+.np-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 16px; }
+.np-all { margin-right: auto; }
+.np-list { margin-top: 8px; }
+.np-list .notif { padding: 14px 0; }
+@media (max-width: 720px) { .notif-check { width: 24px; height: 24px; } .np-bar .btn { min-height: var(--tap); } }
+/* Ghost buttons carry their own padding: pull the row back so their text
+   lines up with the text above. */
+/* Actions: icons in a column on the right, named for screen readers and on hover. */
+.notif-actions { display: flex; flex-direction: column; gap: 2px; margin: -6px -8px 0 0 !important; }
+.icon-act { width: 36px; min-height: 36px; padding: 0; justify-content: center; color: var(--text-2); }
+.icon-act:hover { color: var(--text); }
+.act-remove:hover { color: var(--danger); border-color: var(--danger); }
+.notif-more { width: 100%; margin-top: 4px; }
+.np-bar .btn { display: inline-flex; align-items: center; gap: 6px; }
+.np-bar .btn .nav-icon { width: 18px; height: 18px; }
+@media (max-width: 720px) { .icon-act { width: var(--tap); min-height: var(--tap); } }

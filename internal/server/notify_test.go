@@ -259,3 +259,68 @@ func TestUpgradeDiffs(t *testing.T) {
 		t.Fatalf("old name-keyed signature: %+v", d)
 	}
 }
+
+// Each person hears only about the kinds they picked.
+func TestWantsKinds(t *testing.T) {
+	avail := &change{kind: "available"}
+	quality := &change{kind: "upgraded", diffs: []diff{{What: "resolution", From: "1080p", To: "4K"}}}
+	audio := &change{kind: "upgraded", diffs: []diff{{What: "audioLangs", Add: []string{"fr"}}}}
+	subs := &change{kind: "upgraded", diffs: []diff{{What: "subs", Add: []string{"en"}}}}
+	for _, c := range []struct {
+		kinds []string
+		ch    *change
+		want  bool
+	}{
+		{cleanKinds(nil), quality, true},
+		{[]string{"available"}, avail, true},
+		{[]string{"available"}, quality, false},
+		{[]string{"audio"}, audio, true},
+		{[]string{"audio"}, subs, false},
+		{[]string{"subs", "quality"}, subs, true},
+		{[]string{}, avail, false},
+	} {
+		if got := wants(c.kinds, c.ch); got != c.want {
+			t.Fatalf("%v on %+v: %v", c.kinds, c.ch, got)
+		}
+	}
+}
+
+// Notifications are deleted one by one or all at once, never someone else's.
+func TestDeleteNotifications(t *testing.T) {
+	h := newHarness(t, config.Config{DataDir: t.TempDir()})
+	owner, _ := h.signIn("owner")
+	friend, _ := h.signIn("friend")
+	ctx := context.Background()
+	o, f := mustUser(t, h, 1), mustUser(t, h, 2)
+	var ids []int64
+	for _, u := range []*store.User{o, o, o, f} {
+		id, err := h.srv.store.AddNotification(ctx, u.ID, store.Notification{At: time.Now(), Kind: "available", Group: "movie:tmdb:1", Title: "x", Detail: "{}"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, id)
+	}
+	post := func(c *http.Client, body string) int {
+		req, _ := http.NewRequest("POST", h.http.URL+"/api/notifications/delete", strings.NewReader(body))
+		req.Header.Set("Origin", h.http.URL)
+		res, err := c.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res.Body.Close()
+		return res.StatusCode
+	}
+	count := func(u *store.User) int { l, _, _ := h.srv.store.Notifications(ctx, u.ID, 500); return len(l) }
+	if post(owner, `{}`) != 400 {
+		t.Fatal("an empty body must not delete everything")
+	}
+	post(owner, `{"ids":[`+jsonInt(ids[0])+`,`+jsonInt(ids[3])+`]}`) // ids[3] is the friend's
+	if count(o) != 2 || count(f) != 1 {
+		t.Fatalf("one by one: owner %d friend %d", count(o), count(f))
+	}
+	post(owner, `{"all":true}`)
+	if count(o) != 0 || count(f) != 1 {
+		t.Fatalf("all: owner %d friend %d", count(o), count(f))
+	}
+	_ = friend
+}

@@ -83,8 +83,11 @@ and only the admin can open them. Agendarr gives the whole household one calenda
 - **Notifications.** Be told when something you requested in Seerr, are
   watching in Plex, or turned on **Notify me** for from its detail sheet becomes
   available, or when its file is upgraded (*Resolution: 1080p → 4K*, *Audio: +
-  French*). A bell keeps the history; with Web Push, notifications reach your
-  phone or computer even with Agendarr closed.
+  French*). Each person picks what is worth a notification: availability,
+  quality, audio or subtitle changes. Changes show with the same logos as the
+  detail sheet. A bell keeps the latest; a notifications page has them all, to
+  search, filter, sort, mark read and delete one by one or in bulk. With Web
+  Push, notifications reach your phone or computer even with Agendarr closed.
 - **My list.** Everything you will be notified about in one page, each title
   marked by where it comes from (Seerr request, Plex, or set by hand), with
   search, filters and sorting; alerts set by hand are removed from there.

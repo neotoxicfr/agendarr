@@ -49,6 +49,50 @@ func cleanNotify(in []string) []string {
 	return out
 }
 
+// What a notification can be about, each person picking theirs: a release
+// becoming available, or a new version changing its quality (resolution,
+// HDR, video codec), its audio (format or languages) or its subtitles.
+var notifyKinds = []string{"available", "quality", "audio", "subs"}
+
+func cleanKinds(in []string) []string {
+	if in == nil {
+		return slices.Clone(notifyKinds)
+	}
+	out := []string{}
+	for _, v := range in {
+		if slices.Contains(notifyKinds, v) && !slices.Contains(out, v) {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// diffKind sorts a difference into what a person can ask to hear about.
+func diffKind(what string) string {
+	switch what {
+	case "resolution", "hdr", "video":
+		return "quality"
+	case "audio", "audioLangs":
+		return "audio"
+	case "subs":
+		return "subs"
+	}
+	return ""
+}
+
+// wants reports whether a change is one of the kinds the person picked.
+func wants(kinds []string, c *change) bool {
+	if c.kind == "available" {
+		return slices.Contains(kinds, "available")
+	}
+	for _, d := range c.diffs {
+		if slices.Contains(kinds, diffKind(d.What)) {
+			return true
+		}
+	}
+	return false
+}
+
 // RunWatcher checks releases until ctx is done.
 func (s *Server) RunWatcher(ctx context.Context) {
 	t := time.NewTimer(time.Minute) // let the caches warm up first
@@ -279,7 +323,8 @@ func (s *Server) deliver(ctx context.Context, changes map[string]*change, now ti
 		if len(todo) == 0 {
 			continue
 		}
-		sources := cleanNotify(s.loadPrefs(ctx, u.ID).Notify)
+		prefs := s.loadPrefs(ctx, u.ID)
+		sources, kinds := cleanNotify(prefs.Notify), cleanKinds(prefs.NotifyKinds)
 		var keys map[string]bool
 		ready := true
 		if len(sources) > 0 {
@@ -295,6 +340,9 @@ func (s *Server) deliver(ctx context.Context, changes map[string]*change, now ti
 					left[k] = p
 				}
 				continue
+			}
+			if !wants(kinds, c) {
+				continue // not a kind this person asked for
 			}
 			if err := s.notifyUser(ctx, u, c, now); err != nil {
 				s.log.Warn("notify", "user", u.Username, "err", err)
@@ -457,7 +505,7 @@ func (s *Server) vapidKeys(ctx context.Context) (webpush.Keys, error) {
 // key browsers subscribe with, and the automatic sources picked.
 func (s *Server) handleNotifications(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
-	items, unread, err := s.store.Notifications(r.Context(), u.ID, 100)
+	items, unread, err := s.store.Notifications(r.Context(), u.ID, 200)
 	if err != nil {
 		s.fail(w, r, err)
 		return
@@ -467,6 +515,29 @@ func (s *Server) handleNotifications(w http.ResponseWriter, r *http.Request) {
 		out["vapidKey"] = sender.Keys.PublicKey()
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// handleNotificationsDelete deletes {"ids":[1,2]}, or everything with {"all":true}.
+func (s *Server) handleNotificationsDelete(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		IDs []int64 `json:"ids"`
+		All bool    `json:"all"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&body); err != nil || len(body.IDs) > 500 ||
+		(len(body.IDs) == 0 && !body.All) {
+		http.Error(w, "bad body", http.StatusBadRequest)
+		return
+	}
+	if err := s.store.DeleteNotifications(r.Context(), currentUser(r).ID, body.IDs); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleNotificationsPage shows the whole history, to sort, filter and clean up.
+func (s *Server) handleNotificationsPage(w http.ResponseWriter, r *http.Request) {
+	s.render(w, r, http.StatusOK, "notifications", pageData{Title: "notif.title"})
 }
 
 // handleNotificationsRead acknowledges {"ids":[1,2]}, or everything.
@@ -601,7 +672,11 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 	for _, n := range cleanNotify(p.Notify) {
 		notify[n] = true
 	}
+	kinds := map[string]bool{}
+	for _, k := range cleanKinds(p.NotifyKinds) {
+		kinds[k] = true
+	}
 	s.render(w, r, http.StatusOK, "settings", pageData{Title: "title.settings", Data: map[string]any{
-		"Formats": p.Formats, "Shortcuts": p.Keys == nil || *p.Keys, "Notify": notify, "Sites": sites,
+		"Formats": p.Formats, "Shortcuts": p.Keys == nil || *p.Keys, "Notify": notify, "Sites": sites, "Kinds": kinds,
 	}})
 }

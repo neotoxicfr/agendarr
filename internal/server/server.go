@@ -137,6 +137,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/tracks", s.requireUser(s.handleTracks))
 	mux.HandleFunc("GET /api/notifications", s.requireUser(s.handleNotifications))
 	mux.HandleFunc("POST /api/notifications/read", s.requireUser(s.handleNotificationsRead))
+	mux.HandleFunc("POST /api/notifications/delete", s.requireUser(s.handleNotificationsDelete))
+	mux.HandleFunc("GET /notifications", s.requireUser(s.handleNotificationsPage))
 	mux.HandleFunc("PUT /api/follows", s.requireUser(s.handleFollow))
 	mux.HandleFunc("PUT /api/notifications/sources", s.requireUser(s.handleNotifySources))
 	mux.HandleFunc("POST /api/push", s.requireUser(s.handlePush))

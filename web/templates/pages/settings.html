@@ -36,6 +36,13 @@
       <p class="help">{{index $.T "notif.sources_help"}}</p>
     </fieldset>
     <fieldset class="settings-group">
+      <legend>{{index $.T "notif.kinds"}}</legend>
+      <label class="check"><input type="checkbox" data-notify-kind="available" {{if .Kinds.available}}checked{{end}}> {{index $.T "notif.kind_available"}}</label>
+      <label class="check"><input type="checkbox" data-notify-kind="quality" {{if .Kinds.quality}}checked{{end}}> {{index $.T "notif.kind_quality"}}</label>
+      <label class="check"><input type="checkbox" data-notify-kind="audio" {{if .Kinds.audio}}checked{{end}}> {{index $.T "notif.kind_audio"}}</label>
+      <label class="check"><input type="checkbox" data-notify-kind="subs" {{if .Kinds.subs}}checked{{end}}> {{index $.T "notif.kind_subs"}}</label>
+    </fieldset>
+    <fieldset class="settings-group">
       <legend>{{index $.T "settings.device"}}</legend>
       <label class="check"><input type="checkbox" data-push> {{index $.T "notif.push"}}</label>
       <p class="help" data-push-help role="status"></p>

@@ -246,7 +246,9 @@ func SeriesGroup(instID, seriesID int64, k []string) string {
 }
 
 // PosterURL is the poster proxy path of a movie or series, "" without one.
-func PosterURL(instID, mediaID int64, images []arr.Image) string { return posterURL(instID, mediaID, images) }
+func PosterURL(instID, mediaID int64, images []arr.Image) string {
+	return posterURL(instID, mediaID, images)
+}
 
 func firstKey(k []string, fallback string) string {
 	if len(k) > 0 {

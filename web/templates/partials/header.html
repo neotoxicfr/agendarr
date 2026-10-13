@@ -39,7 +39,7 @@
         </header>
         <ol class="notif-list" data-notif-list></ol>
         <p class="notif-empty" data-notif-empty hidden>{{index $.T "notif.empty"}}</p>
-        <p class="notif-foot"><a href="/settings#notifications">{{index $.T "notif.settings_link"}}</a></p>
+        <p class="notif-foot"><a href="/notifications">{{index $.T "notif.see_all"}}</a><a href="/settings#notifications">{{index $.T "notif.settings_link"}}</a></p>
       </section>
     </div>
     {{if .Thumb}}<img class="avatar" src="{{.Thumb}}" alt="" width="32" height="32" referrerpolicy="no-referrer">{{end}}
