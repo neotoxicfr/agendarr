@@ -28,4 +28,4 @@ trademark of Via LA.
 HEVC, H.264, Full HD, bit depth, channel layouts and subtitle formats have no
 usable logo: they show as plain words.
 
-Each person can show formats as text instead, in the filter panel.
+Each person can show formats as text instead, in Settings.

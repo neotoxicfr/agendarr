@@ -17,7 +17,7 @@ func TestServerHistoryAndGuids(t *testing.T) {
 	})
 	mux.HandleFunc("GET /status/sessions/history/all", func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-Plex-Token") != "tok" || r.URL.Query().Get("accountID") != "42" {
-			w.WriteHeader(401)
+			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 		// Shape captured from PMS: episodes carry the show as grandparentKey only.

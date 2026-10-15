@@ -1,8 +1,8 @@
-.git
-.github
-.claude
-.audit
-data
-deploy
-*.md
-!README.md
+# Only what the build copies: the context stays small (no screenshots, no
+# .git) and a stray local file cannot end up in the image.
+*
+!go.mod
+!go.sum
+!cmd/
+!internal/
+!web/

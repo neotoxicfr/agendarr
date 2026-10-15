@@ -59,6 +59,8 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; }
+/* hidden always hides, whatever display a class gives (.btn is inline-flex). */
+[hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0;

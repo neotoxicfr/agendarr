@@ -14,7 +14,7 @@ func TestBareAssets(t *testing.T) {
 	Version = "test-1"
 	defer func() { Version = "dev" }()
 	get := func(path string, gz bool) *http.Response {
-		req, _ := http.NewRequest("GET", h.http.URL+path, nil)
+		req, _ := http.NewRequest(http.MethodGet, h.http.URL+path, nil)
 		if gz {
 			req.Header.Set("Accept-Encoding", "gzip")
 		}

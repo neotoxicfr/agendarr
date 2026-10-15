@@ -15,7 +15,7 @@ func TestCalendars(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /base/api/v3/system/status", func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-Api-Key") != "k" {
-			w.WriteHeader(401)
+			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -24,7 +24,7 @@ func TestCalendars(t *testing.T) {
 	mux.HandleFunc("GET /base/api/v3/calendar", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		if r.URL.Query().Get("unmonitored") != "true" || r.URL.Query().Get("start") == "" {
-			w.WriteHeader(400)
+			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 		if r.URL.Query().Get("includeSeries") == "true" {

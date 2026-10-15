@@ -4,17 +4,21 @@ on:
   workflow_dispatch:
   push:
     branches: [dev]
+    # What cannot change the image or the checks. Paths filters do not apply
+    # to tags: a release always builds.
     paths-ignore:
       - "**.md"
       - "LICENSE"
       - ".gitignore"
-      - ".golangci.yml"
+      - ".gitattributes"
+      - ".editorconfig"
       - "lefthook.yml"
       - "Makefile"
-      - ".claude/**"
-      - ".github/workflows/**"
-      - "!.github/workflows/docker-publish.yml"
+      - "docs/**"
+      - "deploy/**"
+      - ".github/CODEOWNERS"
       - ".github/dependabot.yml"
+      - ".github/ISSUE_TEMPLATE/**"
     tags: ["v*.*.*"]
 
 env:
@@ -27,43 +31,18 @@ concurrency:
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 jobs:
-  # The image that reaches production must not ship on a red build. ci.yml runs
-  # in parallel on the same push and has no relationship to this workflow, so a
-  # failing test suite would previously still publish :dev — the tag production
-  # pulls. This job is the gate.
+  # The image that reaches production must not ship on a red build: the whole
+  # of ci.yml (build, race tests, lint, govulncheck, Trivy) is the gate.
   verify:
-    name: Test before publishing
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    if: github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    name: CI
+    uses: ./.github/workflows/ci.yml
     permissions:
       contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-
-      - name: Build
-        run: go build ./...
-
-      - name: Test
-        run: go test -race -timeout 120s ./...
-
-      # A known vulnerability must not reach production either. Keep this
-      # version in step with ci.yml and with the Go version in go.mod.
-      - name: Vulnerability scan
-        run: |
-          go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
-          govulncheck ./...
 
   build:
     needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    if: github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     permissions:
       contents: read
       packages: write
@@ -115,3 +94,19 @@ jobs:
           sbom: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # The release appears once its image can be pulled. Notes are written by
+  # hand and added to it afterwards.
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          generate_release_notes: false
+          make_latest: true

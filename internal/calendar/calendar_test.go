@@ -220,3 +220,17 @@ func TestExternalLinks(t *testing.T) {
 		t.Fatalf("episode: %s", g)
 	}
 }
+
+// The source names Radarr's and Sonarr's quality the same way.
+func TestSourceLabel(t *testing.T) {
+	for _, c := range []struct{ source, modifier, want string }{
+		{"webdl", "none", "WEB-DL"}, {"web", "", "WEB-DL"}, {"webRip", "", "WEBRip"}, {"bluray", "remux", "Remux"},
+		{"blurayRaw", "", "Remux"}, {"bluray", "none", "Blu-ray"}, {"television", "", "HDTV"}, {"unknown", "", ""},
+	} {
+		f := &arr.File{}
+		f.Quality.Quality.Source, f.Quality.Quality.Modifier = c.source, c.modifier
+		if got := sourceLabel(f); got != c.want {
+			t.Errorf("%s/%s: %q, want %q", c.source, c.modifier, got, c.want)
+		}
+	}
+}

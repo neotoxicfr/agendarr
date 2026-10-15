@@ -161,7 +161,7 @@ func TestPersonalFilters(t *testing.T) {
 	}
 
 	// Preferences round-trip and are sanitised.
-	req, _ := http.NewRequest("PUT", h.http.URL+"/api/prefs", strings.NewReader(`{"view":"hack","mine":["seerr","x","seerr"],"filters":{"movies":false,"episodes":true}}`))
+	req, _ := http.NewRequest(http.MethodPut, h.http.URL+"/api/prefs", strings.NewReader(`{"view":"hack","mine":["seerr","x","seerr"],"filters":{"movies":false,"episodes":true}}`))
 	req.Header.Set("Origin", h.http.URL)
 	res, err := friend.Do(req)
 	if err != nil {
@@ -185,7 +185,7 @@ func TestPersonalFilters(t *testing.T) {
 		{`{"view":"week"}`, "available"}, // another field: the status stays
 	} {
 		body, want := c.body, c.want
-		req, _ := http.NewRequest("PUT", h.http.URL+"/api/prefs", strings.NewReader(body))
+		req, _ := http.NewRequest(http.MethodPut, h.http.URL+"/api/prefs", strings.NewReader(body))
 		req.Header.Set("Origin", h.http.URL)
 		res, err := friend.Do(req)
 		if err != nil {
@@ -208,7 +208,7 @@ func TestPersonalFilters(t *testing.T) {
 		{`{"sites":[]}`, ""},
 	} {
 		body, want := c.body, c.want
-		req, _ := http.NewRequest("PUT", h.http.URL+"/api/prefs", strings.NewReader(body))
+		req, _ := http.NewRequest(http.MethodPut, h.http.URL+"/api/prefs", strings.NewReader(body))
 		req.Header.Set("Origin", h.http.URL)
 		res, err := friend.Do(req)
 		if err != nil {

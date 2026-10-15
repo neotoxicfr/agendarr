@@ -266,6 +266,8 @@
   "notif.follow": "Notify me",
   "notif.follow_help": "Get a notification when it is available or a better version arrives.",
   "notif.d_resolution": "Resolution",
+  "notif.d_source": "Source",
+  "notif.d_size": "Size",
   "notif.d_hdr": "HDR",
   "notif.d_video": "Video",
   "notif.d_audio": "Audio",

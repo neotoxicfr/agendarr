@@ -34,6 +34,10 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    # One pull request for the routine bumps; a major version gets its own.
+    groups:
+      go-modules:
+        update-types: ["minor", "patch"]
     # A week before proposing a new release: a compromised version is usually
     # caught by then, and a merge on dev ships to production.
     cooldown:

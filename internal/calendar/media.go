@@ -14,7 +14,7 @@ func mediaOf(instID int64, instName string, f *arr.File) []Media {
 	}
 	// Only what was read from the file: Radarr's quality name ("WEBRip-2160p")
 	// comes from the release title.
-	m := Media{InstanceID: instID, Instance: instName, Size: f.Size}
+	m := Media{InstanceID: instID, Instance: instName, Size: f.Size, Source: sourceLabel(f)}
 	if mi := f.MediaInfo; mi != nil {
 		m.Resolution = resolutionLabel(mi.Resolution)
 		m.VideoCodec, m.BitDepth, m.HDR, m.AudioCodec = mi.VideoCodec, mi.VideoBitDepth, mi.VideoDynamicRangeType, mi.AudioCodec
@@ -25,6 +25,37 @@ func mediaOf(instID int64, instName string, f *arr.File) []Media {
 		m.Subs = languages(mi.Subtitles)
 	}
 	return []Media{m}
+}
+
+// sourceLabel names where a file comes from (WEB-DL, Blu-ray). It is the
+// release's quality, not read from the file: shown only when it changes.
+func sourceLabel(f *arr.File) string {
+	q := f.Quality.Quality
+	switch strings.ToLower(q.Modifier) {
+	case "remux":
+		return "Remux"
+	case "brdisk":
+		return "BR-DISK"
+	case "rawhd":
+		return "Raw-HD"
+	}
+	switch strings.ToLower(q.Source) {
+	case "webdl", "web":
+		return "WEB-DL"
+	case "webrip":
+		return "WEBRip"
+	case "bluray":
+		return "Blu-ray"
+	case "blurayraw":
+		return "Remux"
+	case "tv", "television":
+		return "HDTV"
+	case "televisionraw":
+		return "Raw-HD"
+	case "dvd":
+		return "DVD"
+	}
+	return ""
 }
 
 // resolutionLabel names a "3840x1606" frame by its width, which survives

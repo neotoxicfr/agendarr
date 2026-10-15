@@ -9,6 +9,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -121,7 +122,7 @@ func TestSendGone(t *testing.T) {
 	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		got, _ = io.ReadAll(r.Body)
 		if r.Header.Get("Content-Encoding") != "aes128gcm" || !strings.HasPrefix(r.Header.Get("Authorization"), "vapid t=") {
-			w.WriteHeader(400)
+			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 		w.WriteHeader(http.StatusGone)
@@ -130,7 +131,7 @@ func TestSendGone(t *testing.T) {
 	k, _ := NewKeys()
 	s := &Sender{Keys: k, Subject: "https://a.example", HTTP: ts.Client()}
 	sub, _, _ := newBrowser(t, ts.URL)
-	if err := s.send(context.Background(), sub, []byte("x")); err != ErrGone {
+	if err := s.send(context.Background(), sub, []byte("x")); !errors.Is(err, ErrGone) {
 		t.Fatalf("want ErrGone, got %v", err)
 	}
 	if len(got) < 21+65+17 {

@@ -1,4 +1,4 @@
-.PHONY: dev build test test-race lint vuln tidy docker
+.PHONY: dev build test test-race lint vuln check tidy docker
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X github.com/neotoxicfr/agendarr/internal/server.Version=$(VERSION)
@@ -20,6 +20,9 @@ lint:
 
 vuln:
 	govulncheck ./...
+
+# What CI runs, before pushing.
+check: build test-race lint vuln
 
 tidy:
 	go mod tidy

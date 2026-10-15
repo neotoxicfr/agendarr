@@ -406,7 +406,7 @@ func (s *Service) fetch(ctx context.Context, u store.User, src string) ([]string
 	case SourceWatching, SourceWatched:
 		srv, err := s.d.PlexServer(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("%w: %v", ErrNoPlexServer, err)
+			return nil, fmt.Errorf("%w: %w", ErrNoPlexServer, err)
 		}
 		account := u.PlexID
 		if u.IsOwner {

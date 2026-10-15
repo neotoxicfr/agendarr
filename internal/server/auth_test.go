@@ -45,7 +45,7 @@ func (f *fakePlex) handler() http.Handler {
 	mux.HandleFunc("GET /api/v2/user", func(w http.ResponseWriter, r *http.Request) {
 		u, ok := f.accounts[r.Header.Get("X-Plex-Token")]
 		if !ok {
-			w.WriteHeader(401)
+			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 		io.WriteString(w, u)
@@ -131,7 +131,7 @@ func (h *harness) signIn(token string) (*http.Client, string) {
 
 func (h *harness) post(c *http.Client, path string, out any) {
 	h.t.Helper()
-	req, _ := http.NewRequest("POST", h.http.URL+path, nil)
+	req, _ := http.NewRequest(http.MethodPost, h.http.URL+path, nil)
 	req.Header.Set("Origin", h.http.URL)
 	res, err := c.Do(req)
 	if err != nil {
@@ -191,7 +191,7 @@ func TestSetupAndAccess(t *testing.T) {
 		t.Fatalf("stranger: %q", next)
 	}
 	// A cross-origin POST is rejected (CSRF).
-	req, _ := http.NewRequest("POST", h.http.URL+"/admin/users/2/promote", nil)
+	req, _ := http.NewRequest(http.MethodPost, h.http.URL+"/admin/users/2/promote", nil)
 	req.Header.Set("Sec-Fetch-Site", "cross-site")
 	res, err := owner.Do(req)
 	if err != nil {
@@ -209,7 +209,7 @@ func TestSetupSeveralServers(t *testing.T) {
 	if next != "/setup/server" {
 		t.Fatalf("multi: %q", next)
 	}
-	req, _ := http.NewRequest("POST", h.http.URL+"/setup/server", strings.NewReader("server=B"))
+	req, _ := http.NewRequest(http.MethodPost, h.http.URL+"/setup/server", strings.NewReader("server=B"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Origin", h.http.URL)
 	res, err := c.Do(req)

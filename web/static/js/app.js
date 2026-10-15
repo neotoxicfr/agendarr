@@ -197,12 +197,19 @@ const notifView = (() => {
   const fWhen = new Intl.DateTimeFormat(pageLang, { dateStyle: "medium", timeStyle: "short" });
   const pad = (n) => String(n).padStart(2, "0");
   const code = (e) => `S${pad(e.s)}E${pad(e.e)}`;
+  // Sizes in the reader's units: "4,2 Go", "4.2 GB".
+  const fSize = (b) => {
+    const gb = b >= 1e9;
+    return new Intl.NumberFormat(pageLang, { style: "unit", unit: gb ? "gigabyte" : "megabyte", maximumFractionDigits: gb ? 1 : 0 })
+      .format(b / (gb ? 1e9 : 1e6));
+  };
   // A version as a few badges: "EAC3 5.1" is a codec and a layout.
   const fmt = (what, v) => {
     if (!v) return null;
     if (what === "hdr") return F.badges(F.hdrNames(v));
     if (what === "video") return F.badges([F.videoName(v)]);
     if (what === "audio") { const m = v.match(/^(.*?)\s*(\d\.\d)?$/); return F.badges(F.audioBadges(m[1], m[2] || "")); }
+    if (what === "size") return h("span", { class: "notif-size", text: fSize(Number(v)) });
     return F.badges([v]);
   };
   function lines(d) {
@@ -275,6 +282,7 @@ if (bell) {
 
   function renderCount() {
     count.hidden = state.unread === 0;
+    panel.querySelector("[data-notif-all]").hidden = state.unread === 0;
     count.textContent = state.unread > 99 ? "99+" : String(state.unread);
     bell.setAttribute("aria-label", state.unread ? `${t("notif.title")} — ${tf("notif.unread", { n: state.unread })}` : t("notif.title"));
   }

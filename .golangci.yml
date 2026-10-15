@@ -10,6 +10,14 @@ linters:
     - ineffassign
     - bodyclose
     - noctx
+    - misspell
+    - unconvert
+    - errorlint
+    - copyloopvar
+    - usestdlibvars
+    - nilerr
+    - wastedassign
+    - durationcheck
 
   settings:
     errcheck:
@@ -25,9 +33,6 @@ linters:
         - (*bufio.Writer).WriteByte
 
   exclusions:
-    paths:
-      - .github
-      - .claude
     rules:
       - path: _test\.go
         linters:

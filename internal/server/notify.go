@@ -70,7 +70,7 @@ func cleanKinds(in []string) []string {
 // diffKind sorts a difference into what a person can ask to hear about.
 func diffKind(what string) string {
 	switch what {
-	case "resolution", "hdr", "video":
+	case "resolution", "hdr", "video", "source", "size":
 		return "quality"
 	case "audio", "audioLangs":
 		return "audio"
@@ -125,11 +125,27 @@ func stateKey(e calendar.Event) string {
 func mediaSig(e calendar.Event) string {
 	var parts []string
 	for _, m := range e.Media {
-		parts = append(parts, strings.Join([]string{strconv.FormatInt(m.InstanceID, 10), m.Resolution, m.HDR, m.VideoCodec,
-			m.AudioCodec, m.Channels, strings.Join(m.AudioLangs, "+"), strings.Join(m.Subs, "+")}, "|"))
+		parts = append(parts, strings.Join([]string{strconv.FormatInt(m.InstanceID, 10), m.Resolution, m.HDR, videoName(m.VideoCodec),
+			m.AudioCodec, m.Channels, strings.Join(m.AudioLangs, "+"), strings.Join(m.Subs, "+"),
+			m.Source, strconv.FormatInt(m.Size, 10)}, "|"))
 	}
 	sort.Strings(parts)
 	return strings.Join(parts, "\n")
+}
+
+// videoName gives one name to a codec Sonarr reports as x265 or h265 by
+// turns: the same codec must not read as an upgrade.
+func videoName(c string) string {
+	switch k := strings.ToUpper(strings.NewReplacer(".", "", "-", "", " ", "").Replace(c)); k {
+	case "X265", "H265", "HEVC":
+		return "HEVC"
+	case "X264", "H264", "AVC":
+		return "H264"
+	case "MPEG2VIDEO":
+		return "MPEG2"
+	default:
+		return k
+	}
 }
 
 // change is what happened to one movie or series in one check.
@@ -142,22 +158,34 @@ type change struct {
 
 // diff is one difference between two files, rendered by the browser.
 type diff struct {
-	What string   `json:"what"` // resolution | hdr | video | audio | audioLangs | subs
+	What string   `json:"what"` // resolution | source | hdr | video | audio | audioLangs | subs | size
 	From string   `json:"from,omitempty"`
 	To   string   `json:"to,omitempty"`
 	Add  []string `json:"add,omitempty"`
 }
 
-// diffMedia compares the first file of two states.
+// diffMedia compares the first file of two states: only what differs. A
+// source or a size unknown before (older signatures) is no difference.
 func diffMedia(prev, cur calendar.Media) []diff {
 	var out []diff
-	for _, f := range []struct{ what, from, to string }{
-		{"resolution", prev.Resolution, cur.Resolution},
-		{"hdr", prev.HDR, cur.HDR},
-		{"video", prev.VideoCodec, cur.VideoCodec},
-		{"audio", strings.TrimSpace(prev.AudioCodec + " " + prev.Channels), strings.TrimSpace(cur.AudioCodec + " " + cur.Channels)},
+	size := func(n int64) string {
+		if n <= 0 {
+			return ""
+		}
+		return strconv.FormatInt(n, 10)
+	}
+	for _, f := range []struct {
+		what, from, to string
+		known          bool // a value before is needed to call it a change
+	}{
+		{"resolution", prev.Resolution, cur.Resolution, false},
+		{"source", prev.Source, cur.Source, true},
+		{"hdr", prev.HDR, cur.HDR, false},
+		{"video", videoName(prev.VideoCodec), videoName(cur.VideoCodec), false},
+		{"audio", strings.TrimSpace(prev.AudioCodec + " " + prev.Channels), strings.TrimSpace(cur.AudioCodec + " " + cur.Channels), false},
+		{"size", size(prev.Size), size(cur.Size), true},
 	} {
-		if f.from != f.to && f.to != "" {
+		if !strings.EqualFold(f.from, f.to) && f.to != "" && (f.from != "" || !f.known) {
 			out = append(out, diff{What: f.what, From: f.from, To: f.to})
 		}
 	}
@@ -190,11 +218,15 @@ func sigMedia(sig string) map[string]calendar.Media {
 	}
 	for _, line := range strings.Split(sig, "\n") {
 		f := strings.Split(line, "|")
-		if len(f) != 8 {
+		if len(f) == 8 { // before source and size were kept
+			f = append(f, "", "0")
+		}
+		if len(f) != 10 {
 			continue
 		}
+		size, _ := strconv.ParseInt(f[9], 10, 64)
 		out[f[0]] = calendar.Media{Resolution: f[1], HDR: f[2], VideoCodec: f[3], AudioCodec: f[4], Channels: f[5],
-			AudioLangs: split(f[6]), Subs: split(f[7])}
+			AudioLangs: split(f[6]), Subs: split(f[7]), Source: f[8], Size: size}
 	}
 	return out
 }

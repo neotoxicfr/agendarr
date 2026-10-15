@@ -1,22 +1,17 @@
 name: CI
 
+# Pull requests run it here; pushes to dev and release tags run it through
+# docker-publish.yml, which publishes nothing unless it passes.
 on:
-  push:
-    branches: [dev]
-    paths-ignore:
-      - "**.md"
-      - "LICENSE"
-      - ".gitignore"
-      - ".github/dependabot.yml"
-      - ".github/ISSUE_TEMPLATE/**"
   pull_request:
     branches: [main, dev]
     paths-ignore:
       - "**.md"
       - "LICENSE"
-      - ".gitignore"
+      - "docs/**"
       - ".github/dependabot.yml"
       - ".github/ISSUE_TEMPLATE/**"
+  workflow_call:
 
 permissions:
   contents: read
@@ -52,7 +47,8 @@ jobs:
           version: v2.14.0
 
       # Pinned rather than via golang/govulncheck-action, which installs
-      # govulncheck@latest on every run. Bump alongside the Go version.
+      # govulncheck@latest on every run. Bump alongside the Go version, after
+      # the same week of cooldown as Dependabot.
       - name: Vulnerability scan
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
@@ -74,4 +70,7 @@ jobs:
           scanners: "vuln,secret,misconfig"
           format: "table"
           severity: "CRITICAL,HIGH"
+          # A vulnerability with no fixed version yet cannot be acted on; it
+          # must not hold back every image until upstream ships one.
+          ignore-unfixed: true
           exit-code: "1"

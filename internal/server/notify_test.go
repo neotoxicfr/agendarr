@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -31,7 +32,7 @@ func TestReleaseWatcher(t *testing.T) {
 		mu.Lock()
 		defer mu.Unlock()
 		if down {
-			http.Error(w, "down", 500)
+			http.Error(w, "down", http.StatusInternalServerError)
 			return
 		}
 		io.WriteString(w, "["+movie+"]")
@@ -258,6 +259,15 @@ func TestUpgradeDiffs(t *testing.T) {
 	if d := upgradeDiffs("Radarr|1080p||x264|AAC|2.0|en|", a); d != nil {
 		t.Fatalf("old name-keyed signature: %+v", d)
 	}
+	// x265 and h265 are one codec; only what differs is listed.
+	if d := upgradeDiffs("1|1080p||x265|EAC3|5.1|en||WEB-DL|2000000000", "1|1080p||h265|EAC3|5.1|en||WEBRip|2500000000"); len(d) != 2 ||
+		!reflect.DeepEqual(d, []diff{{What: "source", From: "WEB-DL", To: "WEBRip"}, {What: "size", From: "2000000000", To: "2500000000"}}) {
+		t.Fatalf("source and size: %+v", d)
+	}
+	// An older signature knew no source nor size: no difference there.
+	if d := upgradeDiffs(a, "1|1080p||h264|AAC|2.0|en||Blu-ray|3000000000"); d != nil {
+		t.Fatalf("older signature: %+v", d)
+	}
 }
 
 // Each person hears only about the kinds they picked.
@@ -301,7 +311,7 @@ func TestDeleteNotifications(t *testing.T) {
 		ids = append(ids, id)
 	}
 	post := func(c *http.Client, body string) int {
-		req, _ := http.NewRequest("POST", h.http.URL+"/api/notifications/delete", strings.NewReader(body))
+		req, _ := http.NewRequest(http.MethodPost, h.http.URL+"/api/notifications/delete", strings.NewReader(body))
 		req.Header.Set("Origin", h.http.URL)
 		res, err := c.Do(req)
 		if err != nil {

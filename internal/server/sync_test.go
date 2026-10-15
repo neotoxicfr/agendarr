@@ -66,7 +66,7 @@ func TestICSFeed(t *testing.T) {
 		t.Fatalf("feed: %d %.200s", code, body)
 	}
 	// Prefs apply: movies off leaves no movie in the feed.
-	req, _ := http.NewRequest("PUT", h.http.URL+"/api/prefs", strings.NewReader(`{"mine":[],"filters":{"movies":false,"episodes":true}}`))
+	req, _ := http.NewRequest(http.MethodPut, h.http.URL+"/api/prefs", strings.NewReader(`{"mine":[],"filters":{"movies":false,"episodes":true}}`))
 	req.Header.Set("Origin", h.http.URL)
 	r2, _ := friend.Do(req)
 	r2.Body.Close()
@@ -85,7 +85,7 @@ func TestICSFeed(t *testing.T) {
 }
 
 func httptestRequest(h *harness) *http.Request {
-	r, _ := http.NewRequest("GET", h.http.URL+"/sync", nil)
+	r, _ := http.NewRequest(http.MethodGet, h.http.URL+"/sync", nil)
 	r.Host = strings.TrimPrefix(h.http.URL, "http://")
 	return r
 }

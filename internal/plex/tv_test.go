@@ -14,7 +14,7 @@ func fakeTV(t *testing.T) *Client {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/v2/pins", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("strong") != "true" || r.Header.Get("X-Plex-Client-Identifier") != "cid" {
-			http.Error(w, "bad", 400)
+			http.Error(w, "bad", http.StatusBadRequest)
 			return
 		}
 		w.Write([]byte(`{"id":42,"code":"abc","authToken":null}`))
@@ -24,7 +24,7 @@ func fakeTV(t *testing.T) *Client {
 	})
 	mux.HandleFunc("GET /api/v2/user", func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-Plex-Token") != "tok" {
-			w.WriteHeader(401)
+			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 		w.Write([]byte(`{"id":7,"uuid":"u","username":"neo","title":"neo","email":"n@x","thumb":"https://plex.tv/t.png"}`))

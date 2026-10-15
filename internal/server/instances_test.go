@@ -18,7 +18,7 @@ import (
 
 func (h *harness) form(c *http.Client, path string, v url.Values) *http.Response {
 	h.t.Helper()
-	req, _ := http.NewRequest("POST", h.http.URL+path, strings.NewReader(v.Encode()))
+	req, _ := http.NewRequest(http.MethodPost, h.http.URL+path, strings.NewReader(v.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Origin", h.http.URL)
 	res, err := c.Do(req)
@@ -41,7 +41,7 @@ func fakeArr(t *testing.T) *httptest.Server {
 		name := strings.ToUpper(app[:1]) + app[1:]
 		mux.HandleFunc("GET /"+app+"/api/v3/system/status", func(w http.ResponseWriter, r *http.Request) {
 			if r.Header.Get("X-Api-Key") != app+"-key" {
-				w.WriteHeader(401)
+				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
 			j(w, `{"appName":"`+name+`","version":"5.0"}`)

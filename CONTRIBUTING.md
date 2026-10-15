@@ -49,15 +49,22 @@ chore(ci): add job timeouts
 ```
 
 Pull requests target `dev` and are **squash-merged** (the only method enabled).
-`main` is then fast-forwarded to `dev` at release time.
+At release time, `dev` is squash-merged into `main` and the tag is pushed.
+
+## CI
+
+- `ci.yml`: build, race tests, golangci-lint, govulncheck and a Trivy scan, on
+  every pull request.
+- `docker-publish.yml`: on a push to `dev` it runs `ci.yml`, then publishes
+  `:dev` (amd64). On a `v*` tag it runs `ci.yml`, publishes `X.Y.Z` and
+  `latest` (amd64, arm64, arm/v7), then creates the GitHub release. Nothing is
+  published on a red run.
 
 ## Before pushing
 
 ```bash
-make build
-make test-race        # or: make test, if you have no C toolchain
-make lint
-make vuln
+make check            # build, test-race, lint, vuln: what CI runs
+make test             # instead of test-race, if you have no C toolchain
 ```
 
 If you changed anything under `.github/workflows/`, run `actionlint`. Every
@@ -79,5 +86,6 @@ image tags do not (`ghcr.io/neotoxicfr/agendarr:1.2.3`), because
 `docker/metadata-action` strips it — a `:v1.2.3` pull command points at a tag
 that does not exist.
 
-Release notes are written by hand: `## <emoji> <Category>` sections and a
-`### Docker` block with the pull commands. No auto-generated content.
+Release notes are written by hand and added to the release the workflow
+creates: `## <emoji> <Category>` sections and a `### Docker` block with the
+pull commands. No auto-generated content.

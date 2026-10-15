@@ -62,6 +62,12 @@ type Movie struct {
 type File struct {
 	Size      int64      `json:"size"`
 	MediaInfo *MediaInfo `json:"mediaInfo"` // read from the file (ffprobe)
+	Quality   struct {
+		Quality struct {
+			Source   string `json:"source"`   // webdl, webrip, bluray (Radarr); web, webRip, blurayRaw (Sonarr)
+			Modifier string `json:"modifier"` // remux, brdisk (Radarr)
+		} `json:"quality"`
+	} `json:"quality"`
 }
 
 // MediaInfo is what Radarr and Sonarr read from the file. Languages are

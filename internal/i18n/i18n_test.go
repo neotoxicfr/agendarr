@@ -1,6 +1,7 @@
 package i18n
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"testing/fstest"
@@ -28,7 +29,7 @@ func TestPickAndFallback(t *testing.T) {
 		{"xx", "en", "en"},
 	}
 	for _, tc := range cases {
-		r := httptest.NewRequest("GET", "/", nil)
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
 		r.Header.Set("Accept-Language", tc.accept)
 		if tc.cookie != "" {
 			r.Header.Set("Cookie", CookieName+"="+tc.cookie)

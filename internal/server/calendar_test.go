@@ -19,7 +19,7 @@ func TestCalendarAPIAndPosters(t *testing.T) {
 	var posterHits atomic.Int32
 	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-Api-Key") != "k" {
-			w.WriteHeader(401)
+			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 		switch r.URL.Path {
@@ -54,7 +54,7 @@ func TestCalendarAPIAndPosters(t *testing.T) {
 		b, _ := io.ReadAll(res.Body)
 		return res, b
 	}
-	if res, _ := get(owner, "/api/calendar?from=2026-10-01&to=2026-12-31"); res.StatusCode != 400 {
+	if res, _ := get(owner, "/api/calendar?from=2026-10-01&to=2026-12-31"); res.StatusCode != http.StatusBadRequest {
 		t.Fatalf("range too wide: %d", res.StatusCode)
 	}
 	res, body := get(owner, "/api/calendar?from=2026-10-01&to=2026-10-31")
@@ -64,7 +64,7 @@ func TestCalendarAPIAndPosters(t *testing.T) {
 		}
 		Configured bool
 	}
-	if err := json.Unmarshal(body, &cal); err != nil || res.StatusCode != 200 {
+	if err := json.Unmarshal(body, &cal); err != nil || res.StatusCode != http.StatusOK {
 		t.Fatalf("calendar: %d %s", res.StatusCode, body)
 	}
 	if !cal.Configured || len(cal.Events) != 1 || cal.Events[0].Release != "digital" || cal.Events[0].Poster == "" {
@@ -74,7 +74,7 @@ func TestCalendarAPIAndPosters(t *testing.T) {
 	// Posters: proxied with the key, cached on disk, second hit not upstream.
 	for i := 0; i < 2; i++ {
 		res, body = get(owner, cal.Events[0].Poster+"?w=500")
-		if res.StatusCode != 200 || string(body) != "JPEG" || res.Header.Get("Content-Type") != "image/jpeg" {
+		if res.StatusCode != http.StatusOK || string(body) != "JPEG" || res.Header.Get("Content-Type") != "image/jpeg" {
 			t.Fatalf("poster: %d %q", res.StatusCode, body)
 		}
 	}
@@ -84,12 +84,12 @@ func TestCalendarAPIAndPosters(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(h.srv.cfg.DataDir, "cache", "posters", "1-5-500.jpg")); err != nil {
 		t.Fatalf("poster cache: %v", err)
 	}
-	if res, _ = get(owner, "/img/1/99"); res.StatusCode != 404 {
+	if res, _ = get(owner, "/img/1/99"); res.StatusCode != http.StatusNotFound {
 		t.Fatalf("missing poster: %d", res.StatusCode)
 	}
 	// Anonymous: no calendar, no posters.
 	anon := &http.Client{}
-	if res, _ = get(anon, "/api/calendar?from=2026-10-01&to=2026-10-31"); res.StatusCode != 401 {
+	if res, _ = get(anon, "/api/calendar?from=2026-10-01&to=2026-10-31"); res.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("anonymous api: %d", res.StatusCode)
 	}
 }

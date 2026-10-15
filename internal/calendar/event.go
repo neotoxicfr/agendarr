@@ -79,6 +79,7 @@ type Media struct {
 	AudioLangs []string `json:"audioLangs,omitempty"`
 	Subs       []string `json:"subs,omitempty"`
 	Size       int64    `json:"size,omitempty"`
+	Source     string   `json:"-"` // WEB-DL, Blu-ray: the release, for the upgrade notices only
 }
 
 // ArrRef is where a movie or series lives in one instance's web UI.
