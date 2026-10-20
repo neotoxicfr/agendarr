@@ -24,7 +24,7 @@ RUN V="$VERSION"; [ "$V" = dev ] && [ -n "$REVISION" ] && V="dev-$(echo "$REVISI
 # distroless/static rather than scratch: agendarr calls plex.tv over HTTPS and
 # needs a CA bundle, and time zones for the calendar. Still no shell, no
 # package manager, and a non-root user.
-FROM gcr.io/distroless/static-debian13:nonroot@sha256:e2e927ec666bae08560abb3c55d0659eceabb657f56b6782ab500a9fc7f555e3
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:516757106de35205efb70b91ba03f6f1298424a0678c603255cf2852a7000087
 COPY --from=build /out/agendarr /agendarr
 # /data belongs to nonroot so freshly created named volumes are writable.
 COPY --from=build --chown=nonroot:nonroot /out/data /data
