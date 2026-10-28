@@ -244,6 +244,7 @@ app can't work out by itself:
 | `AGENDARR_LISTEN` | `:8080` | HTTP listen address |
 | `AGENDARR_DATA_DIR` | `/data` | Database, encryption key, poster cache |
 | `AGENDARR_SECURE_COOKIES` | `true` when the base URL is https | Force the `Secure` cookie flag on or off |
+| `AGENDARR_STATUS_TOKEN` | unset | Opens `GET /api/status` to a dashboard (Homepage, Homarr…) sending this key as `Authorization: Bearer` or `X-Api-Key`; at least 32 characters (`openssl rand -hex 32`). The JSON gives the version, releases today and this week, failing instances and the next releases. |
 | `TZ` | UTC | Server time zone (logs). Each viewer sees times in their own time zone. |
 
 ## Updating and backups

@@ -179,6 +179,7 @@ func (s *Server) Handler() http.Handler {
 	bare.HandleFunc("GET /manifest.webmanifest", s.serveStaticFile("manifest.webmanifest", "application/manifest+json"))
 	bare.HandleFunc("GET /sw.js", s.serveServiceWorker)
 	bare.HandleFunc("GET /healthz", s.handleHealth)
+	bare.HandleFunc("GET /api/status", s.handleStatus)
 	bare.Handle("/", app)
 	return s.recoverer(securityHeaders(bare))
 }

@@ -25,6 +25,9 @@ type Config struct {
 	// PlexTVURL replaces https://plex.tv and https://clients.plex.tv. Only
 	// for test benches running a fake plex.tv; never set it in production.
 	PlexTVURL string
+	// StatusToken opens GET /api/status to a dashboard holding this key.
+	// Optional: without it the endpoint does not exist.
+	StatusToken string
 	// SecureCookies sets the Secure flag on cookies: on, unless BaseURL is
 	// plain http.
 	SecureCookies bool
@@ -40,6 +43,10 @@ func Load() (Config, error) {
 		SecureCookies: true,
 		PlexTVURL:     strings.TrimRight(os.Getenv("AGENDARR_PLEX_TV_URL"), "/"),
 		PlexServerURL: strings.TrimRight(os.Getenv("AGENDARR_PLEX_SERVER_URL"), "/"),
+		StatusToken:   strings.TrimSpace(os.Getenv("AGENDARR_STATUS_TOKEN")),
+	}
+	if c.StatusToken != "" && len(c.StatusToken) < 32 {
+		return c, fmt.Errorf("AGENDARR_STATUS_TOKEN: want at least 32 characters (openssl rand -hex 32)")
 	}
 	if c.BaseURL != "" {
 		u, err := url.Parse(c.BaseURL)
