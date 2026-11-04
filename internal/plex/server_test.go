@@ -78,3 +78,20 @@ func TestHDROf(t *testing.T) {
 		}
 	}
 }
+
+// Without a valid account Plex would answer with every account's history:
+// the call is refused before any request.
+func TestHistoryNeedsAccount(t *testing.T) {
+	hits := 0
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { hits++ }))
+	defer ts.Close()
+	s := &Server{BaseURL: ts.URL, HTTP: ts.Client()}
+	for _, id := range []int64{0, -1} {
+		if _, err := s.History(context.Background(), id, time.Time{}, 10); err == nil {
+			t.Fatalf("account %d: no error", id)
+		}
+	}
+	if hits != 0 {
+		t.Fatalf("%d requests sent", hits)
+	}
+}

@@ -474,9 +474,13 @@ func (s *Service) fetch(ctx context.Context, u store.User, src string) ([]string
 		if err != nil {
 			return nil, fmt.Errorf("%w: %w", ErrNoPlexServer, err)
 		}
-		account, _ := strconv.ParseInt(u.AccountID, 10, 64) // a Plex account id
+		account, err := strconv.ParseInt(u.AccountID, 10, 64) // a Plex account id
 		if u.IsOwner {
-			account = plex.OwnerAccountID
+			account, err = plex.OwnerAccountID, nil
+		}
+		if err != nil || account <= 0 {
+			// Never ask for no account: Plex would answer with everyone's history.
+			return nil, fmt.Errorf("%w: not a Plex account", ErrNoPlexServer)
 		}
 		var since time.Time
 		limit := 50000

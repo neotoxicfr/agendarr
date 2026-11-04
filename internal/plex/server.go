@@ -134,6 +134,10 @@ type Viewed struct {
 // History returns what accountID watched since since (zero: everything),
 // newest first, capped at limit entries.
 func (s *Server) History(ctx context.Context, accountID int64, since time.Time, limit int) ([]Viewed, error) {
+	// Without a valid account Plex would answer with every account's history.
+	if accountID <= 0 {
+		return nil, fmt.Errorf("plex history: invalid account id %d", accountID)
+	}
 	const page = 500
 	var out []Viewed
 	for start := 0; start < limit; start += page {
