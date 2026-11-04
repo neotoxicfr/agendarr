@@ -62,6 +62,27 @@ func (s *Server) jellyfinAt(base, token, device string) *jellyfin.Client {
 	return &jellyfin.Client{BaseURL: base, Token: token, DeviceID: device, Version: Version}
 }
 
+// jellyfinClient reads the bound Jellyfin server with its API key; nil on a
+// Plex install.
+func (s *Server) jellyfinClient(ctx context.Context) (*jellyfin.Client, error) {
+	if !s.setupDone(ctx) || !s.isJellyfin(ctx) {
+		return nil, nil
+	}
+	base, err := s.store.Setting(ctx, keyJFURL)
+	if err != nil {
+		return nil, err
+	}
+	sealed, err := s.store.Setting(ctx, keyJFKey)
+	if err != nil {
+		return nil, err
+	}
+	key, err := s.box.Open(sealed)
+	if err != nil || key == "" || base == "" {
+		return nil, errors.New("jellyfin: no server or API key")
+	}
+	return s.jellyfinAt(base, key, s.plex.ClientID), nil
+}
+
 // newDevice names one sign-in attempt: Jellyfin keeps a session per device.
 func (s *Server) newDevice() string {
 	b := make([]byte, 6)
@@ -113,6 +134,39 @@ func (s *Server) handleSetupJellyfin(w http.ResponseWriter, r *http.Request) {
 	s.sessions.Put(r.Context(), sessJFSetup, base)
 	s.sessions.Put(r.Context(), sessJFPublic, public)
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
+}
+
+// handleAdminJellyfin changes the Jellyfin server's addresses, kept only if
+// the server there is the same one (same id): moving it to another server
+// would point every account at strangers.
+func (s *Server) handleAdminJellyfin(w http.ResponseWriter, r *http.Request) {
+	base, okBase := httpURL(r.PostFormValue("url"))
+	public, okPublic := httpURL(r.PostFormValue("public"))
+	switch {
+	case !okBase || (r.PostFormValue("public") != "" && !okPublic):
+		s.flash(r, "err.jf_url")
+	default:
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+		info, err := s.jellyfinAt(base, "", s.plex.ClientID).PublicInfo(ctx)
+		id, _ := s.store.Setting(ctx, keyServerID)
+		switch {
+		case err != nil:
+			s.flash(r, "err.jf_unreachable")
+		case info.ID != id:
+			s.flash(r, "admin.jf_other_server")
+		default:
+			for k, v := range map[string]string{keyJFURL: base, keyJFPublic: public, keyServerName: info.Name} {
+				if err := s.store.SetSetting(ctx, k, v); err != nil {
+					s.fail(w, r, err)
+					return
+				}
+			}
+			s.resetLibrary()
+			s.flash(r, "admin.jf_saved")
+		}
+	}
+	http.Redirect(w, r, "/admin/instances", http.StatusSeeOther)
 }
 
 // httpURL keeps an absolute http(s) URL without a trailing slash.
@@ -263,6 +317,7 @@ func (s *Server) completeJellyfinSignIn(r *http.Request, base, device string, a 
 		}
 		s.ownerKnown.Store(true)
 		s.mediaKind.Store("jellyfin")
+		s.resetLibrary()
 		s.sessions.Remove(ctx, sessJFSetup)
 		s.sessions.Remove(ctx, sessJFPublic)
 		s.signIn(r, u.ID)

@@ -330,6 +330,7 @@ func (s *Server) claim(ctx context.Context, userID int64, res plex.Resource) err
 		return err
 	}
 	s.ownerKnown.Store(true)
+	s.resetLibrary()
 	return nil
 }
 

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/neotoxicfr/agendarr/internal/config"
 )
@@ -75,6 +76,16 @@ func (f *fakeJellyfin) handler() http.Handler {
 			}
 			f.keys++
 			w.WriteHeader(http.StatusNoContent)
+		case "GET /Users":
+			if !strings.Contains(r.Header.Get("Authorization"), `Token="the-key"`) {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			var out []string
+			for name, u := range jfUsers {
+				out = append(out, fmt.Sprintf(`{"Id":%q,"Name":%q,"Policy":{"IsAdministrator":%t,"IsDisabled":%t}}`, u.id, name, u.admin, f.disabled[name]))
+			}
+			io.WriteString(w, "["+strings.Join(out, ",")+"]")
 		case "GET /Auth/Keys":
 			io.WriteString(w, `{"Items":[{"AccessToken":"the-key","AppName":"Agendarr","DateCreated":"2026-11-04T00:00:00Z"}]}`)
 		default:
@@ -179,8 +190,18 @@ func TestJellyfinFirstRunAndSignIn(t *testing.T) {
 	if fu, err := h.srv.store.UserByAccount(ctx, "0534d2b6-24ff-479c-b4e2-d05fded41061"); err != nil || fu.IsAdmin || fu.Token != "" {
 		t.Fatalf("friend: %+v %v", fu, err)
 	}
-	// A disabled account, or the same account on another server, is refused.
+	// The hourly check signs out an account disabled on the server, never the owner.
+	if h.status(friend, "/settings") != http.StatusOK {
+		t.Fatal("friend not signed in")
+	}
+	f.mu.Lock()
 	f.disabled["friend"] = true
+	f.mu.Unlock()
+	h.srv.checkAccess(ctx, time.Now().Add(25*time.Hour))
+	if h.status(friend, "/settings") == http.StatusOK || h.status(owner, "/settings") != http.StatusOK {
+		t.Fatal("access check: disabled friend still in, or owner out")
+	}
+	// A disabled account, or the same account on another server, is refused.
 	if loc := h.redirectOf(h.client(), "/auth/jellyfin/password", url.Values{"username": {"friend"}, "password": {"pw-friend"}}); loc != "/login?e=no_access" {
 		t.Fatalf("disabled: %s", loc)
 	}

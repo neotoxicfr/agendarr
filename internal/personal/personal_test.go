@@ -3,11 +3,14 @@ package personal
 import (
 	"context"
 	"fmt"
+	"github.com/neotoxicfr/agendarr/internal/jellyfin"
 	"github.com/neotoxicfr/agendarr/internal/seerr"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -112,5 +115,54 @@ func TestSeerrJellyfinAccount(t *testing.T) {
 	other, _ := st.SignIn(ctx, store.Profile{AccountID: "11111111-2222-3333-4444-555555555555", Username: "other"}, time.Now())
 	if r := s.For(ctx, other, []string{SourceSeerr}); r.Errors[SourceSeerr] != Code(ErrNoSeerrUser) {
 		t.Fatalf("unknown: %+v", r)
+	}
+}
+
+// On a Jellyfin install the sources come from the server with its API key,
+// for the user's Jellyfin id: favorites, recently played series, watched.
+func TestJellyfinSources(t *testing.T) {
+	ctx := context.Background()
+	const friend = "0534d2b624ff479cb4e2d05fded41061"
+	file := func(w http.ResponseWriter, name string) {
+		b, err := os.ReadFile("../jellyfin/testdata/" + name + ".json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _ = w.Write(b)
+	}
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		switch {
+		case !strings.Contains(r.Header.Get("Authorization"), `Token="key"`):
+			w.WriteHeader(http.StatusUnauthorized)
+		case q.Get("ids") != "":
+			file(w, "series-by-id")
+		case q.Get("userId") != friend:
+			io.WriteString(w, `{"Items":[]}`)
+		case q.Get("filters") == "IsFavorite":
+			file(w, "favorites")
+		case q.Get("includeItemTypes") == "Episode":
+			file(w, "played-episodes")
+		default:
+			file(w, "played-movies")
+		}
+	}))
+	defer ts.Close()
+	st, err := store.OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	s := New(Deps{Store: st, Log: slog.New(slog.DiscardHandler),
+		Jellyfin: func(context.Context) (*jellyfin.Client, error) {
+			return &jellyfin.Client{BaseURL: ts.URL, Token: "key"}, nil
+		}})
+	// Played on 2026-11-04 (the bench); "watching" looks 90 days back from then.
+	s.now = func() time.Time { return time.Date(2026, 11, 5, 0, 0, 0, 0, time.UTC) }
+	u, _ := st.SignIn(ctx, store.Profile{AccountID: jellyfin.FormatID(friend), Username: "friend"}, time.Now())
+	for src, want := range map[string]string{SourceWatchlist: "tmdb:4247", SourceWatching: "tvdb:393201", SourceWatched: "tmdb:4247"} {
+		if r := s.For(ctx, u, []string{src}); !r.Keys[want] || len(r.Errors) > 0 {
+			t.Errorf("%s: %+v", src, r)
+		}
 	}
 }

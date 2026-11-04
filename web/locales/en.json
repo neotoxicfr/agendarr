@@ -382,5 +382,10 @@
   "jf:cal.why_no_seerr_user": "your Jellyfin account is not linked to any Seerr account.",
   "jf:cal.why_no_plex_server": "the Jellyfin server is not responding.",
   "jf:list.lead": "Everything you will be notified about: when it becomes available or a better version arrives. What you added with “Notify me” is removed here; the rest follows Seerr and Jellyfin.",
-  "jf:list.src_watchlist": "My Jellyfin favorites"
+  "jf:list.src_watchlist": "My Jellyfin favorites",
+  "admin.jf_title": "Jellyfin server",
+  "admin.jf_help": "Server %s. Change its addresses if it moved: it must stay the same server.",
+  "admin.jf_save": "Save",
+  "admin.jf_saved": "Jellyfin server addresses saved.",
+  "admin.jf_other_server": "This is not the same Jellyfin server: addresses not saved."
 }

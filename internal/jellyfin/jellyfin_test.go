@@ -203,3 +203,14 @@ func TestMapping(t *testing.T) {
 		t.Errorf("WebURL: %s", got)
 	}
 }
+
+// A network error must not carry the Quick Connect secret into the logs.
+func TestErrorsHideQuery(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	base := ts.URL
+	ts.Close() // nothing listens any more
+	_, err := (&Client{BaseURL: base}).Approved(context.Background(), "very-secret")
+	if err == nil || strings.Contains(err.Error(), "very-secret") {
+		t.Fatalf("error leaks the secret: %v", err)
+	}
+}

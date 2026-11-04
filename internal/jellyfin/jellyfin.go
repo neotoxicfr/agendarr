@@ -71,6 +71,12 @@ func (c *Client) do(ctx context.Context, method, path string, q url.Values, body
 	}
 	res, err := hc.Do(req)
 	if err != nil {
+		// A transport error carries the whole URL, Quick Connect secret
+		// included: keep only its cause, so logs never hold it.
+		var ue *url.Error
+		if errors.As(err, &ue) {
+			err = ue.Err
+		}
 		return fmt.Errorf("jellyfin: %s: %w", path, err)
 	}
 	defer res.Body.Close()

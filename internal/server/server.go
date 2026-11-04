@@ -191,6 +191,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /admin/users", s.requireAdmin(s.handleAdminUsers))
 	mux.HandleFunc("POST /admin/users/{id}/{action}", s.requireAdmin(s.handleAdminUserAction))
 	mux.HandleFunc("GET /admin/instances", s.requireAdmin(s.handleAdminInstances))
+	mux.HandleFunc("POST /admin/jellyfin", s.requireAdmin(s.onlyServer("jellyfin", s.handleAdminJellyfin)))
 	mux.HandleFunc("GET /admin/instances/new", s.requireAdmin(s.handleInstanceForm))
 	mux.HandleFunc("POST /admin/instances/new", s.requireAdmin(s.handleInstanceSave))
 	mux.HandleFunc("POST /admin/instances/test", s.requireAdmin(s.handleInstanceTest))

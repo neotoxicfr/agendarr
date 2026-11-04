@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/neotoxicfr/agendarr/internal/jellyfin"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -70,6 +71,9 @@ type Deps struct {
 	Seerrs func(ctx context.Context) ([]*seerr.Client, error)
 	// PlexServer returns a client for the bound Plex server (owner token).
 	PlexServer func(ctx context.Context) (*plex.Server, error)
+	// Jellyfin returns a client for the bound Jellyfin server (API key), or
+	// nil on a Plex install.
+	Jellyfin func(ctx context.Context) (*jellyfin.Client, error)
 	// PlexTV and UserToken serve the watchlist.
 	PlexTV    *plex.Client
 	UserToken func(u store.User) (string, error)
@@ -457,7 +461,39 @@ func (s *Service) syncedMedia(key string, e *mediaEntry) {
 // firstSyncWait bounds how long a request waits for a user's first sync.
 const firstSyncWait = 45 * time.Second
 
+// fetchJellyfin reads a source from Jellyfin with the server's API key: the
+// favorites stand in for the watchlist, and the play history gives the
+// series being watched and everything watched.
+func (s *Service) fetchJellyfin(ctx context.Context, jf *jellyfin.Client, u store.User, src string) ([]string, error) {
+	uid := strings.ReplaceAll(u.AccountID, "-", "")
+	var keys []string
+	var err error
+	switch src {
+	case SourceWatchlist:
+		keys, err = jf.Favorites(ctx, uid)
+	case SourceWatching:
+		keys, err = jf.Watching(ctx, uid, s.now().Add(-watchingWindow))
+	case SourceWatched:
+		keys, err = jf.Watched(ctx, uid)
+	default:
+		return nil, fmt.Errorf("unknown source %q", src)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrNoPlexServer, err)
+	}
+	return keys, nil
+}
+
 func (s *Service) fetch(ctx context.Context, u store.User, src string) ([]string, error) {
+	if s.d.Jellyfin != nil {
+		jf, err := s.d.Jellyfin(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %w", ErrNoPlexServer, err)
+		}
+		if jf != nil {
+			return s.fetchJellyfin(ctx, jf, u, src)
+		}
+	}
 	switch src {
 	case SourceWatchlist:
 		tok, err := s.d.UserToken(u)

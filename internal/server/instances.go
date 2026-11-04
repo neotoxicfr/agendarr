@@ -43,12 +43,20 @@ func (s *Server) handleAdminInstances(w http.ResponseWriter, r *http.Request) {
 	for _, i := range list {
 		groups[i.Kind] = append(groups[i.Kind], i)
 	}
-	s.render(w, r, http.StatusOK, "admin_instances", pageData{Title: "title.admin", Data: map[string]any{
+	data := map[string]any{
 		"Kinds":  kindOrder,
 		"Groups": groups,
 		"Names":  kindNames,
 		"Empty":  len(list) == 0,
-	}})
+	}
+	if s.isJellyfin(r.Context()) {
+		jf := map[string]string{}
+		for k, key := range map[string]string{"URL": keyJFURL, "Public": keyJFPublic, "Name": keyServerName} {
+			jf[k], _ = s.store.Setting(r.Context(), key)
+		}
+		data["Jellyfin"] = jf
+	}
+	s.render(w, r, http.StatusOK, "admin_instances", pageData{Title: "title.admin", Data: data})
 }
 
 func (s *Server) handleInstanceForm(w http.ResponseWriter, r *http.Request) {

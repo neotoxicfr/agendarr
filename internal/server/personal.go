@@ -23,6 +23,7 @@ func (s *Server) newPersonal() *personal.Service {
 		Log:        s.log,
 		Seerrs:     s.seerrClients,
 		PlexServer: s.plexServer,
+		Jellyfin:   s.jellyfinClient,
 		PlexTV:     s.plex,
 		UserToken:  func(u store.User) (string, error) { return s.box.Open(u.Token) },
 	})

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/neotoxicfr/agendarr/internal/calendar"
+	"github.com/neotoxicfr/agendarr/internal/jellyfin"
 	"github.com/neotoxicfr/agendarr/internal/plex"
 )
 
@@ -44,6 +45,14 @@ func (s *Server) plexKeys(ctx context.Context) map[string]string {
 	return l.keys
 }
 
+// resetLibrary drops the index age, so the next look rebuilds it at once:
+// the media server was just bound, or moved.
+func (s *Server) resetLibrary() {
+	s.plexLib.mu.Lock()
+	s.plexLib.at, s.plexLib.tried = time.Time{}, time.Time{}
+	s.plexLib.mu.Unlock()
+}
+
 // WarmPlexLibrary starts indexing the Plex library at startup, so the first
 // calendar after a restart already has its Plex links and tracks.
 func (s *Server) WarmPlexLibrary(ctx context.Context) { s.plexKeys(ctx) }
@@ -52,9 +61,17 @@ func (s *Server) buildPlexKeys(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	var keys map[string]string
-	srv, err := s.plexServer(ctx)
-	if err == nil {
-		keys, err = srv.Library(ctx)
+	var err error
+	if s.isJellyfin(ctx) {
+		var jf *jellyfin.Client
+		if jf, err = s.jellyfinClient(ctx); err == nil {
+			keys, err = jf.Library(ctx)
+		}
+	} else {
+		var srv *plex.Server
+		if srv, err = s.plexServer(ctx); err == nil {
+			keys, err = srv.Library(ctx)
+		}
 	}
 	l := &s.plexLib
 	l.mu.Lock()
@@ -72,6 +89,16 @@ func (s *Server) buildPlexKeys(ctx context.Context) {
 func (s *Server) addLinks(ctx context.Context, events []calendar.Event, admin bool) {
 	lib := s.plexKeys(ctx)
 	machine, _ := s.store.Setting(ctx, keyServerID)
+	// On Jellyfin a link needs the web client's address: the public one if
+	// set, else the one agendarr reaches.
+	webURL := plex.WebURL
+	if s.isJellyfin(ctx) {
+		base, _ := s.store.Setting(ctx, keyJFPublic)
+		if base == "" {
+			base, _ = s.store.Setting(ctx, keyJFURL)
+		}
+		webURL = func(server, item string) string { return jellyfin.WebURL(base, server, item) }
+	}
 	public := map[int64]string{}
 	if admin {
 		if list, err := s.store.Instances(ctx); err == nil {
@@ -87,7 +114,7 @@ func (s *Server) addLinks(ctx context.Context, events []calendar.Event, admin bo
 		if machine != "" {
 			for _, k := range e.Keys {
 				if rk, ok := lib[k]; ok {
-					e.MediaURL = plex.WebURL(machine, rk)
+					e.MediaURL = webURL(machine, rk)
 					break
 				}
 			}
@@ -184,6 +211,15 @@ func (s *Server) seasonTracks(ctx context.Context, showKey string, season int, l
 	if len(todo) == 0 {
 		return out, nil
 	}
+	if s.isJellyfin(ctx) {
+		eps, err := s.jellyfinSeason(ctx, showKey, season)
+		for _, ep := range todo {
+			if v := eps[ep]; len(v) > 0 {
+				out[strconv.Itoa(ep)] = v
+			}
+		}
+		return out, err
+	}
 	srv, err := s.plexServer(ctx)
 	if err != nil {
 		return out, err
@@ -267,6 +303,17 @@ func (s *Server) itemTracks(ctx context.Context, rk string, season, episode int,
 	v, err, _ := s.tracksSF.Do(cacheKey, func() (any, error) {
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
 		defer cancel()
+		if s.isJellyfin(ctx) {
+			if series {
+				eps, err := s.jellyfinSeason(ctx, rk, season)
+				return eps[episode], err
+			}
+			jf, err := s.jellyfinClient(ctx)
+			if err != nil {
+				return nil, err
+			}
+			return jf.Tracks(ctx, rk)
+		}
 		srv, err := s.plexServer(ctx)
 		if err != nil {
 			return nil, err
@@ -285,4 +332,25 @@ func (s *Server) itemTracks(ctx context.Context, rk string, season, episode int,
 	versions := v.([]plex.Version)
 	s.storeTracks(cacheKey, versions)
 	return versions, nil
+}
+
+// jellyfinSeason reads the tracks of a whole season in one call and caches
+// each episode, as the Plex path does one by one.
+func (s *Server) jellyfinSeason(ctx context.Context, seriesID string, season int) (map[int][]plex.Version, error) {
+	jf, err := s.jellyfinClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+	eps, err := jf.SeasonTracks(ctx, seriesID, season)
+	if err != nil {
+		return nil, err
+	}
+	out := map[int][]plex.Version{}
+	for _, e := range eps {
+		if e.Season == season {
+			out[e.Episode] = e.Versions
+			s.storeTracks(trackKey(seriesID, season, e.Episode), e.Versions)
+		}
+	}
+	return out, nil
 }

@@ -2,6 +2,20 @@
   <h1>{{index .T "title.admin"}}</h1>
   {{template "admin_nav" .}}
   <p class="lead">{{index .T "inst.lead"}}</p>
+  {{with .Data.Jellyfin}}
+  <section class="group" aria-labelledby="h-jellyfin">
+    <div class="group-head"><h2 id="h-jellyfin">{{index $.T "admin.jf_title"}}</h2></div>
+    <form class="form" method="post" action="/admin/jellyfin">
+      <p class="help jf-help">{{printf (index $.T "admin.jf_help") .Name}}</p>
+      <div class="field"><label for="jf-url">{{index $.T "login.setup_jf_url"}}</label>
+        <input id="jf-url" name="url" type="url" inputmode="url" value="{{.URL}}" spellcheck="false" required></div>
+      <div class="field"><label for="jf-public">{{index $.T "login.setup_jf_public"}}</label>
+        <input id="jf-public" name="public" type="url" inputmode="url" value="{{.Public}}" spellcheck="false" aria-describedby="jf-public-help">
+        <p class="help" id="jf-public-help">{{index $.T "login.setup_jf_public_help"}}</p></div>
+      <button class="btn btn-primary" type="submit">{{index $.T "admin.jf_save"}}</button>
+    </form>
+  </section>
+  {{end}}
   {{if .Data.Empty}}
   <div class="welcome" role="note">
     <h2>{{index .T "inst.welcome_title"}}</h2>
