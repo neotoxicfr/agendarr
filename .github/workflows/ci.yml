@@ -62,15 +62,15 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # The Trivy image, pinned by digest, rather than trivy-action: the action
+      # installs the binary from get.trivy.dev, whose outage on 04/11/2026
+      # blocked a release. Bump the tag and digest by hand (docker buildx
+      # imagetools inspect ghcr.io/aquasecurity/trivy:<version>).
+      # --ignore-unfixed: a vulnerability with no fixed version yet cannot be
+      # acted on; it must not hold back every image until upstream ships one.
       - name: Run Trivy scanner
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # 0.36.0
-        with:
-          scan-type: "fs"
-          scan-ref: "."
-          scanners: "vuln,secret,misconfig"
-          format: "table"
-          severity: "CRITICAL,HIGH"
-          # A vulnerability with no fixed version yet cannot be acted on; it
-          # must not hold back every image until upstream ships one.
-          ignore-unfixed: true
-          exit-code: "1"
+        run: >-
+          docker run --rm -v "$PWD:/src:ro"
+          ghcr.io/aquasecurity/trivy:0.70.0@sha256:be1190afcb28352bfddc4ddeb71470835d16462af68d310f9f4bca710961a41e
+          fs --scanners vuln,secret,misconfig --severity CRITICAL,HIGH
+          --ignore-unfixed --exit-code 1 /src
