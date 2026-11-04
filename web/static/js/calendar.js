@@ -6,15 +6,13 @@
   if (!root) return;
 
   // --- i18n ------------------------------------------------------------------
-  const I18N = (() => {
-    try { return JSON.parse(document.getElementById("i18n").textContent); } catch { return {}; }
-  })();
+  // I18N, h and sendJSON come from app.js (loaded first).
   const t = (key, vars) => {
     let s = I18N[key] || key;
     if (vars) for (const [k, v] of Object.entries(vars)) s = s.split(`{${k}}`).join(v);
     return s;
   };
-  const lang = document.documentElement.lang || "fr";
+  const lang = pageLang;
   const fmt = (opts) => new Intl.DateTimeFormat(lang, opts);
   const fDayLong = fmt({ weekday: "long", day: "numeric", month: "long" });
   const fDayFull = fmt({ weekday: "long", day: "numeric", month: "long", year: "numeric" });
@@ -62,7 +60,6 @@
     mine: store.get("mine", []),
     shortcuts: store.get("shortcuts", true),
     sites: store.get("sites", ["tmdb", "imdb"]),
-    formats: store.get("formats", "logos"),
     agendaWeeks: 5,
     selected: null, // phone month view: selected day key
   };
@@ -75,18 +72,7 @@
   const detailBody = $("[data-detail-body]");
   const isAdmin = root.dataset.admin === "true";
 
-  const el = (tag, attrs = {}, ...children) => {
-    const n = document.createElement(tag);
-    for (const [k, v] of Object.entries(attrs)) {
-      if (v === false || v == null) continue;
-      if (k === "class") n.className = v;
-      else if (k === "text") n.textContent = v;
-      else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
-      else n.setAttribute(k, v === true ? "" : v);
-    }
-    for (const c of children.flat()) if (c != null && c !== false) n.append(c);
-    return n;
-  };
+  const el = h;
 
   // --- data --------------------------------------------------------------------
   // Slices are kept five minutes (the server refreshes Radarr and Sonarr at
@@ -593,14 +579,10 @@
   // only makes the first paint instant.
   let saveTimer = 0;
   function savePrefs() {
-    store.set("shortcuts", state.shortcuts);
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
-      fetch("/api/prefs", {
-        method: "PUT", headers: { "Content-Type": "application/json" },
-        // Only the calendar's own part: the settings page saves the rest.
-        body: JSON.stringify({ mine: state.mine, filters: state.filters }),
-      }).catch(() => {});
+      // Only the calendar's own part: the settings page saves the rest.
+      sendJSON("PUT", "/api/prefs", { mine: state.mine, filters: state.filters }).catch(() => {});
     }, 400);
   }
   function syncControls() {
@@ -674,7 +656,7 @@
     if (fromDay && dayContent) {
       const day = dayContent;
       content.prepend(el("button", { type: "button", class: "btn btn-ghost sheet-back", text: "‹ " + t("cal.back"),
-        onclick: () => show(day, { isDay: true }) }));
+        onclick: () => show(day) }));
     }
     detailBody.replaceChildren(content);
     if (!wasOpen) dialog.showModal();
@@ -690,7 +672,7 @@
 
   // File details from Radarr/Sonarr: one block per instance holding a file.
   // Formats, flags and logos are shared with the bell (formats.js).
-  const { langName, langBadge, langList, codecName, badges, hdrNames, videoName, audioBadges } = window.AgFormats;
+  const { langBadge, langList, codecName, badges, hdrNames, videoName, audioBadges } = window.AgFormats;
   const fSize = new Intl.NumberFormat(lang, { style: "unit", unit: "gigabyte", maximumFractionDigits: 1 });
   // Tracks line up in a grid: format | flag | title and tags.
   const trackItem = (x, audio) => {
@@ -756,8 +738,7 @@
     const follow = el("button", { class: "btn btn-follow", type: "button", "aria-pressed": String(isFollowed(e)), title: t("notif.follow_help"),
       onclick: async (ev) => {
         const b = ev.currentTarget, on = b.getAttribute("aria-pressed") !== "true";
-        const res = await fetch("/api/follows", { method: "PUT", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ group: e.group, title: e.title, on }) }).catch(() => null);
+        const res = await sendJSON("PUT", "/api/follows", { group: e.group, title: e.title, on }).catch(() => null);
         if (!res || !res.ok) { // UX-04: say it, do not pretend
           followLabel.textContent = t("settings.failed");
           setTimeout(() => { followLabel.textContent = t("notif.follow"); }, 3000);
@@ -941,7 +922,7 @@
     state.filters = normFilters(Object.assign(state.filters, p.filters || {}));
     if (typeof p.shortcuts === "boolean") { state.shortcuts = p.shortcuts; store.set("shortcuts", state.shortcuts); }
     if (Array.isArray(p.sites)) { state.sites = p.sites; store.set("sites", state.sites); }
-    if (p.formats === "text" || p.formats === "logos") { state.formats = p.formats; store.set("formats", state.formats); window.AgFormats.setMode(p.formats); }
+    if (p.formats === "text" || p.formats === "logos") { store.set("formats", p.formats); window.AgFormats.setMode(p.formats); }
     store.set("filters", state.filters);
     store.set("mine", state.mine);
     syncControls();

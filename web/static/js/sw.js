@@ -57,8 +57,10 @@ self.addEventListener("fetch", (e) => {
   }
   if (url.pathname.startsWith("/img/")) {
     // Serve the cached poster at once, refresh it behind (a poster changed
-    // in Radarr shows up on the next visit).
+    // in Radarr shows up on the next visit). /img is cacheable for a day, so
+    // a fresher copy is not revalidated: that only rewrote the same bytes.
     e.respondWith(caches.open(IMG).then((c) => c.match(req)).then((hit) => {
+      if (hit && Date.now() - Date.parse(hit.headers.get("Date")) < 86400e3) return hit;
       const net = fetch(req).then((res) => {
         if (res.ok) e.waitUntil(put(IMG, req, res.clone(), 300));
         return res;

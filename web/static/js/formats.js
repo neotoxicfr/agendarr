@@ -79,5 +79,5 @@ window.AgFormats = (() => {
     const name = /^(dca|dts)$/i.test(base) && DTS[profile.toLowerCase()] ? DTS[profile.toLowerCase()] : codecName(base);
     return [name, atmos ? "Atmos" : "", LAYOUT[channels] || channels];
   };
-  return { setMode(m) { mode = m === "text" ? "text" : "logos"; }, langName, flagOf, langBadge, langList, codecName, badge, badges, hdrNames, videoName, audioBadges };
+  return { setMode(m) { mode = m === "text" ? "text" : "logos"; }, langBadge, langList, codecName, badge, badges, hdrNames, videoName, audioBadges };
 })();

@@ -153,6 +153,7 @@ const h = (tag, attrs = {}, ...kids) => {
 };
 const sendJSON = (method, url, body) => fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 const pageLang = document.documentElement.lang || "fr";
+const fold = (s) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 
 // Web Push on this device: subscribe, unsubscribe, and drop the subscription
 // on sign-out so the next person on a shared device does not get it (SEC-02).
@@ -242,8 +243,9 @@ const notifView = (() => {
     "aria-label": `${label} : ${title}`, title: label, onclick }, icon(name));
   // actions: { ack, unfollow, remove } callbacks; select: { checked, onchange }.
   function item(n, actions = {}, select = null) {
-    let d = {};
-    try { d = JSON.parse(n.detail); } catch { /* keep empty */ }
+    // Parsed once per notification: the page search re-renders on every keystroke.
+    if (!n._d) { try { n._d = JSON.parse(n.detail) || {}; } catch { n._d = {}; } }
+    const d = n._d;
     return h("li", { class: `notif${n.read ? "" : " is-unread"}${select ? " is-selectable" : ""}`, "data-id": n.id },
       select ? h("input", { type: "checkbox", class: "notif-check", "aria-label": tf("notif.select", { title: n.title }), checked: select.checked,
         onchange: (ev) => select.onchange(ev.target.checked) }) : null,
@@ -318,16 +320,18 @@ if (bell) {
       else if (withList) renderListSoon = true;
     } catch { /* offline */ }
   }
-  async function ack(ids) {
-    await sendJSON("POST", "/api/notifications/read", { ids }).catch(() => {});
+  async function reload() {
     const res = await fetch("/api/notifications").catch(() => null);
     if (res && res.ok) { state = await res.json(); renderCount(); renderList(); }
+  }
+  async function ack(ids) {
+    await sendJSON("POST", "/api/notifications/read", { ids }).catch(() => {});
+    await reload();
   }
   async function removeOne(n) {
     const res = await sendJSON("POST", "/api/notifications/delete", { ids: [n.id] }).catch(() => null);
     if (!res || !res.ok) return;
-    const fresh = await fetch("/api/notifications").catch(() => null);
-    if (fresh && fresh.ok) { state = await fresh.json(); renderCount(); renderList(); }
+    await reload();
   }
   async function unfollow(n) {
     const res = await sendJSON("PUT", "/api/follows", { group: n.group, title: n.title, on: false }).catch(() => null);
@@ -450,7 +454,6 @@ if (mylist) {
 
   const persist = () => { try { localStorage.setItem("agendarr.list", JSON.stringify({ kind: st.kind, state: st.state, sort: st.sort, src: st.src })); } catch { /* private mode */ } };
   const stateOf = (it) => (it.hasFile ? "available" : "upcoming"); // same words as the calendar (COH-02)
-  const fold = (s) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 
   function sync() {
     $("[data-list-q]").value = st.q;
@@ -564,7 +567,6 @@ if (npage) {
   try { Object.assign(st, JSON.parse(localStorage.getItem("agendarr.notifs")) || {}, { q: "" }); } catch { /* private mode */ }
   let items = [];
   const selected = new Set();
-  const fold = (s) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
   const shown = () => {
     const q = fold(st.q.trim());
     const by = {
