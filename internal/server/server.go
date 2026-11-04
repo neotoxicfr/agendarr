@@ -44,11 +44,16 @@ type Server struct {
 	static  fs.FS
 	started time.Time
 
-	i18n       *i18n.Catalog
-	jsLabels   map[string]map[string]string // per language, built once: the catalog is immutable
+	i18n *i18n.Catalog
+	// labels and jsLabels, per media server ([0] Plex, [1] Jellyfin) and
+	// language, built once: the catalog is immutable. The Jellyfin set lays
+	// each "jf:<key>" label over <key>, for the wording that names Plex.
+	labels     [2]map[string]map[string]string
+	jsLabels   [2]map[string]map[string]string
 	sessions   *scs.SessionManager
 	plex       *plex.Client
-	ownerKnown atomic.Bool // setup completed; never goes back to false
+	ownerKnown atomic.Bool  // setup completed; never goes back to false
+	mediaKind  atomic.Value // keyMediaServer once set up (string)
 
 	pinLimit           limiter
 	onInstancesChanged func()
@@ -78,17 +83,29 @@ func New(cfg config.Config, st *store.Store, box *secret.Box, log *slog.Logger) 
 	if s.i18n, err = i18n.Load(web.FS, "locales"); err != nil {
 		return nil, err
 	}
-	s.jsLabels = map[string]map[string]string{}
-	for _, lang := range s.i18n.Langs() {
-		m := map[string]string{}
-		for k, v := range s.i18n.Map(lang) {
-			for _, p := range jsPrefixes {
-				if strings.HasPrefix(k, p) {
-					m[k] = v
+	for jf := range 2 {
+		s.labels[jf], s.jsLabels[jf] = map[string]map[string]string{}, map[string]map[string]string{}
+		for _, lang := range s.i18n.Langs() {
+			all, js := map[string]string{}, map[string]string{}
+			for k, v := range s.i18n.Map(lang) {
+				all[k] = v
+			}
+			if jf == 1 {
+				for k, v := range s.i18n.Map(lang) {
+					if base, ok := strings.CutPrefix(k, "jf:"); ok {
+						all[base] = v
+					}
 				}
 			}
+			for k, v := range all {
+				for _, p := range jsPrefixes {
+					if strings.HasPrefix(k, p) {
+						js[k] = v
+					}
+				}
+			}
+			s.labels[jf][lang], s.jsLabels[jf][lang] = all, js
 		}
-		s.jsLabels[lang] = m
 	}
 
 	ctx := context.Background()
@@ -136,12 +153,16 @@ func (s *Server) Handler() http.Handler {
 	})
 
 	mux.HandleFunc("GET /login", s.handleLogin)
-	mux.HandleFunc("POST /auth/plex/start", s.handlePinStart)
-	mux.HandleFunc("POST /auth/plex/check", s.handlePinCheck)
-	mux.HandleFunc("GET /auth/plex/return", s.handlePinReturn)
+	mux.HandleFunc("POST /auth/plex/start", s.onlyServer("plex", s.handlePinStart))
+	mux.HandleFunc("POST /auth/plex/check", s.onlyServer("plex", s.handlePinCheck))
+	mux.HandleFunc("GET /auth/plex/return", s.onlyServer("plex", s.handlePinReturn))
 	mux.HandleFunc("GET /auth/plex/done", s.handlePinDone)
-	mux.HandleFunc("GET /setup/server", s.handleSetupServer)
-	mux.HandleFunc("POST /setup/server", s.handleSetupServer)
+	mux.HandleFunc("GET /setup/server", s.onlyServer("plex", s.handleSetupServer))
+	mux.HandleFunc("POST /setup/server", s.onlyServer("plex", s.handleSetupServer))
+	mux.HandleFunc("POST /setup/jellyfin", s.handleSetupJellyfin)
+	mux.HandleFunc("POST /auth/jellyfin/qc/start", s.onlyServer("jellyfin", s.handleQCStart))
+	mux.HandleFunc("POST /auth/jellyfin/qc/check", s.onlyServer("jellyfin", s.handleQCCheck))
+	mux.HandleFunc("POST /auth/jellyfin/password", s.onlyServer("jellyfin", s.handleJFPassword))
 	mux.HandleFunc("POST /logout", s.handleLogout)
 	mux.HandleFunc("POST /lang", s.handleLang)
 
@@ -247,9 +268,16 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, status int, name
 	d.Path = r.URL.Path
 	d.Lang = s.i18n.Pick(r)
 	d.Langs = s.i18n.Langs()
-	d.T = s.i18n.Map(d.Lang)
+	jf := 0
+	if s.isJellyfin(r.Context()) || (!s.setupDone(r.Context()) && s.sessions.GetString(r.Context(), sessJFSetup) != "") {
+		jf = 1
+	}
+	if s.labels[jf][d.Lang] == nil {
+		d.Lang = i18n.Fallback
+	}
+	d.T = s.labels[jf][d.Lang]
 	d.Flash = s.takeFlash(r, d.T)
-	d.JS = s.jsLabels[d.Lang]
+	d.JS = s.jsLabels[jf][d.Lang]
 	var buf bytes.Buffer
 	if err := t.ExecuteTemplate(&buf, "layout", d); err != nil {
 		s.log.Error("render", "name", name, "path", r.URL.Path, "err", err)

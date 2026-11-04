@@ -2,15 +2,52 @@
   <img class="auth-logo" src="/static/icons/icon.svg?v={{.Version}}" alt="" width="64" height="64">
   {{if .Data.Setup}}
   <h1>{{index .T "login.setup_title"}}</h1>
-  <p>{{index .T "login.setup_body"}}</p>
+  {{if .Data.Jellyfin}}<p>{{printf (index .T "login.setup_jf_body") .Data.JFChosen}}</p>
+  {{else}}<p>{{index .T "login.setup_choose"}}</p>
+  <h2>Plex</h2>
+  <p>{{index .T "login.setup_body"}}</p>{{end}}
   {{else}}
   <h1>{{index .T "login.title"}}</h1>
   <p>{{with .Data.Server}}{{printf (index $.T "login.body_server") .}}{{else}}{{index .T "login.body"}}{{end}}</p>
   {{end}}
   {{with .Data.Error}}<p class="alert" role="alert">{{index $.T .}}</p>{{end}}
+  {{if .Data.Jellyfin}}
+  <div class="jf-login">
+    <button class="btn btn-jellyfin" type="button" data-jf-login>{{index .T "login.jf_qc_button"}}</button>
+    <div class="jf-code" data-jf-code hidden>
+      <p>{{index .T "login.jf_qc_steps"}}</p>
+      <output class="jf-code-value" data-jf-code-value aria-live="polite"></output>
+    </div>
+    <p class="auth-status" data-jf-status aria-live="polite"></p>
+    <details class="jf-password" data-jf-password>
+      <summary>{{index .T "login.jf_password_toggle"}}</summary>
+      <form method="post" action="/auth/jellyfin/password">
+        <div class="field"><label for="jf-user">{{index .T "login.jf_username"}}</label>
+          <input id="jf-user" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required></div>
+        <div class="field"><label for="jf-pass">{{index .T "login.jf_password"}}</label>
+          <input id="jf-pass" name="password" type="password" autocomplete="current-password"></div>
+        <button class="btn" type="submit">{{index .T "login.jf_password_button"}}</button>
+      </form>
+    </details>
+    {{if .Data.Setup}}<form method="post" action="/setup/jellyfin"><button class="btn btn-ghost" type="submit" name="reset" value="1">{{index .T "login.jf_other_server"}}</button></form>{{end}}
+  </div>
+  {{else}}
   <button class="btn btn-plex" type="button" data-plex-login>
     <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M7 3h5.2l4.8 9-4.8 9H7l4.8-9z"/></svg>
     {{index .T "login.button"}}
   </button>
   <p class="auth-status" data-plex-status aria-live="polite"></p>
+  {{if .Data.Setup}}
+  <form class="jf-setup" method="post" action="/setup/jellyfin">
+    <h2>{{index .T "login.setup_jf_title"}}</h2>
+    <p>{{index .T "login.setup_jf_intro"}}</p>
+    <div class="field"><label for="jf-url">{{index .T "login.setup_jf_url"}}</label>
+      <input id="jf-url" name="url" type="url" inputmode="url" placeholder="http://jellyfin:8096" spellcheck="false" required></div>
+    <div class="field"><label for="jf-public">{{index .T "login.setup_jf_public"}}</label>
+      <input id="jf-public" name="public" type="url" inputmode="url" placeholder="https://jellyfin.example.com" spellcheck="false" aria-describedby="jf-public-help">
+      <p class="help" id="jf-public-help">{{index .T "login.setup_jf_public_help"}}</p></div>
+    <button class="btn btn-jellyfin" type="submit">{{index .T "login.setup_jf_button"}}</button>
+  </form>
+  {{end}}
+  {{end}}
 </section>{{end}}

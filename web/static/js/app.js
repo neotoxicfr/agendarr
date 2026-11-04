@@ -24,6 +24,37 @@ if (document.querySelector("[data-close-window]") && window.opener) {
   setTimeout(() => window.close(), 600);
 }
 
+// Sign-in polling, shared by Plex (PIN) and Jellyfin (Quick Connect): every
+// 2 s for 10 minutes until the server answers with where to go; at once when
+// a frozen background tab (mobile) comes back.
+function poller(url, say) {
+  let timer = null;
+  let deadline = 0;
+  const stop = () => {
+    clearInterval(timer);
+    timer = null;
+    document.removeEventListener("visibilitychange", onVisible);
+  };
+  const check = async () => {
+    if (Date.now() > deadline) { stop(); say(t("login.timeout")); return; }
+    try {
+      const res = await fetch(url, { method: "POST" });
+      const body = await res.json();
+      if (body.redirect) { stop(); window.location.assign(body.redirect); }
+    } catch { /* network blip: keep polling */ }
+  };
+  const onVisible = () => { if (document.visibilityState === "visible" && timer) check(); };
+  return {
+    start() {
+      stop();
+      deadline = Date.now() + 10 * 60 * 1000;
+      timer = setInterval(check, 2000);
+      document.addEventListener("visibilitychange", onVisible);
+    },
+    stop,
+  };
+}
+
 // Plex sign-in. A popup keeps agendarr open behind it (desktop, and a new tab
 // on phones); the page polls until Plex confirms the PIN. If the popup is
 // blocked, fall back to a full redirect that comes back to /auth/plex/return.
@@ -33,31 +64,14 @@ const loginBtn = document.querySelector("[data-plex-login]");
 if (loginBtn) {
   const status = document.querySelector("[data-plex-status]");
   const say = (msg) => { status.textContent = msg; };
-  let timer = null;
-  let deadline = 0;
+  const poll = poller("/auth/plex/check", say);
   let busy = false;
-
-  const stop = () => {
-    clearInterval(timer);
-    timer = null;
-    document.removeEventListener("visibilitychange", onVisible);
-  };
-  const check = async () => {
-    if (Date.now() > deadline) { stop(); say(t("login.timeout")); return; }
-    try {
-      const res = await fetch("/auth/plex/check", { method: "POST" });
-      const body = await res.json();
-      if (body.redirect) { stop(); window.location.assign(body.redirect); }
-    } catch { /* network blip: keep polling */ }
-  };
-  // Mobile browsers freeze background tabs: check at once when we come back.
-  const onVisible = () => { if (document.visibilityState === "visible" && timer) check(); };
 
   loginBtn.addEventListener("click", async () => {
     if (busy) return;
     busy = true;
     loginBtn.setAttribute("aria-disabled", "true");
-    if (timer) stop();
+    poll.stop();
     // Open the window synchronously, inside the click, or it gets blocked.
     const popup = window.open("", "plex-auth", "width=600,height=760");
     try {
@@ -71,15 +85,53 @@ if (loginBtn) {
       if (!popup) { window.location.assign(body.redirectUrl); return; }
       popup.location = body.popupUrl;
       say(t("login.waiting"));
-      deadline = Date.now() + 10 * 60 * 1000;
-      timer = setInterval(check, 2000);
-      document.addEventListener("visibilitychange", onVisible);
+      poll.start();
     } catch {
       if (popup) popup.close();
       say(t("login.failed"));
     } finally {
       busy = false;
       loginBtn.removeAttribute("aria-disabled");
+    }
+  });
+}
+
+// Jellyfin sign-in with Quick Connect: the code shown here is approved in a
+// Jellyfin app already signed in; the page polls until it is. Without Quick
+// Connect on the server, the password form opens instead.
+const jfBtn = document.querySelector("[data-jf-login]");
+if (jfBtn) {
+  const status = document.querySelector("[data-jf-status]");
+  const say = (msg) => { status.textContent = msg; };
+  const codeBox = document.querySelector("[data-jf-code]");
+  const poll = poller("/auth/jellyfin/qc/check", say);
+  let busy = false;
+  jfBtn.addEventListener("click", async () => {
+    if (busy) return;
+    busy = true;
+    jfBtn.setAttribute("aria-disabled", "true");
+    poll.stop();
+    try {
+      const res = await fetch("/auth/jellyfin/qc/start", { method: "POST" });
+      const body = await res.json();
+      if (body.redirect) { window.location.assign(body.redirect); return; }
+      if (body.disabled) {
+        codeBox.hidden = true;
+        say(t("login.jf_qc_off"));
+        const pw = document.querySelector("[data-jf-password]");
+        pw.open = true;
+        pw.querySelector("input").focus();
+        return;
+      }
+      codeBox.hidden = false;
+      document.querySelector("[data-jf-code-value]").textContent = body.code;
+      say(t("login.jf_qc_waiting"));
+      poll.start();
+    } catch {
+      say(t("login.failed"));
+    } finally {
+      busy = false;
+      jfBtn.removeAttribute("aria-disabled");
     }
   });
 }

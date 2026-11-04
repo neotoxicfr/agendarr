@@ -39,6 +39,7 @@ const (
 var signInErrors = map[string]bool{
 	"no_owned_server": true, "setup_taken": true, "no_access": true,
 	"expired": true, "pending": true, "plex": true,
+	"jf_url": true, "jf_unreachable": true, "jf_bad_login": true, "jf_not_admin": true,
 }
 
 type ctxKey int
@@ -129,11 +130,19 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var d struct {
-		Setup  bool
-		Error  string
-		Server string
+		Setup    bool
+		Error    string
+		Server   string
+		Jellyfin bool   // sign in to a Jellyfin server
+		JFChosen string // first run: the Jellyfin server chosen, not yet claimed
 	}
 	d.Setup = !s.setupDone(r.Context())
+	if d.Setup {
+		d.JFChosen = s.sessions.GetString(r.Context(), sessJFSetup)
+		d.Jellyfin = d.JFChosen != ""
+	} else {
+		d.Jellyfin = s.isJellyfin(r.Context())
+	}
 	if code := r.URL.Query().Get("e"); signInErrors[code] {
 		d.Error = "err." + code
 	}

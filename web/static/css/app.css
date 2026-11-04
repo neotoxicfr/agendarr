@@ -150,6 +150,16 @@ h2 { font-size: var(--fs-3); font-weight: 650; line-height: 1.3; margin: 0 0 8px
 }
 .btn-plex:hover { filter: brightness(1.06); border-color: #e5a00d; }
 .auth-status { min-height: 1.5em; font-size: var(--fs-1); }
+/* Jellyfin's purple, darkened to keep white text at 4.5:1 or more. */
+.btn-jellyfin { background: #6b36c9; border-color: #6b36c9; color: #fff; }
+.btn-jellyfin:hover { filter: brightness(1.1); border-color: #6b36c9; }
+.jf-code-value { display: block; margin: 8px auto 4px; font: 700 2rem/1.2 ui-monospace, monospace; letter-spacing: .2em; color: var(--text); }
+.jf-password { margin: 16px 0; text-align: left; }
+.jf-password summary { min-height: var(--tap); display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-2); }
+.jf-password form { margin-top: 12px; }
+.jf-setup { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--line); text-align: left; }
+.jf-setup h2, .jf-setup > p { text-align: center; }
+.jf-setup > .btn { display: flex; margin: 0 auto; }
 .alert {
   padding: 12px 14px; border-radius: var(--radius); text-align: left;
   background: color-mix(in srgb, var(--danger) 12%, transparent);
