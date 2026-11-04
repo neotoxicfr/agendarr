@@ -19,9 +19,14 @@ involved, and a way to reproduce.
 
 ## Security model
 
-- Access always requires a Plex account that can reach the configured Plex
-  server; the server owner becomes the administrator on first run.
-- Plex tokens and Radarr/Sonarr/Seerr API keys are encrypted at rest with
+- Access always requires an account of the configured media server: a Plex
+  account that can reach the Plex server, or an enabled account of the Jellyfin
+  server. The Plex owner, or the Jellyfin administrator who completes the first
+  run, becomes the administrator.
+- With Jellyfin, a password typed on the sign-in page is only passed on to the
+  server; each Jellyfin session is signed out at once, and Agendarr reads the
+  lists it needs with one API key.
+- Plex tokens, the Jellyfin API key and Radarr/Sonarr/Seerr API keys are encrypted at rest with
   AES-256-GCM. The key is `secret.key` in the data directory: treat the whole
   data volume as a secret.
 - API keys never reach the browser; posters are fetched through a server-side

@@ -4,9 +4,9 @@
 
 # Agendarr
 
-**The release calendar for your Plex household.**
+**The release calendar for your Plex or Jellyfin household.**
 
-Radarr, Sonarr and Seerr in one calendar. Everyone signs in with their Plex account,
+Radarr, Sonarr and Seerr in one calendar. Everyone signs in with their Plex or Jellyfin account,
 sees what's coming or just what they care about, and gets told when it lands.
 
 [![CI](https://github.com/neotoxicfr/agendarr/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/neotoxicfr/agendarr/actions/workflows/ci.yml)
@@ -26,9 +26,11 @@ Radarr and Sonarr each have a calendar, but each one only covers its own instanc
 and only the admin can open them. Agendarr gives the whole household one calendar:
 
 - **Nothing to set up for your users.** Anyone you share your Plex server with
-  signs in with Plex. No accounts or invitations to create.
+  signs in with Plex; on Jellyfin, every account of the server signs in with
+  Quick Connect or its password. No accounts or invitations to create.
 - **Everyone gets their own view.** *My Seerr requests*, *shows I'm watching*,
-  *my Plex watchlist*, *everything I've watched*: each person ticks what they want.
+  *my Plex watchlist* (*my Jellyfin favorites*), *everything I've watched*: each
+  person ticks what they want.
 - **It goes where people already look.** A personal iCal link puts releases in
   Apple Calendar, Google Calendar or Outlook, with that person's filters applied,
   and a notification arrives when something they asked for is ready to watch.
@@ -79,9 +81,12 @@ and only the admin can open them. Agendarr gives the whole household one calenda
   their cinema, digital and physical releases, which you can narrow down.
   Episodes show their air time in each viewer's time zone, and premieres and
   finales are flagged.
-- **Plex sign-in.** On first run, the owner of the Plex server becomes the
-  administrator and their server is bound automatically. Access is re-checked
-  every day, so someone you stop sharing with loses access too.
+- **Plex or Jellyfin sign-in.** On first run you pick the media server. With
+  Plex, the owner of the server becomes the administrator and their server is
+  bound automatically; with Jellyfin, you enter the server's address and a
+  Jellyfin administrator signs in (Quick Connect or password). Access is
+  re-checked every day, so someone you stop sharing with, or whose Jellyfin
+  account is disabled, loses access too.
 - **What's in the file, before you press play.** An available release shows the
   formats Plex found in the file itself, as official logos or plain text: 4K,
   Dolby Vision, HDR10+, HEVC, Dolby Atmos, DTS-HD MA… Every audio and subtitle
@@ -123,7 +128,8 @@ and only the admin can open them. Agendarr gives the whole household one calenda
 
 ## Requirements
 
-- A **Plex Media Server**. You sign in with the account that owns it.
+- A **Plex Media Server** (you sign in with the account that owns it) or a
+  **Jellyfin** server, 10.9 or later (you sign in with an administrator account).
 - **Radarr** and/or **Sonarr** (API v3; tested with Radarr 6 and Sonarr 4).
 - Optional: **Seerr** (or Overseerr / Jellyseerr) for the *my requests* filter,
   the *requested by* names and notifications about requests.
@@ -163,10 +169,18 @@ has the same file with comments.
 
 ### First run
 
-1. **Sign in with the Plex account that owns the server.** It becomes the
-   administrator. If it owns several servers, pick one. Do this right after
-   starting the container, before sharing the URL: until then, the first
-   person to sign in with a Plex server of their own becomes the administrator.
+1. **Pick the media server and sign in as its administrator.**
+   - **Plex:** sign in with the account that owns the server. If it owns
+     several servers, pick one.
+   - **Jellyfin:** enter the server's address as the container reaches it (e.g.
+     `http://jellyfin:8096`) and, optionally, its public address for *Open in
+     Jellyfin* links; then sign in with a Jellyfin administrator account, by
+     Quick Connect or password. Agendarr creates an API key named *Agendarr*
+     on the server to read everyone's lists, and keeps no one's password or token.
+
+   That account becomes the administrator. Do this right after starting the
+   container, before sharing the URL: until then, whoever completes this step
+   first becomes the administrator.
 2. In **Admin › Instances**, add **Seerr**, then click **Import Radarr and Sonarr**:
    Agendarr copies the servers Seerr already knows, API keys included. You can
    also add Radarr and Sonarr by hand (the API key is in *Settings › General* of
@@ -174,7 +188,7 @@ has the same file with comments.
 3. Optional: give each Radarr and Sonarr instance its **public address**
    (e.g. `https://radarr.example.com`) so administrators get *Open in Radarr /
    Sonarr* links. *Import Radarr and Sonarr* fills it from Seerr when it knows it.
-4. **Share the URL** with your Plex users. They sign in with Plex, and that's it.
+4. **Share the URL** with your users. They sign in with Plex or Jellyfin, and that's it.
    Each person picks their display and notification choices in **Settings**.
 
 <p align="center">
@@ -265,7 +279,11 @@ can't be read (people would have to turn notifications on again).
   `AGENDARR_PLEX_SERVER_URL` to an address the container can reach, such as
   `http://plex:32400`.
 - **"My Seerr requests" says no account is linked.** The person has never signed
-  in to Seerr with Plex, so Seerr doesn't know them.
+  in to Seerr with Plex (or, with Jellyseerr, with Jellyfin), so Seerr doesn't
+  know them.
+- **Jellyfin: Quick Connect does nothing.** It must be enabled on the server
+  (*Dashboard › General › Quick Connect*) and approved from a Jellyfin app that
+  is already signed in. Otherwise use *Use my password*.
 - **Google Calendar shows nothing yet.** Google refreshes subscribed calendars
   every 12 to 24 hours. Apple and Outlook refresh about every hour.
 - **The app doesn't offer to install.** Installing requires HTTPS.
