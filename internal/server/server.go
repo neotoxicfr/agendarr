@@ -142,7 +142,6 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PUT /api/follows", s.requireUser(s.handleFollow))
 	mux.HandleFunc("PUT /api/notifications/sources", s.requireUser(s.handleNotifySources))
 	mux.HandleFunc("POST /api/push", s.requireUser(s.handlePush))
-	mux.HandleFunc("GET /img/{inst}/{id}", s.requireUser(s.handlePoster))
 	mux.HandleFunc("GET /sync", s.requireUser(s.handleSync))
 	mux.HandleFunc("GET /settings", s.requireUser(s.handleSettings))
 	mux.HandleFunc("GET /list", s.requireUser(s.handleMyList))
@@ -179,6 +178,13 @@ func (s *Server) Handler() http.Handler {
 	bare.HandleFunc("GET /manifest.webmanifest", s.serveStaticFile("manifest.webmanifest", "application/manifest+json"))
 	bare.HandleFunc("GET /sw.js", s.serveServiceWorker)
 	bare.HandleFunc("GET /healthz", s.handleHealth)
+	// Posters read the session without sliding its expiry: with an idle
+	// timeout scs rewrites the session row and cookie on every request, and a
+	// month view asks for dozens of posters. The copy keeps the same store,
+	// cookie and context key, so loadUser and requireUser work unchanged.
+	ro := *s.sessions
+	ro.IdleTimeout = 0
+	bare.Handle("GET /img/{inst}/{id}", ro.LoadAndSave(s.loadUser(s.requireUser(s.handlePoster))))
 	bare.HandleFunc("GET /api/status", s.handleStatus)
 	bare.Handle("/", app)
 	return s.recoverer(securityHeaders(bare))

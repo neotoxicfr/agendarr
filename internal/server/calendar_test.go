@@ -93,3 +93,26 @@ func TestCalendarAPIAndPosters(t *testing.T) {
 		t.Fatalf("anonymous api: %d", res.StatusCode)
 	}
 }
+
+// Posters ride the session without rewriting it: no Set-Cookie, no write.
+func TestPosterKeepsSession(t *testing.T) {
+	h := newHarness(t, config.Config{DataDir: t.TempDir()})
+	c, _ := h.signIn("owner")
+	rewrites := 0
+	for range 20 {
+		res, err := c.Get(h.http.URL + "/img/1/1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		res.Body.Close()
+		if res.StatusCode == http.StatusUnauthorized || res.StatusCode == http.StatusSeeOther {
+			t.Fatalf("signed out: %d", res.StatusCode)
+		}
+		if len(res.Cookies()) > 0 {
+			rewrites++
+		}
+	}
+	if rewrites != 0 {
+		t.Fatalf("%d of 20 poster requests rewrote the session", rewrites)
+	}
+}
