@@ -1,0 +1,15 @@
+{
+ "Items": [
+  {
+   "Name": "I Am Groot",
+   "Id": "37ed6dc273fd8a53d1a4b1b5b1e7ca9d",
+   "ProviderIds": {
+    "Imdb": "tt13623148",
+    "Tmdb": "232125",
+    "Tvdb": "393201"
+   },
+   "Type": "Series"
+  }
+ ],
+ "TotalRecordCount": 1
+}

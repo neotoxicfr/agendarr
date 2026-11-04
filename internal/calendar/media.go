@@ -101,6 +101,16 @@ func languages(s string) []string {
 	return out
 }
 
+// LangTag turns an ISO 639-2 code ("fre", "eng") into the two-letter tag the
+// browser names, and passes other codes through.
+func LangTag(code string) string {
+	c := strings.ToLower(strings.TrimSpace(code))
+	if two, ok := iso6392[c]; ok {
+		return two
+	}
+	return c
+}
+
 // iso6392 maps the ISO 639-2 codes (bibliographic and terminology forms)
 // of common languages to ISO 639-1.
 var iso6392 = map[string]string{

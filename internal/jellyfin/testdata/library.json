@@ -1,0 +1,25 @@
+{
+ "Items": [
+  {
+   "Name": "I Am Groot",
+   "Id": "37ed6dc273fd8a53d1a4b1b5b1e7ca9d",
+   "ProviderIds": {
+    "Imdb": "tt13623148",
+    "Tmdb": "232125",
+    "Tvdb": "393201"
+   },
+   "Type": "Series"
+  },
+  {
+   "Name": "Scary Movie",
+   "Id": "10c9ce7fbf1e264f924c0a121690285d",
+   "ProviderIds": {
+    "Imdb": "tt0175142",
+    "Tmdb": "4247",
+    "TmdbCollection": "4246"
+   },
+   "Type": "Movie"
+  }
+ ],
+ "TotalRecordCount": 2
+}

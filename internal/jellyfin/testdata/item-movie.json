@@ -1,0 +1,135 @@
+{
+ "Items": [
+  {
+   "Name": "Scary Movie",
+   "Id": "10c9ce7fbf1e264f924c0a121690285d",
+   "MediaSources": [
+    {
+     "Id": "10c9ce7fbf1e264f924c0a121690285d",
+     "Container": "mkv",
+     "Size": 15753931491,
+     "MediaStreams": [
+      {
+       "Codec": "hevc",
+       "VideoRange": "HDR",
+       "VideoRangeType": "DOVIWithHDR10",
+       "AudioSpatialFormat": "None",
+       "DisplayTitle": "4K HEVC Dolby Vision Profile 8.1 (HDR10)",
+       "BitDepth": 10,
+       "IsDefault": true,
+       "IsForced": false,
+       "IsHearingImpaired": false,
+       "Height": 1600,
+       "Width": 3840,
+       "Profile": "Main 10",
+       "Type": "Video",
+       "Index": 0,
+       "IsExternal": false
+      },
+      {
+       "Codec": "ac3",
+       "Language": "fra",
+       "Title": "VFF",
+       "VideoRange": "Unknown",
+       "VideoRangeType": "Unknown",
+       "AudioSpatialFormat": "None",
+       "DisplayTitle": "VFF - French - Dolby Digital - 5.1 - Default",
+       "ChannelLayout": "5.1",
+       "Channels": 6,
+       "IsDefault": true,
+       "IsForced": false,
+       "IsHearingImpaired": false,
+       "Type": "Audio",
+       "Index": 1,
+       "IsExternal": false
+      },
+      {
+       "Codec": "flac",
+       "Language": "fra",
+       "Title": "VFF Piste DTS-ES resample et convertie en FLAC",
+       "VideoRange": "Unknown",
+       "VideoRangeType": "Unknown",
+       "AudioSpatialFormat": "None",
+       "DisplayTitle": "VFF Piste DTS-ES resample et convertie en FLAC - French - 5.1",
+       "ChannelLayout": "5.1",
+       "BitDepth": 16,
+       "Channels": 6,
+       "IsDefault": false,
+       "IsForced": false,
+       "IsHearingImpaired": false,
+       "Type": "Audio",
+       "Index": 2,
+       "IsExternal": false
+      },
+      {
+       "Codec": "flac",
+       "Language": "eng",
+       "Title": "VO",
+       "VideoRange": "Unknown",
+       "VideoRangeType": "Unknown",
+       "AudioSpatialFormat": "None",
+       "DisplayTitle": "VO - English - FLAC - 5.1",
+       "ChannelLayout": "5.1",
+       "BitDepth": 16,
+       "Channels": 6,
+       "IsDefault": false,
+       "IsForced": false,
+       "IsHearingImpaired": false,
+       "Type": "Audio",
+       "Index": 3,
+       "IsExternal": false
+      },
+      {
+       "Codec": "ass",
+       "Language": "fra",
+       "Title": "FORCED",
+       "VideoRange": "Unknown",
+       "VideoRangeType": "Unknown",
+       "AudioSpatialFormat": "None",
+       "DisplayTitle": "FORCED - French - Default - ASS",
+       "IsDefault": true,
+       "IsForced": false,
+       "IsHearingImpaired": false,
+       "Type": "Subtitle",
+       "Index": 4,
+       "IsExternal": false
+      },
+      {
+       "Codec": "ass",
+       "Language": "fra",
+       "Title": "VOST FR",
+       "VideoRange": "Unknown",
+       "VideoRangeType": "Unknown",
+       "AudioSpatialFormat": "None",
+       "DisplayTitle": "VOST FR - French - ASS",
+       "IsDefault": false,
+       "IsForced": false,
+       "IsHearingImpaired": false,
+       "Type": "Subtitle",
+       "Index": 5,
+       "IsExternal": false
+      },
+      {
+       "Codec": "mjpeg",
+       "VideoRange": "Unknown",
+       "VideoRangeType": "Unknown",
+       "AudioSpatialFormat": "None",
+       "BitDepth": 8,
+       "IsDefault": false,
+       "IsForced": false,
+       "IsHearingImpaired": false,
+       "Height": 1500,
+       "Width": 1000,
+       "Profile": "Baseline",
+       "Type": "EmbeddedImage",
+       "Index": 6,
+       "IsExternal": false
+      }
+     ]
+    }
+   ],
+   "Type": "Movie"
+  }
+ ],
+ "TotalRecordCount": 1
+}

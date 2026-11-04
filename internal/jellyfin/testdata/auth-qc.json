@@ -1,0 +1,12 @@
+{
+ "AccessToken": "user-token",
+ "ServerId": "6d76258c55be4914b3d123ff4b13ddc5",
+ "User": {
+  "Id": "0534d2b624ff479cb4e2d05fded41061",
+  "Name": "friend",
+  "Policy": {
+   "IsAdministrator": false,
+   "IsDisabled": false
+  }
+ }
+}

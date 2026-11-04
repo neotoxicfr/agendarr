@@ -1,0 +1,21 @@
+{
+ "Items": [
+  {
+   "Name": "Scary Movie",
+   "Id": "10c9ce7fbf1e264f924c0a121690285d",
+   "ProviderIds": {
+    "Imdb": "tt0175142",
+    "Tmdb": "4247",
+    "TmdbCollection": "4246"
+   },
+   "Type": "Movie",
+   "UserData": {
+    "PlayCount": 1,
+    "IsFavorite": true,
+    "LastPlayedDate": "2026-11-04T17:21:40.9042938Z",
+    "Played": true
+   }
+  }
+ ],
+ "TotalRecordCount": 1
+}

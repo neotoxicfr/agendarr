@@ -1,0 +1,45 @@
+{
+ "Items": [
+  {
+   "Name": "The Little Guy",
+   "Id": "3ea954c97af85772e9fb5ca1a02c042f",
+   "IndexNumber": 2,
+   "ParentIndexNumber": 1,
+   "ProviderIds": {
+    "Imdb": "tt14513152",
+    "Tmdb": "4711224",
+    "Tvdb": "9203792"
+   },
+   "Type": "Episode",
+   "UserData": {
+    "PlayCount": 1,
+    "IsFavorite": false,
+    "LastPlayedDate": "2026-11-04T17:21:40.7809826Z",
+    "Played": true
+   },
+   "SeriesName": "I Am Groot",
+   "SeriesId": "37ed6dc273fd8a53d1a4b1b5b1e7ca9d"
+  },
+  {
+   "Name": "Groot's First Steps",
+   "Id": "d13bbd88cefcbb08ba8cd27f5c02f821",
+   "IndexNumber": 1,
+   "ParentIndexNumber": 1,
+   "ProviderIds": {
+    "Imdb": "tt13820496",
+    "Tmdb": "4711223",
+    "Tvdb": "9203793"
+   },
+   "Type": "Episode",
+   "UserData": {
+    "PlayCount": 1,
+    "IsFavorite": false,
+    "LastPlayedDate": "2026-11-04T17:21:40.6681426Z",
+    "Played": true
+   },
+   "SeriesName": "I Am Groot",
+   "SeriesId": "37ed6dc273fd8a53d1a4b1b5b1e7ca9d"
+  }
+ ],
+ "TotalRecordCount": 2
+}
