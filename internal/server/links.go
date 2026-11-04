@@ -142,14 +142,7 @@ func (s *Server) handleTracks(w http.ResponseWriter, r *http.Request) {
 	versions := []plex.Version{}
 	if known {
 		episode, _ := strconv.Atoi(q.Get("episode"))
-		cacheKey, item := rk, func(*plex.Server, context.Context) (string, error) { return rk, nil }
-		if kind == "series" {
-			cacheKey = fmt.Sprintf("%s/%d/%d", rk, season, episode)
-			item = func(srv *plex.Server, ctx context.Context) (string, error) {
-				return srv.EpisodeKey(ctx, rk, season, episode)
-			}
-		}
-		if v, err := s.itemTracks(r.Context(), cacheKey, item); err == nil {
+		if v, err := s.itemTracks(r.Context(), rk, season, episode, kind == "series"); err == nil {
 			versions = v
 		} else {
 			s.log.Info("plex tracks", "group", q.Get("group"), "err", err)
@@ -177,7 +170,7 @@ func (s *Server) seasonTracks(ctx context.Context, showKey string, season int, l
 	}
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	cacheKey := func(ep int) string { return fmt.Sprintf("%s/%d/%d", showKey, season, ep) }
+	cacheKey := func(ep int) string { return trackKey(showKey, season, ep) }
 	var todo []int
 	for _, ep := range episodes {
 		if v, ok := s.cachedTracks(cacheKey(ep)); ok {
@@ -256,9 +249,18 @@ func (s *Server) storeTracks(key string, v []plex.Version) {
 	tc.m[key] = trackEntry{at: time.Now(), versions: v}
 }
 
-// itemTracks returns the tracks of one library item, cached ten minutes;
-// item resolves its ratingKey on the Plex server.
-func (s *Server) itemTracks(ctx context.Context, cacheKey string, item func(*plex.Server, context.Context) (string, error)) ([]plex.Version, error) {
+// trackKey is the cache key of one episode's tracks.
+func trackKey(showKey string, season, ep int) string {
+	return fmt.Sprintf("%s/%d/%d", showKey, season, ep)
+}
+
+// itemTracks returns the tracks of one library item, cached ten minutes: a
+// movie by its ratingKey, an episode (series) resolved on the Plex server.
+func (s *Server) itemTracks(ctx context.Context, rk string, season, episode int, series bool) ([]plex.Version, error) {
+	cacheKey := rk
+	if series {
+		cacheKey = trackKey(rk, season, episode)
+	}
 	if v, ok := s.cachedTracks(cacheKey); ok {
 		return v, nil
 	}
@@ -269,11 +271,13 @@ func (s *Server) itemTracks(ctx context.Context, cacheKey string, item func(*ple
 		if err != nil {
 			return nil, err
 		}
-		rk, err := item(srv, ctx)
-		if err != nil {
-			return nil, err
+		key := rk
+		if series {
+			if key, err = srv.EpisodeKey(ctx, rk, season, episode); err != nil {
+				return nil, err
+			}
 		}
-		return srv.Tracks(ctx, rk)
+		return srv.Tracks(ctx, key)
 	})
 	if err != nil {
 		return nil, err

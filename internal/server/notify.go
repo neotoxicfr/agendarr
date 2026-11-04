@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/neotoxicfr/agendarr/internal/calendar"
@@ -36,36 +37,29 @@ var notifySources = []string{personal.SourceSeerr, personal.SourceWatching, pers
 
 var defaultNotify = []string{personal.SourceSeerr, personal.SourceWatching}
 
-func cleanNotify(in []string) []string {
+// cleanList keeps the allowed values, once each and in order; nil (never
+// chosen) gets a copy of def, an empty list stays empty.
+func cleanList(in, allowed, def []string) []string {
 	if in == nil {
-		return slices.Clone(defaultNotify)
+		return slices.Clone(def)
 	}
 	out := []string{}
 	for _, v := range in {
-		if slices.Contains(notifySources, v) && !slices.Contains(out, v) {
+		if slices.Contains(allowed, v) && !slices.Contains(out, v) {
 			out = append(out, v)
 		}
 	}
 	return out
 }
+
+func cleanNotify(in []string) []string { return cleanList(in, notifySources, defaultNotify) }
 
 // What a notification can be about, each person picking theirs: a release
 // becoming available, or a new version changing its quality (resolution,
 // HDR, video codec), its audio (format or languages) or its subtitles.
 var notifyKinds = []string{"available", "quality", "audio", "subs"}
 
-func cleanKinds(in []string) []string {
-	if in == nil {
-		return slices.Clone(notifyKinds)
-	}
-	out := []string{}
-	for _, v := range in {
-		if slices.Contains(notifyKinds, v) && !slices.Contains(out, v) {
-			out = append(out, v)
-		}
-	}
-	return out
-}
+func cleanKinds(in []string) []string { return cleanList(in, notifyKinds, notifyKinds) }
 
 // diffKind sorts a difference into what a person can ask to hear about.
 func diffKind(what string) string {
@@ -133,10 +127,12 @@ func mediaSig(e calendar.Event) string {
 	return strings.Join(parts, "\n")
 }
 
+var codecStrip = strings.NewReplacer(".", "", "-", "", " ", "")
+
 // videoName gives one name to a codec Sonarr reports as x265 or h265 by
 // turns: the same codec must not read as an upgrade.
 func videoName(c string) string {
-	switch k := strings.ToUpper(strings.NewReplacer(".", "", "-", "", " ", "").Replace(c)); k {
+	switch k := strings.ToUpper(codecStrip.Replace(c)); k {
 	case "X265", "H265", "HEVC":
 		return "HEVC"
 	case "X264", "H264", "AVC":
@@ -154,6 +150,28 @@ type change struct {
 	kind     string           // available | upgraded
 	episodes []calendar.Event // episodes concerned (series)
 	diffs    []diff           // upgrades: what changed
+
+	once sync.Once // detail/raw are the same for every recipient
+	d    notifyDetail
+	raw  string
+}
+
+// detail builds the notification payload once per change.
+func (c *change) detail() (notifyDetail, string) {
+	c.once.Do(func() {
+		c.d = notifyDetail{Kind: c.event.Kind, Poster: c.event.Poster, Release: c.event.Release, Diffs: c.diffs, Date: c.event.Date}
+		eps := slices.Clone(c.episodes)
+		sort.Slice(eps, func(i, j int) bool {
+			a, b := eps[i], eps[j]
+			return a.Season < b.Season || (a.Season == b.Season && a.Episode < b.Episode)
+		})
+		for _, e := range eps {
+			c.d.Episodes = append(c.d.Episodes, epRef{e.Season, e.Episode, e.EpTitle})
+		}
+		raw, _ := json.Marshal(c.d)
+		c.raw = string(raw)
+	})
+	return c.d, c.raw
 }
 
 // diff is one difference between two files, rendered by the browser.
@@ -356,7 +374,7 @@ func (s *Server) deliver(ctx context.Context, changes map[string]*change, now ti
 			continue
 		}
 		prefs := s.loadPrefs(ctx, u.ID)
-		sources, kinds := cleanNotify(prefs.Notify), cleanKinds(prefs.NotifyKinds)
+		sources, kinds := prefs.Notify, prefs.NotifyKinds
 		var keys map[string]bool
 		ready := true
 		if len(sources) > 0 {
@@ -416,17 +434,9 @@ type epRef struct {
 }
 
 func (s *Server) notifyUser(ctx context.Context, u store.User, c *change, now time.Time) error {
-	d := notifyDetail{Kind: c.event.Kind, Poster: c.event.Poster, Release: c.event.Release, Diffs: c.diffs, Date: c.event.Date}
-	sort.Slice(c.episodes, func(i, j int) bool {
-		a, b := c.episodes[i], c.episodes[j]
-		return a.Season < b.Season || (a.Season == b.Season && a.Episode < b.Episode)
-	})
-	for _, e := range c.episodes {
-		d.Episodes = append(d.Episodes, epRef{e.Season, e.Episode, e.EpTitle})
-	}
-	raw, _ := json.Marshal(d)
+	d, raw := c.detail()
 	if _, err := s.store.AddNotification(ctx, u.ID, store.Notification{At: now, Kind: c.kind, Group: c.event.Group,
-		Title: c.event.Title, Detail: string(raw)}); err != nil {
+		Title: c.event.Title, Detail: raw}); err != nil {
 		return err
 	}
 	return s.pushTo(ctx, u.ID, c, d)
@@ -542,7 +552,7 @@ func (s *Server) handleNotifications(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	out := map[string]any{"items": items, "unread": unread, "notify": cleanNotify(s.loadPrefs(r.Context(), u.ID).Notify)}
+	out := map[string]any{"items": items, "unread": unread, "notify": s.loadPrefs(r.Context(), u.ID).Notify}
 	if sender, err := s.pushSender(r.Context()); err == nil && sender != nil {
 		out["vapidKey"] = sender.Keys.PublicKey()
 	}
@@ -701,11 +711,11 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		sites = append(sites, site{id, labels[id], slices.Contains(p.Sites, id)})
 	}
 	notify := map[string]bool{}
-	for _, n := range cleanNotify(p.Notify) {
+	for _, n := range p.Notify {
 		notify[n] = true
 	}
 	kinds := map[string]bool{}
-	for _, k := range cleanKinds(p.NotifyKinds) {
+	for _, k := range p.NotifyKinds {
 		kinds[k] = true
 	}
 	s.render(w, r, http.StatusOK, "settings", pageData{Title: "title.settings", Data: map[string]any{

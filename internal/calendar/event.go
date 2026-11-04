@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/url"
 	"slices"
-	"sort"
 	"strings"
 	"time"
 
@@ -293,7 +292,19 @@ func merge(events []Event) []Event {
 		byID[e.ID] = len(out)
 		out = append(out, e)
 	}
-	sort.SliceStable(out, func(i, j int) bool { return out[i].sortKey() < out[j].sortKey() })
+	// Compute each key once: sortKey allocates.
+	type keyed struct {
+		key string
+		e   Event
+	}
+	ks := make([]keyed, len(out))
+	for i, e := range out {
+		ks[i] = keyed{e.sortKey(), e}
+	}
+	slices.SortStableFunc(ks, func(a, b keyed) int { return strings.Compare(a.key, b.key) })
+	for i := range ks {
+		out[i] = ks[i].e
+	}
 	return out
 }
 

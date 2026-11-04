@@ -5,12 +5,14 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/ecdh"
+	"crypto/ecdsa"
 	"crypto/hkdf"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
 	"io"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -137,4 +139,13 @@ func TestSendGone(t *testing.T) {
 	if len(got) < 21+65+17 {
 		t.Fatalf("body %d bytes", len(got))
 	}
+}
+
+// verifyES256 checks a VAPID JWT signature (tests).
+func verifyES256(pub *ecdsa.PublicKey, signing string, sig []byte) bool {
+	if len(sig) != 64 {
+		return false
+	}
+	sum := sha256.Sum256([]byte(signing))
+	return ecdsa.Verify(pub, sum[:], new(big.Int).SetBytes(sig[:32]), new(big.Int).SetBytes(sig[32:]))
 }

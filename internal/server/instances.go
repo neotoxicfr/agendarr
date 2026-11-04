@@ -21,6 +21,9 @@ import (
 
 var kindNames = map[string]string{store.KindRadarr: "Radarr", store.KindSonarr: "Sonarr", store.KindSeerr: "Seerr"}
 
+// kindOrder is the order instance kinds are listed in.
+var kindOrder = []string{store.KindRadarr, store.KindSonarr, store.KindSeerr}
+
 type instanceForm struct {
 	store.Instance
 	HasKey bool
@@ -41,7 +44,7 @@ func (s *Server) handleAdminInstances(w http.ResponseWriter, r *http.Request) {
 		groups[i.Kind] = append(groups[i.Kind], i)
 	}
 	s.render(w, r, http.StatusOK, "admin_instances", pageData{Title: "title.admin", Data: map[string]any{
-		"Kinds":  []string{store.KindRadarr, store.KindSonarr, store.KindSeerr},
+		"Kinds":  kindOrder,
 		"Groups": groups,
 		"Names":  kindNames,
 		"Empty":  len(list) == 0,
@@ -65,7 +68,7 @@ func (s *Server) handleInstanceForm(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) renderInstanceForm(w http.ResponseWriter, r *http.Request, status int, f instanceForm) {
 	s.render(w, r, status, "admin_instance_form", pageData{Title: "title.admin", Data: map[string]any{
-		"Form": f, "Names": kindNames, "Kinds": []string{store.KindRadarr, store.KindSonarr, store.KindSeerr},
+		"Form": f, "Names": kindNames, "Kinds": kindOrder,
 	}})
 }
 
@@ -110,7 +113,7 @@ func (s *Server) parseInstance(r *http.Request, existing *store.Instance) (insta
 	if f.Name == "" {
 		f.Name = kindNames[f.Kind]
 	}
-	if u, err := url.Parse(f.URL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+	if !webURL(f.URL) {
 		f.Errors["url"] = "inst.err_url"
 	}
 	if f.PublicURL != "" && !webURL(f.PublicURL) {

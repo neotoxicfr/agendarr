@@ -44,24 +44,6 @@ func (s *Store) SetFollow(ctx context.Context, userID int64, group, title string
 	return err
 }
 
-// Follows returns the groups a user follows.
-func (s *Store) Follows(ctx context.Context, userID int64) (map[string]bool, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT grp FROM follows WHERE user_id = ?`, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := map[string]bool{}
-	for rows.Next() {
-		var g string
-		if err := rows.Scan(&g); err != nil {
-			return nil, err
-		}
-		out[g] = true
-	}
-	return out, rows.Err()
-}
-
 // Followers returns, for each followed group, who follows it.
 func (s *Store) Followers(ctx context.Context) (map[string][]int64, error) {
 	rows, err := s.DB.QueryContext(ctx, `SELECT grp, user_id FROM follows`)

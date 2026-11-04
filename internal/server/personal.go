@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -123,18 +122,7 @@ var defaultSites = []string{"tmdb", "imdb"}
 
 // cleanSites keeps the known sites, once each; nil (never chosen) gets the
 // defaults, an empty list stays empty.
-func cleanSites(in []string) []string {
-	if in == nil {
-		return slices.Clone(defaultSites)
-	}
-	out := []string{}
-	for _, v := range in {
-		if slices.Contains(calendar.Sites, v) && !slices.Contains(out, v) {
-			out = append(out, v)
-		}
-	}
-	return out
-}
+func cleanSites(in []string) []string { return cleanList(in, calendar.Sites, defaultSites) }
 
 // PrefFilters mirror the filter panel.
 type PrefFilters struct {
@@ -174,6 +162,12 @@ func (s *Server) loadPrefs(ctx context.Context, userID int64) Prefs {
 	if err == nil {
 		_ = json.Unmarshal([]byte(raw), &p)
 	}
+	p.clean()
+	return p
+}
+
+// clean normalizes every field a client or an old row may have got wrong.
+func (p *Prefs) clean() {
 	p.Mine = cleanSources(p.Mine)
 	p.Filters.normalize()
 	p.Sites = cleanSites(p.Sites)
@@ -182,10 +176,12 @@ func (s *Server) loadPrefs(ctx context.Context, userID int64) Prefs {
 	if p.Formats != "text" {
 		p.Formats = "logos"
 	}
+	if p.View != "" && p.View != "agenda" && p.View != "week" && p.View != "month" {
+		p.View = ""
+	}
 	if p.Filters.Instances == nil {
 		p.Filters.Instances = map[string]bool{}
 	}
-	return p
 }
 
 func cleanSources(in []string) []string {
@@ -219,17 +215,7 @@ func (s *Server) handlePrefsPut(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad json", http.StatusBadRequest)
 		return
 	}
-	p.Mine = cleanSources(p.Mine)
-	p.Filters.normalize()
-	p.Sites = cleanSites(p.Sites)
-	p.Notify = cleanNotify(p.Notify)
-	p.NotifyKinds = cleanKinds(p.NotifyKinds)
-	if p.Formats != "text" {
-		p.Formats = "logos"
-	}
-	if p.View != "" && p.View != "agenda" && p.View != "week" && p.View != "month" {
-		p.View = ""
-	}
+	p.clean()
 	if len(p.Filters.Instances) > 50 {
 		http.Error(w, "too many instances", http.StatusBadRequest)
 		return

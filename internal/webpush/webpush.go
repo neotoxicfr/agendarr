@@ -19,7 +19,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/big"
 	"net/http"
 	"net/url"
 	"strings"
@@ -242,13 +241,4 @@ func AllowedEndpoint(endpoint string) bool {
 		}
 	}
 	return false
-}
-
-// verifyES256 checks a VAPID JWT signature (tests).
-func verifyES256(pub *ecdsa.PublicKey, signing string, sig []byte) bool {
-	if len(sig) != 64 {
-		return false
-	}
-	sum := sha256.Sum256([]byte(signing))
-	return ecdsa.Verify(pub, sum[:], new(big.Int).SetBytes(sig[:32]), new(big.Int).SetBytes(sig[32:]))
 }

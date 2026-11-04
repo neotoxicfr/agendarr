@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"slices"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -148,6 +147,7 @@ func mergeCatalog(items []catalogItem) []catalogItem {
 
 // listItem is one entry of "my list", as sent to the browser.
 type listItem struct {
+	sortKey   string     `json:"-"` // lower-cased title, computed once for the sort
 	Group     string     `json:"group"`
 	Kind      string     `json:"kind"`
 	Title     string     `json:"title"`
@@ -167,7 +167,7 @@ type listItem struct {
 func (s *Server) handleMyListAPI(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	u := currentUser(r)
-	sources := cleanNotify(s.loadPrefs(ctx, u.ID).Notify)
+	sources := s.loadPrefs(ctx, u.ID).Notify
 	follows, err := s.store.FollowList(ctx, u.ID)
 	if err != nil {
 		s.fail(w, r, err)
@@ -216,7 +216,10 @@ func (s *Server) handleMyListAPI(w http.ResponseWriter, r *http.Request) {
 		kind, _, _ := strings.Cut(g, ":")
 		out = append(out, listItem{Group: g, Kind: kind, Title: f.Title, Sources: []string{"manual"}, Added: &f.Created})
 	}
-	sort.Slice(out, func(i, j int) bool { return strings.ToLower(out[i].Title) < strings.ToLower(out[j].Title) })
+	for i := range out {
+		out[i].sortKey = strings.ToLower(out[i].Title)
+	}
+	slices.SortFunc(out, func(a, b listItem) int { return strings.Compare(a.sortKey, b.sortKey) })
 	writeJSON(w, http.StatusOK, map[string]any{"items": out, "sources": sources, "errors": errs})
 }
 

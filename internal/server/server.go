@@ -45,6 +45,7 @@ type Server struct {
 	started time.Time
 
 	i18n       *i18n.Catalog
+	jsLabels   map[string]map[string]string // per language, built once: the catalog is immutable
 	sessions   *scs.SessionManager
 	plex       *plex.Client
 	ownerKnown atomic.Bool // setup completed; never goes back to false
@@ -76,6 +77,18 @@ func New(cfg config.Config, st *store.Store, box *secret.Box, log *slog.Logger) 
 	}
 	if s.i18n, err = i18n.Load(web.FS, "locales"); err != nil {
 		return nil, err
+	}
+	s.jsLabels = map[string]map[string]string{}
+	for _, lang := range s.i18n.Langs() {
+		m := map[string]string{}
+		for k, v := range s.i18n.Map(lang) {
+			for _, p := range jsPrefixes {
+				if strings.HasPrefix(k, p) {
+					m[k] = v
+				}
+			}
+		}
+		s.jsLabels[lang] = m
 	}
 
 	ctx := context.Background()
@@ -236,14 +249,7 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, status int, name
 	d.Langs = s.i18n.Langs()
 	d.T = s.i18n.Map(d.Lang)
 	d.Flash = s.takeFlash(r, d.T)
-	d.JS = map[string]string{}
-	for k, v := range d.T {
-		for _, p := range jsPrefixes {
-			if strings.HasPrefix(k, p) {
-				d.JS[k] = v
-			}
-		}
-	}
+	d.JS = s.jsLabels[d.Lang]
 	var buf bytes.Buffer
 	if err := t.ExecuteTemplate(&buf, "layout", d); err != nil {
 		s.log.Error("render", "name", name, "path", r.URL.Path, "err", err)

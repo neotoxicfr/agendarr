@@ -4,7 +4,6 @@ import (
 	"crypto/subtle"
 	"fmt"
 	"net/http"
-	"sort"
 	"strings"
 	"time"
 )
@@ -50,7 +49,6 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		out.Failing = []string{}
 	}
 	events := res.Events
-	sort.SliceStable(events, func(i, j int) bool { return events[i].Date < events[j].Date })
 	for _, e := range events {
 		if e.Date < today || e.Date > weekEnd {
 			continue

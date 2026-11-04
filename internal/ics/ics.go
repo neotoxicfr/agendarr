@@ -105,10 +105,9 @@ func description(e calendar.Event, l Labels) string {
 }
 
 // escape applies RFC 5545 TEXT escaping.
-func escape(s string) string {
-	r := strings.NewReplacer(`\`, `\\`, ";", `\;`, ",", `\,`, "\r\n", `\n`, "\n", `\n`, "\r", `\n`)
-	return r.Replace(s)
-}
+func escape(s string) string { return escaper.Replace(s) }
+
+var escaper = strings.NewReplacer(`\`, `\\`, ";", `\;`, ",", `\,`, "\r\n", `\n`, "\n", `\n`, "\r", `\n`)
 
 // writeFolded writes a content line, folded at 75 octets without splitting
 // a UTF-8 sequence, terminated by CRLF.

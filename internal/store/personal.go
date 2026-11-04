@@ -107,10 +107,14 @@ func (s *Store) SavePlexGuids(ctx context.Context, m map[string][]string, now ti
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
+	stmt, err := tx.PrepareContext(ctx, `INSERT INTO plex_guids (rating_key, keys, fetched_at) VALUES (?, ?, ?)
+		ON CONFLICT (rating_key) DO UPDATE SET keys = excluded.keys, fetched_at = excluded.fetched_at`)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = stmt.Close() }()
 	for rk, ks := range m {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO plex_guids (rating_key, keys, fetched_at) VALUES (?, ?, ?)
-			ON CONFLICT (rating_key) DO UPDATE SET keys = excluded.keys, fetched_at = excluded.fetched_at`,
-			rk, strings.Join(ks, " "), now.Unix()); err != nil {
+		if _, err := stmt.ExecContext(ctx, rk, strings.Join(ks, " "), now.Unix()); err != nil {
 			return err
 		}
 	}

@@ -342,3 +342,10 @@ func TestMergeCatalogInstances(t *testing.T) {
 		t.Fatalf("%+v", got)
 	}
 }
+
+func BenchmarkVideoName(b *testing.B) {
+	b.ReportAllocs()
+	for range b.N {
+		videoName("x-265 ")
+	}
+}

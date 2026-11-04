@@ -129,7 +129,6 @@ func (s *Server) Identity(ctx context.Context) error {
 type Viewed struct {
 	Type      string // movie | episode
 	RatingKey string // movie or show
-	ViewedAt  time.Time
 }
 
 // History returns what accountID watched since since (zero: everything),
@@ -155,7 +154,6 @@ func (s *Server) History(ctx context.Context, accountID int64, since time.Time, 
 					RatingKey            string `json:"ratingKey"`
 					GrandparentRatingKey string `json:"grandparentRatingKey"`
 					GrandparentKey       string `json:"grandparentKey"`
-					ViewedAt             int64  `json:"viewedAt"`
 				} `json:"Metadata"`
 			} `json:"MediaContainer"`
 		}
@@ -176,7 +174,7 @@ func (s *Server) History(ctx context.Context, accountID int64, since time.Time, 
 			if rk == "" || (m.Type != "movie" && m.Type != "episode") {
 				continue
 			}
-			out = append(out, Viewed{Type: m.Type, RatingKey: rk, ViewedAt: time.Unix(m.ViewedAt, 0)})
+			out = append(out, Viewed{Type: m.Type, RatingKey: rk})
 		}
 		if len(v.MediaContainer.Metadata) < page || start+page >= v.MediaContainer.TotalSize {
 			break
