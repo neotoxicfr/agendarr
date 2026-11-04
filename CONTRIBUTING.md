@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - **Go 1.27+** (the version in `go.mod` is authoritative; CI installs it from there)
-- **golangci-lint v2.14+**, built with a Go version ≥ the one in `go.mod`
+- **golangci-lint v2.15+**, built with a Go version ≥ the one in `go.mod`
 - **A C toolchain** (gcc/clang), only for `go test -race`
 - **lefthook** *(optional)*: installs the git hooks in `lefthook.yml`
 - **actionlint** *(optional)*: validates workflow changes
