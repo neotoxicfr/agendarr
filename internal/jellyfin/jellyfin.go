@@ -111,6 +111,14 @@ func (c *Client) PublicInfo(ctx context.Context) (Info, error) {
 	return v, err
 }
 
+// SystemInfo identifies the server with the client's token: only a server
+// that accepts the token answers.
+func (c *Client) SystemInfo(ctx context.Context) (Info, error) {
+	var v Info
+	err := c.do(ctx, http.MethodGet, "/System/Info", nil, nil, &v)
+	return v, err
+}
+
 // User is a Jellyfin account.
 type User struct {
 	ID     string `json:"Id"`

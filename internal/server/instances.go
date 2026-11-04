@@ -49,7 +49,7 @@ func (s *Server) handleAdminInstances(w http.ResponseWriter, r *http.Request) {
 		"Names":  kindNames,
 		"Empty":  len(list) == 0,
 	}
-	if s.isJellyfin(r.Context()) {
+	if u := currentUser(r); u != nil && u.IsOwner && s.isJellyfin(r.Context()) {
 		jf := map[string]string{}
 		for k, key := range map[string]string{"URL": keyJFURL, "Public": keyJFPublic, "Name": keyServerName} {
 			jf[k], _ = s.store.Setting(r.Context(), key)

@@ -86,6 +86,12 @@ func (f *fakeJellyfin) handler() http.Handler {
 				out = append(out, fmt.Sprintf(`{"Id":%q,"Name":%q,"Policy":{"IsAdministrator":%t,"IsDisabled":%t}}`, u.id, name, u.admin, f.disabled[name]))
 			}
 			io.WriteString(w, "["+strings.Join(out, ",")+"]")
+		case "GET /System/Info":
+			if !strings.Contains(r.Header.Get("Authorization"), `Token="the-key"`) {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			fmt.Fprintf(w, `{"Id":%q,"ServerName":"Home"}`, f.serverID)
 		case "GET /Auth/Keys":
 			io.WriteString(w, `{"Items":[{"AccessToken":"the-key","AppName":"Agendarr","DateCreated":"2026-11-04T00:00:00Z"}]}`)
 		default:
@@ -224,5 +230,49 @@ func TestJellyfinRoutesClosedOnPlex(t *testing.T) {
 	}
 	if loc := h.redirectOf(h.client(), "/setup/jellyfin", url.Values{"url": {"http://x"}}); loc != "/login" {
 		t.Fatalf("setup after setup: %s", loc)
+	}
+}
+
+// Only the owner moves the server, and only to a server that has the same id
+// and accepts the API key: a look-alike would otherwise receive the key.
+func TestJellyfinAddressChange(t *testing.T) {
+	h, f, jf := newJellyfinHarness(t)
+	ctx := context.Background()
+	owner := h.client()
+	h.redirectOf(owner, "/setup/jellyfin", url.Values{"url": {jf.URL}})
+	f.approved = true
+	var start, check map[string]any
+	h.post(owner, "/auth/jellyfin/qc/start", &start)
+	h.post(owner, "/auth/jellyfin/qc/check", &check)
+	if check["redirect"] != "/admin" {
+		t.Fatalf("setup: %v", check)
+	}
+	// A look-alike: same public id, but it does not know the key.
+	fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/System/Info/Public" {
+			fmt.Fprintf(w, `{"Id":%q,"ServerName":"Home"}`, f.serverID)
+			return
+		}
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer fake.Close()
+	h.redirectOf(owner, "/admin/jellyfin", url.Values{"url": {fake.URL}})
+	if got, _ := h.srv.store.Setting(ctx, keyJFURL); got != jf.URL {
+		t.Fatalf("look-alike accepted: %s", got)
+	}
+	// The same server under another address (here the same one, with a public URL).
+	h.redirectOf(owner, "/admin/jellyfin", url.Values{"url": {jf.URL + "/"}, "public": {"https://jf.example.com"}})
+	if got, _ := h.srv.store.Setting(ctx, keyJFPublic); got != "https://jf.example.com" {
+		t.Fatalf("real server refused: %q", got)
+	}
+	// Another administrator may not.
+	friend := h.client()
+	h.redirectOf(friend, "/auth/jellyfin/password", url.Values{"username": {"friend"}, "password": {"pw-friend"}})
+	fu, _ := h.srv.store.UserByAccount(ctx, "0534d2b6-24ff-479c-b4e2-d05fded41061")
+	if err := h.srv.store.SetAdmin(ctx, fu.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	if res := h.form(friend, "/admin/jellyfin", url.Values{"url": {fake.URL}}); res.StatusCode != http.StatusForbidden {
+		t.Fatalf("admin, not owner: %d", res.StatusCode)
 	}
 }

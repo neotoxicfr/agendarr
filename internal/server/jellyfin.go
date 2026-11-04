@@ -136,10 +136,15 @@ func (s *Server) handleSetupJellyfin(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }
 
-// handleAdminJellyfin changes the Jellyfin server's addresses, kept only if
-// the server there is the same one (same id): moving it to another server
-// would point every account at strangers.
+// handleAdminJellyfin changes the Jellyfin server's addresses. Only the
+// owner may, as only the owner bound the server: the API key and everyone's
+// sign-in go to that address. The change is kept only if the server there
+// has the same public id and then accepts the API key with that same id.
 func (s *Server) handleAdminJellyfin(w http.ResponseWriter, r *http.Request) {
+	if u := currentUser(r); u == nil || !u.IsOwner {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
 	base, okBase := httpURL(r.PostFormValue("url"))
 	public, okPublic := httpURL(r.PostFormValue("public"))
 	switch {
@@ -148,13 +153,24 @@ func (s *Server) handleAdminJellyfin(w http.ResponseWriter, r *http.Request) {
 	default:
 		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 		defer cancel()
-		info, err := s.jellyfinAt(base, "", s.plex.ClientID).PublicInfo(ctx)
 		id, _ := s.store.Setting(ctx, keyServerID)
+		info, err := s.jellyfinAt(base, "", s.plex.ClientID).PublicInfo(ctx)
+		if err == nil && info.ID == id {
+			// Same public id: now check it holds our key, before saving.
+			var jf *jellyfin.Client
+			if jf, err = s.jellyfinClient(ctx); err == nil {
+				jf.BaseURL = base
+				var auth jellyfin.Info
+				if auth, err = jf.SystemInfo(ctx); err == nil && auth.ID != id {
+					info.ID = auth.ID
+				}
+			}
+		}
 		switch {
+		case errors.Is(err, jellyfin.ErrUnauthorized) || (err == nil && info.ID != id):
+			s.flash(r, "admin.jf_other_server")
 		case err != nil:
 			s.flash(r, "err.jf_unreachable")
-		case info.ID != id:
-			s.flash(r, "admin.jf_other_server")
 		default:
 			for k, v := range map[string]string{keyJFURL: base, keyJFPublic: public, keyServerName: info.Name} {
 				if err := s.store.SetSetting(ctx, k, v); err != nil {
