@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -84,17 +85,32 @@ type Service struct {
 	seerrTime  time.Time
 	seerrErr   error
 	seerrErrAt time.Time
+
+	// media mirrors user_media / user_media_sync per "userID/source", so a
+	// request does not reread thousands of rows from the single SQLite
+	// connection. Only the sync writes it; entries past their TTL are swept.
+	media    map[string]mediaEntry
+	mediaGen uint64 // bumped by each sync write, so a slower store read never overwrites it
+}
+
+// mediaEntry is one synced source as stored. createdAt tells a deleted
+// user's entry from a new user given the same id.
+type mediaEntry struct {
+	createdAt time.Time
+	set       map[string]bool
+	at        time.Time
+	syncErr   string
 }
 
 // New returns a Service.
-func New(d Deps) *Service { return &Service{d: d, now: time.Now} }
+func New(d Deps) *Service { return &Service{d: d, now: time.Now, media: map[string]mediaEntry{}} }
 
 // seerrIndex maps media keys to their requesters, across Seerr instances.
 type seerrIndex struct {
-	byKey  map[string][]string        // media key -> requester display names
-	byPlex map[int64]map[string]bool  // plex account id -> media keys requested
-	byName map[string]map[string]bool // lower-case plex username/email -> keys (older users without plexId)
-	users  map[int64]seerr.User       // seerr id -> user
+	byKey   map[string][]string        // media key -> requester display names
+	byPlex  map[int64]map[string]bool  // plex account id -> media keys requested
+	byName  map[string]map[string]bool // lower-case plex username/email -> keys (older users without plexId)
+	plexIDs map[int64]bool             // plex account ids of the Seerr users
 }
 
 // RequestIndex returns a lookup from media key to requesters, for annotating
@@ -124,19 +140,15 @@ func (s *Service) seerr(ctx context.Context) (*seerrIndex, error) {
 		}
 		return nil, lastErr
 	}
-	if idx != nil {
-		go func() {
-			_, _, _ = s.sf.Do("seerr-index", func() (any, error) { return s.buildSeerr(context.WithoutCancel(ctx)) })
-		}()
-		return idx, nil
-	}
-	if noWait(ctx) {
-		go func() {
-			_, _, _ = s.sf.Do("seerr-index", func() (any, error) { return s.buildSeerr(context.WithoutCancel(ctx)) })
-		}()
+	refresh := func() (any, error) { return s.buildSeerr(context.WithoutCancel(ctx)) }
+	if idx != nil || noWait(ctx) {
+		go func() { _, _, _ = s.sf.Do("seerr-index", refresh) }()
+		if idx != nil {
+			return idx, nil
+		}
 		return nil, ErrSyncing
 	}
-	v, err, _ := s.sf.Do("seerr-index", func() (any, error) { return s.buildSeerr(context.WithoutCancel(ctx)) })
+	v, err, _ := s.sf.Do("seerr-index", refresh)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +175,7 @@ func (s *Service) buildSeerr(ctx context.Context) (res any, err error) {
 		return nil, ErrNoSeerr
 	}
 	idx := &seerrIndex{byKey: map[string][]string{}, byPlex: map[int64]map[string]bool{},
-		byName: map[string]map[string]bool{}, users: map[int64]seerr.User{}}
+		byName: map[string]map[string]bool{}, plexIDs: map[int64]bool{}}
 	cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 	defer cancel()
 	var errs []error
@@ -176,7 +188,7 @@ func (s *Service) buildSeerr(ctx context.Context) (res any, err error) {
 		byID := map[int64]seerr.User{}
 		for _, u := range users {
 			byID[u.ID] = u
-			idx.users[u.ID] = u
+			idx.plexIDs[u.PlexID] = true
 		}
 		reqs, err := c.AllRequests(cctx)
 		if err != nil {
@@ -243,6 +255,7 @@ func contains(l []string, s string) bool {
 
 // Result is a user's union of the requested sources.
 type Result struct {
+	// Keys may be a cached set shared with other requests: read only.
 	Keys map[string]bool
 	// Errors per source, as codes the UI translates (see Code).
 	Errors map[string]string
@@ -279,6 +292,17 @@ func noWait(ctx context.Context) bool { v, _ := ctx.Value(noWaitKey{}).(bool); r
 
 func (s *Service) For(ctx context.Context, u store.User, sources []string) Result {
 	res := Result{Keys: map[string]bool{}, Errors: map[string]string{}}
+	if len(sources) == 1 && Valid(sources[0]) {
+		// One source: hand its set over instead of copying thousands of keys.
+		keys, err := s.source(ctx, u, sources[0])
+		if err != nil {
+			res.Errors[sources[0]] = Code(err)
+		}
+		if keys != nil {
+			res.Keys = keys
+		}
+		return res
+	}
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	for _, src := range sources {
@@ -317,13 +341,14 @@ func (s *Service) source(ctx context.Context, u store.User, src string) (map[str
 				return keys, nil
 			}
 		}
-		if !idx.hasUser(u) {
+		if !idx.plexIDs[u.PlexID] {
 			return nil, ErrNoSeerrUser
 		}
 		return map[string]bool{}, nil
 	}
 
-	set, at, syncErr, err := s.d.Store.UserMedia(ctx, u.ID, src)
+	key := fmt.Sprintf("%d/%s", u.ID, src)
+	set, at, syncErr, err := s.userMedia(ctx, u, src, key)
 	if err != nil {
 		return nil, err
 	}
@@ -342,10 +367,14 @@ func (s *Service) source(ctx context.Context, u store.User, src string) (map[str
 		cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
 		defer cancel()
 		keys, ferr := s.fetch(cctx, u, src)
-		if serr := s.d.Store.SetUserMedia(cctx, u.ID, src, keys, ferr, s.now()); serr != nil {
+		now := s.now()
+		if serr := s.d.Store.SetUserMedia(cctx, u.ID, src, keys, ferr, now); serr != nil {
+			s.syncedMedia(key, nil) // the store may be ahead of the mirror
 			return nil, serr
 		}
 		if ferr != nil {
+			// The store keeps the previous set with the error: reread it.
+			s.syncedMedia(key, nil)
 			s.d.Log.Warn("personal sync", "user", u.Username, "source", src, "err", ferr)
 			return nil, ferr
 		}
@@ -353,9 +382,10 @@ func (s *Service) source(ctx context.Context, u store.User, src string) (map[str
 		for _, k := range keys {
 			out[k] = true
 		}
+		// Same second precision as the store.
+		s.syncedMedia(key, &mediaEntry{createdAt: u.CreatedAt, set: out, at: time.Unix(now.Unix(), 0)})
 		return out, nil
 	}
-	key := fmt.Sprintf("%d/%s", u.ID, src)
 	if set != nil && stored == nil {
 		// Stale: answer with what we have, refresh behind.
 		go func() { _, _, _ = s.sf.Do(key, sync) }()
@@ -379,17 +409,49 @@ func (s *Service) source(ctx context.Context, u store.User, src string) (map[str
 	}
 }
 
-// firstSyncWait bounds how long a request waits for a user's first sync.
-const firstSyncWait = 45 * time.Second
+// userMedia returns a synced source from the mirror, or from the store
+// (after a restart or an eviction).
+func (s *Service) userMedia(ctx context.Context, u store.User, src, key string) (map[string]bool, time.Time, string, error) {
+	s.mu.Lock()
+	e, ok := s.media[key]
+	gen := s.mediaGen
+	s.mu.Unlock()
+	if ok && e.createdAt.Equal(u.CreatedAt) {
+		return e.set, e.at, e.syncErr, nil
+	}
+	set, at, syncErr, err := s.d.Store.UserMedia(ctx, u.ID, src)
+	if err == nil && set != nil {
+		s.mu.Lock()
+		if s.mediaGen == gen { // no sync wrote meanwhile: what we read is current
+			s.media[key] = mediaEntry{createdAt: u.CreatedAt, set: set, at: at, syncErr: syncErr}
+		}
+		s.mu.Unlock()
+	}
+	return set, at, syncErr, err
+}
 
-func (idx *seerrIndex) hasUser(u store.User) bool {
-	for _, su := range idx.users {
-		if su.PlexID == u.PlexID {
-			return true
+// syncedMedia records a sync's outcome (nil: reread the store next time) and
+// sweeps entries past their TTL, so inactive or deleted users do not stay in
+// memory; an evicted entry is just reread from the store.
+func (s *Service) syncedMedia(key string, e *mediaEntry) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.mediaGen++
+	now := s.now()
+	for k, old := range s.media {
+		if now.Sub(old.at) >= ttl[k[strings.IndexByte(k, '/')+1:]] {
+			delete(s.media, k)
 		}
 	}
-	return false
+	if e == nil {
+		delete(s.media, key)
+	} else {
+		s.media[key] = *e
+	}
 }
+
+// firstSyncWait bounds how long a request waits for a user's first sync.
+const firstSyncWait = 45 * time.Second
 
 func (s *Service) fetch(ctx context.Context, u store.User, src string) ([]string, error) {
 	switch src {
