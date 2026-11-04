@@ -41,7 +41,7 @@ func (s *Server) checkAccess(ctx context.Context, now time.Time) {
 		return
 	}
 	for _, u := range users {
-		token, err := s.box.Open(u.PlexToken)
+		token, err := s.box.Open(u.Token)
 		if err != nil || token == "" {
 			continue
 		}

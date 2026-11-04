@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -107,10 +108,10 @@ func New(d Deps) *Service { return &Service{d: d, now: time.Now, media: map[stri
 
 // seerrIndex maps media keys to their requesters, across Seerr instances.
 type seerrIndex struct {
-	byKey   map[string][]string        // media key -> requester display names
-	byPlex  map[int64]map[string]bool  // plex account id -> media keys requested
-	byName  map[string]map[string]bool // lower-case plex username/email -> keys (older users without plexId)
-	plexIDs map[int64]bool             // plex account ids of the Seerr users
+	byKey     map[string][]string        // media key -> requester display names
+	byAccount map[string]map[string]bool // media-server account (seerr.AccountKey) -> media keys requested
+	byName    map[string]map[string]bool // lower-case username/email -> keys (older users without an account id)
+	accounts  map[string]bool            // media-server accounts of the Seerr users
 }
 
 // RequestIndex returns a lookup from media key to requesters, for annotating
@@ -174,8 +175,8 @@ func (s *Service) buildSeerr(ctx context.Context) (res any, err error) {
 	if len(clients) == 0 {
 		return nil, ErrNoSeerr
 	}
-	idx := &seerrIndex{byKey: map[string][]string{}, byPlex: map[int64]map[string]bool{},
-		byName: map[string]map[string]bool{}, plexIDs: map[int64]bool{}}
+	idx := &seerrIndex{byKey: map[string][]string{}, byAccount: map[string]map[string]bool{},
+		byName: map[string]map[string]bool{}, accounts: map[string]bool{}}
 	cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 	defer cancel()
 	var errs []error
@@ -188,7 +189,9 @@ func (s *Service) buildSeerr(ctx context.Context) (res any, err error) {
 		byID := map[int64]seerr.User{}
 		for _, u := range users {
 			byID[u.ID] = u
-			idx.plexIDs[u.PlexID] = true
+			if a := u.Account(); a != "" {
+				idx.accounts[a] = true
+			}
 		}
 		reqs, err := c.AllRequests(cctx)
 		if err != nil {
@@ -201,18 +204,18 @@ func (s *Service) buildSeerr(ctx context.Context) (res any, err error) {
 			if name == "" {
 				name = r.RequestedBy.DisplayName
 			}
-			plexID := u.PlexID
-			if plexID == 0 {
-				plexID = r.RequestedBy.PlexID
+			account := u.Account()
+			if account == "" {
+				account = seerr.User{PlexID: r.RequestedBy.PlexID, JellyfinUserID: r.RequestedBy.JellyfinUserID}.Account()
 			}
 			for _, k := range r.MediaKeys() {
 				if name != "" && !contains(idx.byKey[k], name) {
 					idx.byKey[k] = append(idx.byKey[k], name)
 				}
-				if plexID != 0 {
-					add(idx.byPlex, plexID, k)
+				if account != "" {
+					add(idx.byAccount, account, k)
 				}
-				for _, n := range []string{u.PlexUsername, u.Email} {
+				for _, n := range []string{u.PlexUsername, u.JellyfinUsername, u.Email} {
 					if n != "" {
 						addName(idx.byName, n, k)
 					}
@@ -229,7 +232,7 @@ func (s *Service) buildSeerr(ctx context.Context) (res any, err error) {
 	return idx, nil
 }
 
-func add(m map[int64]map[string]bool, id int64, k string) {
+func add(m map[string]map[string]bool, id string, k string) {
 	if m[id] == nil {
 		m[id] = map[string]bool{}
 	}
@@ -333,7 +336,8 @@ func (s *Service) source(ctx context.Context, u store.User, src string) (map[str
 		if err != nil {
 			return nil, err
 		}
-		if keys, ok := idx.byPlex[u.PlexID]; ok {
+		account := seerr.AccountKey(u.AccountID)
+		if keys, ok := idx.byAccount[account]; ok {
 			return keys, nil
 		}
 		for _, n := range []string{u.Username, u.Email} {
@@ -341,7 +345,7 @@ func (s *Service) source(ctx context.Context, u store.User, src string) (map[str
 				return keys, nil
 			}
 		}
-		if !idx.plexIDs[u.PlexID] {
+		if !idx.accounts[account] {
 			return nil, ErrNoSeerrUser
 		}
 		return map[string]bool{}, nil
@@ -470,7 +474,7 @@ func (s *Service) fetch(ctx context.Context, u store.User, src string) ([]string
 		if err != nil {
 			return nil, fmt.Errorf("%w: %w", ErrNoPlexServer, err)
 		}
-		account := u.PlexID
+		account, _ := strconv.ParseInt(u.AccountID, 10, 64) // a Plex account id
 		if u.IsOwner {
 			account = plex.OwnerAccountID
 		}

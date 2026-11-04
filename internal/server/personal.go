@@ -24,7 +24,7 @@ func (s *Server) newPersonal() *personal.Service {
 		Seerrs:     s.seerrClients,
 		PlexServer: s.plexServer,
 		PlexTV:     s.plex,
-		UserToken:  func(u store.User) (string, error) { return s.box.Open(u.PlexToken) },
+		UserToken:  func(u store.User) (string, error) { return s.box.Open(u.Token) },
 	})
 }
 

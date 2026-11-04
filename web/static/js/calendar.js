@@ -748,7 +748,7 @@
         setFollowed(e.group, on);
       } }, bellIcon(), followLabel);
     const list = [
-      e.plexUrl ? el("a", { class: "btn btn-primary", href: e.plexUrl, target: "_blank", rel: "noopener", text: t("cal.open_plex") }) : null,
+      e.mediaUrl ? el("a", { class: "btn btn-primary", href: e.mediaUrl, target: "_blank", rel: "noopener", text: t("cal.open_plex") }) : null,
       ...(e.arrLinks || []).map((l) => el("a", { class: "btn", href: l.url, target: "_blank", rel: "noopener", text: t("cal.open_in", { name: l.label }) })),
       follow,
     ].filter(Boolean);
@@ -798,7 +798,7 @@
       x.epTitle ? el("span", { class: "ep-title", text: ` · ${x.epTitle}` }) : null,
       el("span", { class: `status status-${statusOf(x)}`, text: t("cal.status_" + statusOf(x)) }),
     ];
-    if (!(x.hasFile && e.plexUrl)) return el("li", {}, el("div", { class: "ep-head" }, head));
+    if (!(x.hasFile && e.mediaUrl)) return el("li", {}, el("div", { class: "ep-head" }, head));
     return el("li", {}, el("details", { class: "ep-fold", "data-episode": x.episode },
       el("summary", { class: "ep-head" }, head),
       el("div", { class: "ep-body" }, el("p", { class: "ep-wait", text: t("cal.loading") }))));
@@ -874,7 +874,7 @@
     const day = parseKey(dayOf(e));
     const when = [fDayFull.format(day), timeOf(e)].filter(Boolean).join(" · ");
     fileFor = null;
-    const fromPlex = e.hasFile && e.plexUrl && !e.bundle;
+    const fromPlex = e.hasFile && e.mediaUrl && !e.bundle;
     const seasonSlot = el("div", { class: "season-summary" });
     // Radarr/Sonarr's reading shows at once; Plex's replaces it when it comes,
     // so the buttons below do not jump under the finger (UX-03).
@@ -903,7 +903,7 @@
         : e.overview ? el("p", { class: "detail-overview", text: e.overview }) : null);
     show(article, { fromDay: dialog.open && !!dayContent && dayContent.isConnected });
     if (fromPlex) loadFile(e, article, slot);
-    if (e.bundle && e.plexUrl && e.bundle.some((x) => x.hasFile)) loadSeason(e, article, seasonSlot);
+    if (e.bundle && e.mediaUrl && e.bundle.some((x) => x.hasFile)) loadSeason(e, article, seasonSlot);
   }
 
   function openDay(day, list) {

@@ -2,7 +2,9 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"github.com/pressly/goose/v3"
 	"testing"
 	"time"
 )
@@ -35,11 +37,11 @@ func TestSettings(t *testing.T) {
 func TestOwnerClaim(t *testing.T) {
 	s, ctx := newTest(t), context.Background()
 	now := time.Unix(1_700_000_000, 0)
-	a, err := s.SignIn(ctx, Profile{PlexID: 1, Username: "neo", PlexToken: "x"}, now)
+	a, err := s.SignIn(ctx, Profile{AccountID: "1", Username: "neo", Token: "x"}, now)
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, _ := s.SignIn(ctx, Profile{PlexID: 2, Username: "friend"}, now)
+	b, _ := s.SignIn(ctx, Profile{AccountID: "2", Username: "friend"}, now)
 	if ok, _ := s.HasOwner(ctx); ok {
 		t.Fatal("owner before claim")
 	}
@@ -59,7 +61,7 @@ func TestOwnerClaim(t *testing.T) {
 	// The owner cannot be demoted or deleted; a sign-in keeps admin rights.
 	_ = s.SetAdmin(ctx, a.ID, false)
 	_ = s.DeleteUser(ctx, a.ID)
-	a, err = s.SignIn(ctx, Profile{PlexID: 1, Username: "neo2"}, now)
+	a, err = s.SignIn(ctx, Profile{AccountID: "1", Username: "neo2"}, now)
 	if err != nil || !a.IsAdmin || a.Username != "neo2" {
 		t.Fatalf("owner after demote/delete/sign-in: %+v %v", a, err)
 	}
@@ -68,7 +70,7 @@ func TestOwnerClaim(t *testing.T) {
 	if b, _ = s.UserByID(ctx, b.ID); !b.Disabled {
 		t.Fatal("not disabled")
 	}
-	if b, _ = s.SignIn(ctx, Profile{PlexID: 2, Username: "friend"}, now); b.Disabled {
+	if b, _ = s.SignIn(ctx, Profile{AccountID: "2", Username: "friend"}, now); b.Disabled {
 		t.Fatal("still disabled")
 	}
 	users, _ := s.Users(ctx)
@@ -80,7 +82,7 @@ func TestOwnerClaim(t *testing.T) {
 func TestNotifications(t *testing.T) {
 	ctx := context.Background()
 	s := newTest(t)
-	u, err := s.SignIn(ctx, Profile{PlexID: 7, Username: "a"}, time.Now())
+	u, err := s.SignIn(ctx, Profile{AccountID: "7", Username: "a"}, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,5 +121,54 @@ func TestNotifications(t *testing.T) {
 	}
 	if m, _ := s.MediaStates(ctx); !m["k"].HasFile || m["k"].Sig != "4K" {
 		t.Fatalf("state %v", m)
+	}
+}
+
+// A v5 database keeps its users and what hangs off them when users.plex_id
+// becomes account_id; Plex ids read back as decimal strings.
+func TestAccountMigration(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite", "file::memory:?_pragma=foreign_keys(ON)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	db.SetMaxOpenConns(1)
+	goose.SetBaseFS(migrationsFS)
+	goose.SetLogger(goose.NopLogger())
+	if err := goose.SetDialect("sqlite3"); err != nil {
+		t.Fatal(err)
+	}
+	if err := goose.UpTo(db, "migrations", 5); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO users (id, plex_id, username, plex_token, created_at) VALUES (1, 42, 'neo', 'sealed', 1);
+		INSERT INTO user_prefs (user_id, prefs) VALUES (1, '{"view":"week"}');
+		INSERT INTO follows (user_id, grp, title, created_at) VALUES (1, 'movie:tmdb:1', 'Dune', 1)`); err != nil {
+		t.Fatal(err)
+	}
+	if err := goose.Up(db, "migrations"); err != nil {
+		t.Fatal(err)
+	}
+	s := &Store{DB: db}
+	u, err := s.UserByAccount(ctx, "42")
+	if err != nil || u.ID != 1 || u.AccountID != "42" || u.Token != "sealed" {
+		t.Fatalf("user: %+v %v", u, err)
+	}
+	var prefs string
+	var follows int
+	_ = db.QueryRowContext(ctx, `SELECT prefs FROM user_prefs WHERE user_id = 1`).Scan(&prefs)
+	_ = db.QueryRowContext(ctx, `SELECT count(*) FROM follows WHERE user_id = 1`).Scan(&follows)
+	if prefs != `{"view":"week"}` || follows != 1 {
+		t.Fatalf("lost: prefs %q, follows %d", prefs, follows)
+	}
+	// A Jellyfin id (dashed GUID) sits next to it and is not read as a number.
+	const jf = "8f2c1a4e-5b6d-4e7f-9a0b-1c2d3e4f5a6b"
+	j, err := s.SignIn(ctx, Profile{AccountID: jf, Username: "jelly"}, time.Now())
+	if err != nil || j.AccountID != jf {
+		t.Fatalf("jellyfin: %+v %v", j, err)
+	}
+	if again, err := s.UserByAccount(ctx, jf); err != nil || again.ID != j.ID {
+		t.Fatalf("lookup: %+v %v", again, err)
 	}
 }

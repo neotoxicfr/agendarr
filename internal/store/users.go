@@ -8,16 +8,17 @@ import (
 	"time"
 )
 
-// User is an agendarr account, always backed by a Plex account.
+// User is an agendarr account, always backed by an account of the media
+// server: a Plex account id (decimal) or a Jellyfin user id (dashed GUID).
 type User struct {
 	ID        int64
-	PlexID    int64
+	AccountID string
 	Username  string
 	Email     string
 	Thumb     string
 	IsOwner   bool
 	IsAdmin   bool
-	PlexToken string // sealed
+	Token     string // sealed; Plex only (Jellyfin reads through the API key)
 	Disabled  bool
 	CreatedAt time.Time
 	LastLogin time.Time
@@ -27,13 +28,13 @@ type User struct {
 // ErrOwnerExists is returned when a second owner is claimed.
 var ErrOwnerExists = errors.New("an owner already exists")
 
-const userCols = `id, plex_id, username, email, thumb, is_owner, is_admin, plex_token, disabled, created_at, last_login, checked_at`
+const userCols = `id, account_id, username, email, thumb, is_owner, is_admin, token, disabled, created_at, last_login, checked_at`
 
 func scanUser(row interface{ Scan(...any) error }) (User, error) {
 	var u User
 	var created, login, checked int64
-	err := row.Scan(&u.ID, &u.PlexID, &u.Username, &u.Email, &u.Thumb, &u.IsOwner, &u.IsAdmin,
-		&u.PlexToken, &u.Disabled, &created, &login, &checked)
+	err := row.Scan(&u.ID, &u.AccountID, &u.Username, &u.Email, &u.Thumb, &u.IsOwner, &u.IsAdmin,
+		&u.Token, &u.Disabled, &created, &login, &checked)
 	if errors.Is(err, sql.ErrNoRows) {
 		return u, ErrNotFound
 	}
@@ -60,9 +61,9 @@ func (s *Store) UserByID(ctx context.Context, id int64) (User, error) {
 	return scanUser(s.DB.QueryRowContext(ctx, `SELECT `+userCols+` FROM users WHERE id = ?`, id))
 }
 
-// UserByPlexID returns a user by Plex account id.
-func (s *Store) UserByPlexID(ctx context.Context, plexID int64) (User, error) {
-	return scanUser(s.DB.QueryRowContext(ctx, `SELECT `+userCols+` FROM users WHERE plex_id = ?`, plexID))
+// UserByAccount returns a user by media-server account id.
+func (s *Store) UserByAccount(ctx context.Context, account string) (User, error) {
+	return scanUser(s.DB.QueryRowContext(ctx, `SELECT `+userCols+` FROM users WHERE account_id = ?`, account))
 }
 
 // Users lists every user, owner first, then admins, then by name.
@@ -85,28 +86,28 @@ func (s *Store) Users(ctx context.Context) ([]User, error) {
 
 // Profile is what a sign-in refreshes on the user row.
 type Profile struct {
-	PlexID    int64
+	AccountID string
 	Username  string
 	Email     string
 	Thumb     string
-	PlexToken string // sealed
+	Token     string // sealed
 }
 
-// SignIn creates or refreshes the user after a successful Plex sign-in and
+// SignIn creates or refreshes the user after a successful sign-in and
 // re-enables it. Admin rights are left untouched.
 func (s *Store) SignIn(ctx context.Context, p Profile, now time.Time) (User, error) {
 	_, err := s.DB.ExecContext(ctx, `
-		INSERT INTO users (plex_id, username, email, thumb, plex_token, created_at, last_login, checked_at)
+		INSERT INTO users (account_id, username, email, thumb, token, created_at, last_login, checked_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT (plex_id) DO UPDATE SET
+		ON CONFLICT (account_id) DO UPDATE SET
 			username = excluded.username, email = excluded.email, thumb = excluded.thumb,
-			plex_token = excluded.plex_token, disabled = 0,
+			token = excluded.token, disabled = 0,
 			last_login = excluded.last_login, checked_at = excluded.checked_at`,
-		p.PlexID, p.Username, p.Email, p.Thumb, p.PlexToken, now.Unix(), now.Unix(), now.Unix())
+		p.AccountID, p.Username, p.Email, p.Thumb, p.Token, now.Unix(), now.Unix(), now.Unix())
 	if err != nil {
 		return User{}, fmt.Errorf("sign in: %w", err)
 	}
-	return s.UserByPlexID(ctx, p.PlexID)
+	return s.UserByAccount(ctx, p.AccountID)
 }
 
 // ClaimOwner makes the user the owner and an admin, in the same transaction

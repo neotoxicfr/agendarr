@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -92,7 +93,7 @@ func httptestRequest(h *harness) *http.Request {
 
 func mustUser(t *testing.T, h *harness, plexID int64) *store.User {
 	t.Helper()
-	u, err := h.srv.store.UserByPlexID(context.Background(), plexID)
+	u, err := h.srv.store.UserByAccount(context.Background(), strconv.FormatInt(plexID, 10))
 	if err != nil {
 		t.Fatal(err)
 	}

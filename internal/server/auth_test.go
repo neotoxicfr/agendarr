@@ -249,7 +249,7 @@ func TestDeletedUserCookieDoesNotOpenNextAccount(t *testing.T) {
 	if code := h.status(friend, "/"); code != 200 {
 		t.Fatalf("friend: %d", code)
 	}
-	f, err := h.srv.store.UserByPlexID(context.Background(), 2)
+	f, err := h.srv.store.UserByAccount(context.Background(), "2")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -258,7 +258,7 @@ func TestDeletedUserCookieDoesNotOpenNextAccount(t *testing.T) {
 	h.fp.accounts["newbie"] = `{"id":5,"username":"newbie"}`
 	h.fp.servers["newbie"] = "[" + owned(srvA, false) + "]"
 	h.signIn("newbie")
-	n, _ := h.srv.store.UserByPlexID(context.Background(), 5)
+	n, _ := h.srv.store.UserByAccount(context.Background(), "5")
 	if n.ID != f.ID {
 		t.Skipf("id not reused (%d vs %d): scenario not reproduced", n.ID, f.ID)
 	}
@@ -291,5 +291,39 @@ func TestPinNotFoundIsRetried(t *testing.T) {
 	h.post(c, "/auth/plex/check", &check)
 	if check["redirect"] != "/" {
 		t.Fatalf("after the misses: %v", check)
+	}
+}
+
+// A cookie written before Jellyfin holds the Plex id as an int64 under "pid":
+// it still signs its user in, and still refuses a reused users.id.
+func TestLegacySessionGuard(t *testing.T) {
+	h := newHarness(t, config.Config{DataDir: t.TempDir()})
+	ctx := context.Background()
+	u, err := h.srv.store.SignIn(ctx, store.Profile{AccountID: "77", Username: "old"}, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		pid  int64
+		want bool
+	}{{77, true}, {78, false}} {
+		write := h.srv.sessions.LoadAndSave(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			h.srv.sessions.Put(r.Context(), sessUserID, u.ID)
+			h.srv.sessions.Put(r.Context(), sessPlexID, c.pid)
+		}))
+		rec := httptest.NewRecorder()
+		write.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+		var got bool
+		read := h.srv.sessions.LoadAndSave(h.srv.loadUser(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			got = currentUser(r) != nil
+		})))
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		for _, ck := range rec.Result().Cookies() {
+			req.AddCookie(ck)
+		}
+		read.ServeHTTP(httptest.NewRecorder(), req)
+		if got != c.want {
+			t.Fatalf("pid %d: signed in %v, want %v", c.pid, got, c.want)
+		}
 	}
 }

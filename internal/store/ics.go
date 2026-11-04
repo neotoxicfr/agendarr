@@ -56,7 +56,7 @@ func (s *Store) DeleteICSToken(ctx context.Context, userID int64) error {
 
 func userColsPrefixed(p string) string {
 	out := ""
-	for i, c := range []string{"id", "plex_id", "username", "email", "thumb", "is_owner", "is_admin", "plex_token", "disabled", "created_at", "last_login", "checked_at"} {
+	for i, c := range []string{"id", "account_id", "username", "email", "thumb", "is_owner", "is_admin", "token", "disabled", "created_at", "last_login", "checked_at"} {
 		if i > 0 {
 			out += ", "
 		}

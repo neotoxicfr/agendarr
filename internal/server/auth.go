@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,7 +27,8 @@ const (
 // Session keys.
 const (
 	sessUserID      = "uid"
-	sessPlexID      = "pid" // guards against a reused users.id
+	sessAccount     = "aid" // guards against a reused users.id
+	sessPlexID      = "pid" // the same guard, as written before Jellyfin (int64 Plex id)
 	sessPinID       = "pin_id"
 	sessPinAt       = "pin_at" // unix time the PIN was created
 	sessSetupUserID = "setup_uid"
@@ -56,9 +58,13 @@ func (s *Server) loadUser(next http.Handler) http.Handler {
 		if id := s.sessions.GetInt64(r.Context(), sessUserID); id != 0 {
 			u, err := s.store.UserByID(r.Context(), id)
 			// users.id values are reused after a deletion: the session must
-			// also name the same Plex account, or a deleted user's cookie
-			// would open the next account created.
-			if err == nil && u.PlexID != s.sessions.GetInt64(r.Context(), sessPlexID) {
+			// also name the same account, or a deleted user's cookie would
+			// open the next account created. Older cookies hold the Plex id.
+			account := s.sessions.GetString(r.Context(), sessAccount)
+			if account == "" {
+				account = strconv.FormatInt(s.sessions.GetInt64(r.Context(), sessPlexID), 10)
+			}
+			if err == nil && u.AccountID != account {
 				err = store.ErrNotFound
 			}
 			switch {
@@ -255,7 +261,7 @@ func (s *Server) completeSignIn(r *http.Request, token string) (next, code strin
 		s.log.Warn("plex servers", "err", err)
 		return "", "plex"
 	}
-	profile := store.Profile{PlexID: acc.ID, Username: acc.DisplayName(), Email: acc.Email, Thumb: acc.Thumb, PlexToken: s.box.Seal(token)}
+	profile := store.Profile{AccountID: strconv.FormatInt(acc.ID, 10), Username: acc.DisplayName(), Email: acc.Email, Thumb: acc.Thumb, Token: s.box.Seal(token)}
 
 	if !s.setupDone(ctx) {
 		owned := ownedServers(servers)
@@ -306,7 +312,7 @@ func (s *Server) signIn(r *http.Request, userID int64) {
 	s.sessions.Remove(ctx, sessSetupUserID)
 	s.sessions.Put(ctx, sessUserID, userID)
 	if u, err := s.store.UserByID(ctx, userID); err == nil {
-		s.sessions.Put(ctx, sessPlexID, u.PlexID)
+		s.sessions.Put(ctx, sessAccount, u.AccountID)
 	}
 }
 
@@ -368,7 +374,7 @@ func (s *Server) handleSetupServer(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/login?e=expired", http.StatusSeeOther)
 		return
 	}
-	token, err := s.box.Open(u.PlexToken)
+	token, err := s.box.Open(u.Token)
 	if err != nil {
 		s.log.Error("open token", "err", err)
 		http.Redirect(w, r, "/login?e=expired", http.StatusSeeOther)

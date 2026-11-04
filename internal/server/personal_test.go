@@ -144,7 +144,7 @@ func TestPersonalFilters(t *testing.T) {
 	}
 	// After a failed sync, the next request waits for the retry instead of
 	// serving the empty set with the old error.
-	u, err := h.srv.store.UserByPlexID(ctx, 2)
+	u, err := h.srv.store.UserByAccount(ctx, "2")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -239,7 +239,7 @@ func TestEventLinksAndMedia(t *testing.T) {
 	h.srv.instancesChanged()
 	type ev struct {
 		Title    string
-		PlexURL  string
+		MediaURL string
 		ArrLinks []struct{ Label, URL string }
 		Media    []struct {
 			Resolution, AudioCodec, Channels string
@@ -265,13 +265,13 @@ func TestEventLinksAndMedia(t *testing.T) {
 	// The Plex index is built in the background after the first request.
 	var o ev
 	for n := 0; n < 50; n++ {
-		if o = get(owner); o.PlexURL != "" {
+		if o = get(owner); o.MediaURL != "" {
 			break
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	if !strings.Contains(o.PlexURL, "/server/A/details?key=%2Flibrary%2Fmetadata%2F55") {
-		t.Fatalf("plex url: %q", o.PlexURL)
+	if !strings.Contains(o.MediaURL, "/server/A/details?key=%2Flibrary%2Fmetadata%2F55") {
+		t.Fatalf("plex url: %q", o.MediaURL)
 	}
 	if len(o.ArrLinks) != 1 || o.ArrLinks[0].URL != "https://radarr.example.com/movie/100" {
 		t.Fatalf("admin links: %+v", o.ArrLinks)
@@ -282,7 +282,7 @@ func TestEventLinksAndMedia(t *testing.T) {
 		t.Fatalf("media: %+v", m)
 	}
 	f := get(friend)
-	if f.PlexURL == "" || len(f.ArrLinks) != 0 || len(f.Media) != 1 {
+	if f.MediaURL == "" || len(f.ArrLinks) != 0 || len(f.Media) != 1 {
 		t.Fatalf("friend: %+v", f)
 	}
 

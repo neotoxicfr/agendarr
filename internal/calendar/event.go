@@ -55,8 +55,8 @@ type Event struct {
 	Media []Media `json:"media,omitempty"`
 	// Arr locates the movie or series in each instance (admin links).
 	Arr []ArrRef `json:"-"`
-	// PlexURL opens it on the Plex server (set per response).
-	PlexURL string `json:"plexUrl,omitempty"`
+	// MediaURL opens it on the media server, Plex or Jellyfin (set per response).
+	MediaURL string `json:"mediaUrl,omitempty"`
 	// ArrLinks open it in Radarr or Sonarr, for admins (set per response).
 	ArrLinks []Link `json:"arrLinks,omitempty"`
 	// Ext opens it on TMDB, TVDB and IMDb.

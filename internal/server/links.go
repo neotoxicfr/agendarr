@@ -87,7 +87,7 @@ func (s *Server) addLinks(ctx context.Context, events []calendar.Event, admin bo
 		if machine != "" {
 			for _, k := range e.Keys {
 				if rk, ok := lib[k]; ok {
-					e.PlexURL = plex.WebURL(machine, rk)
+					e.MediaURL = plex.WebURL(machine, rk)
 					break
 				}
 			}

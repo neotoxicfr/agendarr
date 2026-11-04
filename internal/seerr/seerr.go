@@ -45,13 +45,31 @@ func (c *Client) Test(ctx context.Context) (Status, error) {
 	return s, nil
 }
 
-// User is a Seerr user; PlexID links it to a Plex account.
+// User is a Seerr user; PlexID links it to a Plex account, JellyfinUserID
+// (Jellyseerr) to a Jellyfin one.
 type User struct {
-	ID           int64  `json:"id"`
-	PlexID       int64  `json:"plexId"`
-	PlexUsername string `json:"plexUsername"`
-	Email        string `json:"email"`
-	DisplayName  string `json:"displayName"`
+	ID               int64  `json:"id"`
+	PlexID           int64  `json:"plexId"`
+	PlexUsername     string `json:"plexUsername"`
+	JellyfinUserID   string `json:"jellyfinUserId"`
+	JellyfinUsername string `json:"jellyfinUsername"`
+	Email            string `json:"email"`
+	DisplayName      string `json:"displayName"`
+}
+
+// Account is the media-server account the user is linked to, as compared with
+// an agendarr user's: see AccountKey.
+func (u User) Account() string {
+	if u.PlexID != 0 {
+		return strconv.FormatInt(u.PlexID, 10)
+	}
+	return AccountKey(u.JellyfinUserID)
+}
+
+// AccountKey puts an account id in one form: Jellyfin ids come with or
+// without dashes, in either case; Plex ids are plain numbers.
+func AccountKey(id string) string {
+	return strings.ToLower(strings.ReplaceAll(id, "-", ""))
 }
 
 // Users lists every Seerr user.
@@ -83,9 +101,10 @@ type Request struct {
 	ID          int64  `json:"id"`
 	Type        string `json:"type"` // movie | tv
 	RequestedBy struct {
-		ID          int64  `json:"id"`
-		DisplayName string `json:"displayName"`
-		PlexID      int64  `json:"plexId"`
+		ID             int64  `json:"id"`
+		DisplayName    string `json:"displayName"`
+		PlexID         int64  `json:"plexId"`
+		JellyfinUserID string `json:"jellyfinUserId"`
 	} `json:"requestedBy"`
 	Media struct {
 		TmdbID    int64  `json:"tmdbId"`
