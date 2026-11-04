@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -134,7 +135,7 @@ func mergeCatalog(items []catalogItem) []catalogItem {
 			if it.Next != nil && (m.Next == nil || it.Next.Before(*m.Next)) {
 				m.Next = it.Next
 			}
-			if !strings.Contains(m.Instance, it.Instance) {
+			if !slices.Contains(strings.Split(m.Instance, ", "), it.Instance) {
 				m.Instance += ", " + it.Instance
 			}
 			continue

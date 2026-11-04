@@ -334,3 +334,11 @@ func TestDeleteNotifications(t *testing.T) {
 	}
 	_ = friend
 }
+
+// An instance whose name holds another's is still listed (Radarr 4K, Radarr).
+func TestMergeCatalogInstances(t *testing.T) {
+	got := mergeCatalog([]catalogItem{{Group: "m", Instance: "Radarr 4K"}, {Group: "m", Instance: "Radarr"}, {Group: "m", Instance: "Radarr"}})
+	if len(got) != 1 || got[0].Instance != "Radarr 4K, Radarr" {
+		t.Fatalf("%+v", got)
+	}
+}
