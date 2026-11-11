@@ -273,6 +273,8 @@ func (c *Client) Watchlist(ctx context.Context, token string) ([]string, error) 
 				if k := GuidKey(g.ID); k != "" {
 					if m.Type == "show" {
 						k = ShowKey(k)
+					} else if strings.HasPrefix(k, "tvdb:") {
+						continue // TVDB numbers movies apart; calendar tvdb keys are series only (EDGE-a1-01)
 					}
 					out = append(out, k)
 				}
@@ -323,6 +325,8 @@ func (s *Server) Library(ctx context.Context) (map[string]string, error) {
 				if k := GuidKey(g.ID); k != "" {
 					if d.Type == "show" {
 						k = ShowKey(k)
+					} else if strings.HasPrefix(k, "tvdb:") {
+						continue // a movie's TVDB id could match a series (EDGE-a1-01)
 					}
 					out[k] = m.RatingKey
 				}
@@ -453,8 +457,10 @@ func resolution(r string) string {
 	switch {
 	case r == "":
 		return ""
-	case strings.EqualFold(r, "4k"):
-		return "4K"
+	case strings.EqualFold(r, "2k"):
+		return "1440p" // Plex's "2k" would otherwise read "2kp" (EDGE-a1-04)
+	case strings.HasSuffix(strings.ToLower(r), "k"):
+		return strings.ToUpper(r)
 	case strings.EqualFold(r, "sd"):
 		return "SD"
 	case strings.HasSuffix(r, "p"):
@@ -473,7 +479,7 @@ func (s *Server) EpisodeKey(ctx context.Context, showKey string, season, episode
 	if rk, ok := keys[[2]int{season, episode}]; ok {
 		return rk, nil
 	}
-	return "", errNotFound
+	return "", nil // an episode Plex lacks is "absent", not an error (EDGE-a1-03)
 }
 
 // EpisodeKeys maps every episode of a show, as {season, episode}, to its

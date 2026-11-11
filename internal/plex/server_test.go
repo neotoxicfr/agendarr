@@ -95,3 +95,58 @@ func TestHistoryNeedsAccount(t *testing.T) {
 		t.Fatalf("%d requests sent", hits)
 	}
 }
+
+// A movie's TVDB id is not a series' (EDGE-a1-01): only shows keep a tvdb key.
+func TestLibraryAndWatchlistDropMovieTvdb(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /library/sections", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"MediaContainer":{"Directory":[{"key":"1","type":"movie"},{"key":"2","type":"show"}]}}`)
+	})
+	mux.HandleFunc("GET /library/sections/1/all", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"MediaContainer":{"Metadata":[{"ratingKey":"9","Guid":[{"id":"tmdb://1"},{"id":"tvdb://73871"}]}]}}`)
+	})
+	mux.HandleFunc("GET /library/sections/2/all", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"MediaContainer":{"Metadata":[{"ratingKey":"8","Guid":[{"id":"tvdb://5"}]}]}}`)
+	})
+	mux.HandleFunc("GET /library/sections/watchlist/all", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"MediaContainer":{"totalSize":2,"Metadata":[
+		 {"type":"movie","Guid":[{"id":"tmdb://1"},{"id":"tvdb://73871"}]},
+		 {"type":"show","Guid":[{"id":"tvdb://5"}]}]}}`)
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+	ctx := context.Background()
+	lib, err := (&Server{BaseURL: ts.URL, Token: "t"}).Library(ctx)
+	if err != nil || lib["tvdb:73871"] != "" || lib["tmdb:1"] != "9" || lib["tvdb:5"] != "8" {
+		t.Fatalf("library: %v %v", lib, err)
+	}
+	c := New("cid", "test")
+	c.DiscoverBase = ts.URL
+	wl, err := c.Watchlist(ctx, "t")
+	if err != nil || strings.Join(wl, ",") != "tmdb:1,tvdb:5" {
+		t.Fatalf("watchlist: %v %v", wl, err)
+	}
+}
+
+func TestResolution(t *testing.T) {
+	for in, want := range map[string]string{"2k": "1440p", "4k": "4K", "8k": "8K", "1080": "1080p", "720p": "720p", "sd": "SD", "": ""} {
+		if got := resolution(in); got != want {
+			t.Errorf("resolution(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+// An episode Plex lacks is "absent", not an error to retry (EDGE-a1-03).
+func TestEpisodeKeyAbsent(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"MediaContainer":{"Metadata":[{"ratingKey":"301","parentIndex":1,"index":2}]}}`)
+	}))
+	defer ts.Close()
+	s := &Server{BaseURL: ts.URL, Token: "t"}
+	if rk, err := s.EpisodeKey(context.Background(), "1", 1, 9); rk != "" || err != nil {
+		t.Fatalf("absent: %q %v", rk, err)
+	}
+	if rk, err := s.EpisodeKey(context.Background(), "1", 1, 2); rk != "301" || err != nil {
+		t.Fatalf("present: %q %v", rk, err)
+	}
+}

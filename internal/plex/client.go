@@ -48,7 +48,9 @@ func New(clientID, version string) *Client {
 		ClientsBase:  "https://clients.plex.tv",
 		DiscoverBase: "https://discover.provider.plex.tv",
 		AuthApp:      "https://app.plex.tv/auth",
-		HTTP:         &http.Client{Timeout: 15 * time.Second},
+		HTTP: &http.Client{Timeout: 15 * time.Second,
+			// X-Plex-Token must never follow a redirect to another host (SEC-a1-07).
+			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }},
 	}
 }
 

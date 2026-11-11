@@ -170,7 +170,7 @@ func (s *Server) handleTracks(w http.ResponseWriter, r *http.Request) {
 	if known {
 		episode, _ := strconv.Atoi(q.Get("episode"))
 		if v, err := s.itemTracks(r.Context(), rk, season, episode, kind == "series"); err == nil {
-			versions = v
+			versions = append(versions, v...) // never null, even for an absent item (EDGE-a1-03)
 		} else {
 			s.log.Info("plex tracks", "group", q.Get("group"), "err", err)
 			writeJSON(w, http.StatusOK, map[string]any{"versions": versions, "unreachable": true})
@@ -323,6 +323,9 @@ func (s *Server) itemTracks(ctx context.Context, rk string, season, episode int,
 			if key, err = srv.EpisodeKey(ctx, rk, season, episode); err != nil {
 				return nil, err
 			}
+			if key == "" { // not in Plex: an answer to cache, not an outage (EDGE-a1-03)
+				return []plex.Version(nil), nil
+			}
 		}
 		return srv.Tracks(ctx, key)
 	})
@@ -348,8 +351,12 @@ func (s *Server) jellyfinSeason(ctx context.Context, seriesID string, season int
 	out := map[int][]plex.Version{}
 	for _, e := range eps {
 		if e.Season == season {
-			out[e.Episode] = e.Versions
-			s.storeTracks(trackKey(seriesID, season, e.Episode), e.Versions)
+			// A double file (S01E01-E02) is one item that covers every episode of its range (EDGE-a1-02).
+			// The range is capped: the end comes from the server's metadata.
+			for n := e.Episode; n <= min(max(e.Episode, e.EpisodeEnd), e.Episode+20); n++ {
+				out[n] = e.Versions
+				s.storeTracks(trackKey(seriesID, season, n), e.Versions)
+			}
 		}
 	}
 	return out, nil

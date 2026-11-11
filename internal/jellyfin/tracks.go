@@ -46,10 +46,11 @@ func (c *Client) Tracks(ctx context.Context, itemID string) ([]plex.Version, err
 
 // Episode is one episode of a season, with its versions.
 type Episode struct {
-	ID       string
-	Season   int
-	Episode  int
-	Versions []plex.Version
+	ID         string
+	Season     int
+	Episode    int
+	EpisodeEnd int // last episode of a multi-episode file, 0 otherwise
+	Versions   []plex.Version
 }
 
 // SeasonTracks returns the episodes of one season with their tracks, in one call.
@@ -63,7 +64,7 @@ func (c *Client) SeasonTracks(ctx context.Context, seriesID string, season int) 
 	}
 	out := make([]Episode, 0, len(v.Items))
 	for _, it := range v.Items {
-		out = append(out, Episode{ID: it.ID, Season: it.Season, Episode: it.Episode, Versions: versions(it.MediaSources)})
+		out = append(out, Episode{ID: it.ID, Season: it.Season, Episode: it.Episode, EpisodeEnd: it.EpisodeEnd, Versions: versions(it.MediaSources)})
 	}
 	return out, nil
 }

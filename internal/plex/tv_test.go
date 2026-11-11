@@ -70,3 +70,24 @@ func TestSignInFlow(t *testing.T) {
 		t.Fatalf("servers: %+v %v", srv, err)
 	}
 }
+
+// X-Plex-Token must not follow a redirect to another host (SEC-a1-07).
+func TestNoRedirect(t *testing.T) {
+	var leaked bool
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		leaked = r.Header.Get("X-Plex-Token") != ""
+	}))
+	defer other.Close()
+	tv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, other.URL, http.StatusTemporaryRedirect)
+	}))
+	defer tv.Close()
+	c := New("cid", "test")
+	c.TVBase = tv.URL
+	if _, err := c.Account(context.Background(), "tok"); err == nil {
+		t.Fatal("redirect followed silently")
+	}
+	if leaked {
+		t.Fatal("token sent to the redirect target")
+	}
+}

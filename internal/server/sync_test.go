@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strconv"
 	"strings"
@@ -82,6 +83,46 @@ func TestICSFeed(t *testing.T) {
 	res.Body.Close()
 	if code, _ := get(fu.HTTPS); code != 404 {
 		t.Fatalf("revoked feed: %d", code)
+	}
+}
+
+// A source that is down gives no feed at all: an empty one would wipe the
+// calendar app's last good copy (EDGE-a3-04).
+func TestICSFeedSourceDown(t *testing.T) {
+	up := fakeUpstream(t)
+	down := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer down.Close()
+	h := newHarness(t, config.Config{DataDir: t.TempDir(), PlexServerURL: up.URL + "/plex"})
+	h.signIn("owner")
+	friend, _ := h.signIn("friend")
+	ctx := context.Background()
+	for _, i := range []store.Instance{
+		{Kind: "radarr", Name: "Radarr", URL: up.URL + "/radarr"},
+		{Kind: "seerr", Name: "Seerr", URL: down.URL},
+	} {
+		i.APIKey, i.Enabled = h.srv.box.Seal("k"), true
+		if _, err := h.srv.store.SaveInstance(ctx, i); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h.form(friend, "/sync/new", nil).Body.Close()
+	fu, err := h.srv.feedLinks(httptestRequest(h), mustUser(t, h, 2))
+	if err != nil || fu == nil {
+		t.Fatalf("links: %+v %v", fu, err)
+	}
+	req, _ := http.NewRequest(http.MethodPut, h.http.URL+"/api/prefs", strings.NewReader(`{"mine":["seerr"]}`))
+	req.Header.Set("Origin", h.http.URL)
+	r2, _ := friend.Do(req)
+	r2.Body.Close()
+	res, err := http.Get(fu.HTTPS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.StatusCode != http.StatusServiceUnavailable || res.Header.Get("Retry-After") == "" {
+		t.Fatalf("feed with Seerr down: %d %q", res.StatusCode, res.Header.Get("Retry-After"))
 	}
 }
 

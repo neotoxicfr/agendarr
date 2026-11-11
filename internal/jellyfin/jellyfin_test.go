@@ -214,3 +214,26 @@ func TestErrorsHideQuery(t *testing.T) {
 		t.Fatalf("error leaks the secret: %v", err)
 	}
 }
+
+// A double file (S01E01-E02) is one item: both episodes are reported (EDGE-a1-02).
+func TestSeasonTracksDoubleEpisode(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"Items":[{"Id":"a","ParentIndexNumber":1,"IndexNumber":1,"IndexNumberEnd":2}]}`))
+	}))
+	defer ts.Close()
+	eps, err := (&Client{BaseURL: ts.URL, Token: "key"}).SeasonTracks(context.Background(), "s", 1)
+	if err != nil || len(eps) != 1 || eps[0].EpisodeEnd != 2 {
+		t.Fatalf("season: %+v %v", eps, err)
+	}
+}
+
+// A movie never gets a TVDB key: calendar tvdb keys are series only (EDGE-a1-01).
+func TestKeysMovieSkipsTvdb(t *testing.T) {
+	ids := map[string]string{"Tmdb": "1", "Tvdb": "73871", "Imdb": "tt3"}
+	if got := strings.Join(Keys(ids, false), ","); got != "tmdb:1,imdb:tt3" {
+		t.Errorf("movie: %s", got)
+	}
+	if got := strings.Join(Keys(ids, true), ","); got != "tmdbtv:1,tvdb:73871,imdb:tt3" {
+		t.Errorf("series: %s", got)
+	}
+}

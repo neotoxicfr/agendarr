@@ -129,6 +129,12 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 	events := filterEvents(res.Events, prefs.Filters)
 	if len(prefs.Mine) > 0 {
 		pr := s.personal.For(ctx, u, prefs.Mine)
+		if pr.Missing {
+			// An empty feed would replace the calendar app's last good copy (EDGE-a3-04).
+			w.Header().Set("Retry-After", "300")
+			http.Error(w, "syncing", http.StatusServiceUnavailable)
+			return
+		}
 		events = keepKeys(events, pr.Keys)
 	}
 	if idx := s.personal.RequestIndex(ctx); idx != nil {

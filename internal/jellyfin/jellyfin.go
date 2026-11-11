@@ -229,6 +229,7 @@ type item struct {
 	SeriesID    string            `json:"SeriesId"`
 	Season      int               `json:"ParentIndexNumber"`
 	Episode     int               `json:"IndexNumber"`
+	EpisodeEnd  int               `json:"IndexNumberEnd"`
 	ProviderIDs map[string]string `json:"ProviderIds"`
 	UserData    struct {
 		LastPlayedDate time.Time `json:"LastPlayedDate"`
@@ -268,7 +269,7 @@ func Keys(ids map[string]string, series bool) []string {
 	var out []string
 	for _, p := range []struct{ name, prefix string }{{"Tmdb", "tmdb:"}, {"Tvdb", "tvdb:"}, {"Imdb", "imdb:"}} {
 		v := ids[p.name]
-		if v == "" {
+		if v == "" || (!series && p.prefix == "tvdb:") { // movies never carry a tvdb key (EDGE-a1-01)
 			continue
 		}
 		k := p.prefix + v

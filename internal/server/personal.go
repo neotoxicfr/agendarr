@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -89,6 +90,11 @@ func (s *Server) plexServer(ctx context.Context) (*plex.Server, error) {
 	_ = json.Unmarshal([]byte(raw), &conns)
 	if s.plexConn.err != nil && time.Since(s.plexConn.failed) < plexLibraryBackoff {
 		return nil, s.plexConn.err
+	}
+	// The previous winner goes first when still advertised: each dead address
+	// before it costs 5 s (PERF-a1-06).
+	if i := slices.IndexFunc(conns, func(c plex.Connection) bool { return c.URI == s.plexConn.uri }); i >= 0 {
+		conns = slices.Insert(slices.Delete(conns, i, i+1), 0, plex.Connection{URI: s.plexConn.uri, Local: true})
 	}
 	uri, err := plex.PickConnection(ctx, conns, token, s.plex.ClientID)
 	if err != nil {

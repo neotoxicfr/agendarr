@@ -9,6 +9,39 @@ import (
 	"time"
 )
 
+// Cached ratingKeys expire: a month for matches, a day for empty ones, so a
+// later match in Plex is picked up (EDGE-a3-07).
+func TestPlexGuidsExpire(t *testing.T) {
+	ctx := context.Background()
+	s := newTest(t)
+	now := time.Now()
+	save := func(rk string, ks []string, age time.Duration) {
+		if err := s.SavePlexGuids(ctx, map[string][]string{rk: ks}, now.Add(-age)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	save("fresh", []string{"tmdb:1"}, time.Hour)
+	save("emptyfresh", nil, time.Hour)
+	save("empty2d", nil, 48*time.Hour)
+	save("old40d", []string{"tmdb:1"}, 40*24*time.Hour)
+	got, err := s.PlexGuids(ctx, []string{"fresh", "emptyfresh", "empty2d", "old40d"}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := got["empty2d"]; ok {
+		t.Error("empty row older than a day still served")
+	}
+	if _, ok := got["old40d"]; ok {
+		t.Error("row older than 30 days still served")
+	}
+	if _, ok := got["fresh"]; !ok {
+		t.Error("fresh row dropped")
+	}
+	if _, ok := got["emptyfresh"]; !ok {
+		t.Error("fresh empty row dropped")
+	}
+}
+
 func newTest(t *testing.T) *Store {
 	t.Helper()
 	s, err := OpenMemory()

@@ -73,7 +73,7 @@ func (s *Store) SetUserMedia(ctx context.Context, userID int64, source string, k
 
 // PlexGuids returns the cached external ids of ratingKeys; missing keys are
 // absent from the map.
-func (s *Store) PlexGuids(ctx context.Context, keys []string) (map[string][]string, error) {
+func (s *Store) PlexGuids(ctx context.Context, keys []string, now time.Time) (map[string][]string, error) {
 	out := make(map[string][]string, len(keys))
 	const batch = 400
 	for i := 0; i < len(keys); i += batch {
@@ -82,8 +82,10 @@ func (s *Store) PlexGuids(ctx context.Context, keys []string) (map[string][]stri
 		for n, k := range keys[i:j] {
 			args[n] = k
 		}
+		// Old rows are asked again: Plex may have matched the item since; empty ones sooner (EDGE-a3-07).
+		args = append(args, now.Unix()-30*86400, now.Unix()-86400)
 		rows, err := s.DB.QueryContext(ctx, `SELECT rating_key, keys FROM plex_guids WHERE rating_key IN (?`+
-			strings.Repeat(",?", j-i-1)+`)`, args...)
+			strings.Repeat(",?", j-i-1)+`) AND fetched_at > ? AND (keys != '' OR fetched_at > ?)`, args...)
 		if err != nil {
 			return nil, err
 		}

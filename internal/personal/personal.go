@@ -169,6 +169,9 @@ func (s *Service) buildSeerr(ctx context.Context) (res any, err error) {
 			s.mu.Lock()
 			s.seerrErr, s.seerrErrAt = err, s.now()
 			s.mu.Unlock()
+			if !errors.Is(err, ErrNoSeerr) {
+				s.d.Log.Warn("seerr index", "err", err) // a Seerr outage leaves a trace (EDGE-a3-03)
+			}
 		}
 	}()
 
@@ -177,6 +180,10 @@ func (s *Service) buildSeerr(ctx context.Context) (res any, err error) {
 		return nil, err
 	}
 	if len(clients) == 0 {
+		// No Seerr any more: the old requesters must not outlive it (EDGE-a3-03).
+		s.mu.Lock()
+		s.seerrIdx = nil
+		s.mu.Unlock()
 		return nil, ErrNoSeerr
 	}
 	idx := &seerrIndex{byKey: map[string][]string{}, byAccount: map[string]map[string]bool{},
@@ -266,6 +273,13 @@ type Result struct {
 	Keys map[string]bool
 	// Errors per source, as codes the UI translates (see Code).
 	Errors map[string]string
+	// Missing: a source failed for a transient reason and gave no key at all, so
+	// the result says nothing yet (EDGE-a3-04).
+	Missing bool
+}
+
+func transient(code string) bool {
+	return code == "syncing" || code == "unavailable" || code == "no_plex_server"
 }
 
 // Code maps an error to a short code the UI translates.
@@ -304,6 +318,7 @@ func (s *Service) For(ctx context.Context, u store.User, sources []string) Resul
 		keys, err := s.source(ctx, u, sources[0])
 		if err != nil {
 			res.Errors[sources[0]] = Code(err)
+			res.Missing = transient(res.Errors[sources[0]]) && len(keys) == 0
 		}
 		if keys != nil {
 			res.Keys = keys
@@ -324,6 +339,9 @@ func (s *Service) For(ctx context.Context, u store.User, sources []string) Resul
 			defer mu.Unlock()
 			if err != nil {
 				res.Errors[src] = Code(err)
+				if transient(res.Errors[src]) && len(keys) == 0 {
+					res.Missing = true
+				}
 			}
 			for k := range keys {
 				res.Keys[k] = true
@@ -363,6 +381,13 @@ func (s *Service) source(ctx context.Context, u store.User, src string) (map[str
 	var stored error
 	if syncErr != "" {
 		stored = errors.New(syncErr)
+		// The text is all the store keeps: find the sentinel again so Code()
+		// gives the same answer as on the first request (UX-a3-02).
+		for _, e := range []error{ErrNoPlexServer, ErrPlexSignedOut, plex.ErrUnauthorized} {
+			if strings.HasPrefix(syncErr, e.Error()) {
+				stored = e
+			}
+		}
 	}
 	fresh := ttl[src]
 	if stored != nil {
@@ -394,10 +419,12 @@ func (s *Service) source(ctx context.Context, u store.User, src string) (map[str
 		s.syncedMedia(key, &mediaEntry{createdAt: u.CreatedAt, set: out, at: time.Unix(now.Unix(), 0)})
 		return out, nil
 	}
-	if set != nil && stored == nil {
-		// Stale: answer with what we have, refresh behind.
+	if set != nil && (stored == nil || len(set) > 0) {
+		// Stale: answer with what we have, refresh behind. A usable previous
+		// set is served even after a failed sync, so a down server does not
+		// stall every request for the retry (PERF-a3-01).
 		go func() { _, _, _ = s.sf.Do(key, sync) }()
-		return set, nil
+		return set, stored
 	}
 	// First sync, or the last one failed (what we have may be empty): wait
 	// for it, but not past the HTTP write timeout; a long history keeps
@@ -551,7 +578,7 @@ func (s *Service) fetch(ctx context.Context, u store.User, src string) ([]string
 
 // resolve turns ratingKeys into external ids, through the plex_guids cache.
 func (s *Service) resolve(ctx context.Context, srv *plex.Server, rks []string, shows map[string]bool) ([]string, error) {
-	cached, err := s.d.Store.PlexGuids(ctx, rks)
+	cached, err := s.d.Store.PlexGuids(ctx, rks, s.now())
 	if err != nil {
 		return nil, err
 	}
@@ -562,17 +589,21 @@ func (s *Service) resolve(ctx context.Context, srv *plex.Server, rks []string, s
 		}
 	}
 	if len(missing) > 0 {
-		fetched, err := srv.Guids(ctx, missing)
-		if err != nil && len(fetched) == 0 {
-			return nil, err
+		fetched, gerr := srv.Guids(ctx, missing)
+		if gerr != nil && len(fetched) == 0 {
+			return nil, gerr
 		}
 		for _, rk := range missing {
-			if _, ok := fetched[rk]; !ok && err == nil {
+			if _, ok := fetched[rk]; !ok && gerr == nil {
 				fetched[rk] = nil // deleted from Plex: remember it
 			}
 		}
-		if err := s.d.Store.SavePlexGuids(ctx, fetched, s.now()); err != nil {
+		if err := s.d.Store.SavePlexGuids(context.WithoutCancel(ctx), fetched, s.now()); err != nil {
 			return nil, err
+		}
+		if gerr != nil {
+			// Keep what resolved, but never record a truncated set as a successful sync (EDGE-a3-06).
+			return nil, gerr
 		}
 		for rk, ks := range fetched {
 			cached[rk] = ks
@@ -583,6 +614,8 @@ func (s *Service) resolve(ctx context.Context, srv *plex.Server, rks []string, s
 		for _, k := range cached[rk] {
 			if shows[rk] {
 				k = plex.ShowKey(k)
+			} else if strings.HasPrefix(k, "tvdb:") {
+				continue // TVDB numbers films apart from series (EDGE-a1-01)
 			}
 			out = append(out, k)
 		}

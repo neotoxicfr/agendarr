@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/neotoxicfr/agendarr/internal/config"
+	"github.com/neotoxicfr/agendarr/internal/plex"
 	"github.com/neotoxicfr/agendarr/internal/store"
 )
 
@@ -156,7 +157,7 @@ func TestPersonalFilters(t *testing.T) {
 		t.Fatalf("retry after failure: %v %v", got, errs)
 	}
 	// The history is cached in plex_guids: a second user sync reuses it.
-	if g, _ := h.srv.store.PlexGuids(ctx, []string{"2199"}); len(g["2199"]) != 1 {
+	if g, _ := h.srv.store.PlexGuids(ctx, []string{"2199"}, time.Now()); len(g["2199"]) != 1 {
 		t.Fatalf("guid cache: %v", g)
 	}
 
@@ -307,6 +308,10 @@ func TestEventLinksAndMedia(t *testing.T) {
 	if got := tracks("group=movie:tmdb:999"); got != `{"versions":[]}` {
 		t.Fatalf("unknown: %s", got)
 	}
+	// An episode Plex lacks is "absent", not an outage (EDGE-a1-03).
+	if got := tracks("group=series:tvdb:73871&season=1&episode=9"); got != `{"versions":[]}` {
+		t.Fatalf("absent episode: %s", got)
+	}
 	// A season bundle at once: E02 is in Plex, E03 is listed but has no
 	// metadata, E09 is not in Plex.
 	if got := tracks("group=series:tvdb:73871&season=1&episodes=2,3,9"); got != `{"episodes":{"2":[{"resolution":"1080p","videoCodec":"h264","size":5,"audio":[{"codec":"aac","lang":"ja"}],"subs":null}]}}` {
@@ -360,5 +365,35 @@ func TestMyList(t *testing.T) {
 	want := "Gone Movie=manual/false/false Requested Movie=seerr/true/false Unknown Show=manual/true/false Watched Show=watching/true/true"
 	if strings.Join(got, " ") != want {
 		t.Fatalf("got  %s\nwant %s", strings.Join(got, " "), want)
+	}
+}
+
+// When the hour-old pick expires, the previous winner is tried first so the
+// dead addresses advertised before it are not paid for again (PERF-a1-06).
+func TestPlexConnRetriesWinnerFirst(t *testing.T) {
+	h := newHarness(t, config.Config{DataDir: t.TempDir()})
+	ctx := context.Background()
+	var deadHits int
+	dead := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		deadHits++
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer dead.Close()
+	good := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"MediaContainer":{"machineIdentifier":"A"}}`)
+	}))
+	defer good.Close()
+	conns, _ := json.Marshal([]plex.Connection{{URI: dead.URL, Local: true}, {URI: good.URL, Local: true}})
+	h.srv.store.SetSetting(ctx, keyServerToken, h.srv.box.Seal("tok"))
+	h.srv.store.SetSetting(ctx, keyServerConnsJSON, string(conns))
+	for range 2 {
+		srv, err := h.srv.plexServer(ctx)
+		if err != nil || srv.BaseURL != good.URL {
+			t.Fatalf("pick: %v %v", srv, err)
+		}
+		h.srv.plexConn.picked = time.Now().Add(-2 * time.Hour) // expire the pick
+	}
+	if deadHits != 1 {
+		t.Fatalf("dead address tried %d times, want 1", deadHits)
 	}
 }
