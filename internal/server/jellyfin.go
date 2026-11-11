@@ -297,7 +297,9 @@ func (s *Server) handleJFPassword(w http.ResponseWriter, r *http.Request) {
 	// Passwords get slow buckets of their own, so guessing is not worth an
 	// Internet-side brute force and cannot drain Quick Connect's. One per
 	// username: guesses on an account do not lock the others out (SEC-a2-02).
-	if now := time.Now(); !s.pwLimit.allow(strings.ToLower(user), now) || !s.pwAll.allow(now) {
+	// The key is folded the way Jellyfin compares names (upper case), so that
+	// spellings of one account share a bucket.
+	if now := time.Now(); !s.pwLimit.allow(strings.ToUpper(strings.TrimSpace(user)), now) || !s.pwAll.allow(now) {
 		http.Redirect(w, r, "/login?e=jf_wait", http.StatusSeeOther)
 		return
 	}

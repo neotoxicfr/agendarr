@@ -79,7 +79,8 @@ func New(cfg config.Config, st *store.Store, box *secret.Box, log *slog.Logger) 
 	s := &Server{cfg: cfg, store: st, box: box, log: log, started: time.Now(),
 		checkLimit: limiter{burst: 60, every: 50 * time.Millisecond},
 		checkOne:   keyed{burst: 10, every: time.Second},
-		pwLimit:    keyed{burst: 5, every: 10 * time.Second}}
+		pwLimit:    keyed{burst: 5, every: 10 * time.Second},
+		pwAll:      limiter{burst: 10, every: time.Second}}
 	var err error
 	if s.static, err = fs.Sub(web.FS, "static"); err != nil {
 		return nil, err

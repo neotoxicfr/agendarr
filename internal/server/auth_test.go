@@ -386,10 +386,21 @@ func TestKeyedLimiter(t *testing.T) {
 	if !k.allow("b", now) {
 		t.Fatal("key b starved by key a")
 	}
+	// A flood of keys neither grows the map nor refills a drained bucket.
 	for i := 0; i < 2*keyedMax; i++ {
 		k.allow(strconv.Itoa(i), now)
 	}
 	if len(k.m) > keyedMax {
 		t.Fatalf("%d keys kept", len(k.m))
+	}
+	if k.allow("a", now) {
+		t.Fatal("a flood of keys refilled key a")
+	}
+	if k.allow("late", now) {
+		t.Fatal("full map of busy buckets took a new key")
+	}
+	// Once the buckets have refilled they make room.
+	if later := now.Add(2 * time.Minute); !k.allow("late", later) || len(k.m) != 1 {
+		t.Fatalf("after refill: %d keys kept, want the new one alone", len(k.m))
 	}
 }

@@ -354,7 +354,7 @@ func TestJellyfinPasswordLimits(t *testing.T) {
 	}
 	// Guesses on one account do not lock the others out, whatever the case of
 	// the name they are typed in.
-	if loc := h.redirectOf(c, "/auth/jellyfin/password", url.Values{"username": {"FRIEND"}, "password": {"nope"}}); loc != "/login?e=jf_wait" {
+	if loc := h.redirectOf(c, "/auth/jellyfin/password", url.Values{"username": {" FRIEND"}, "password": {"nope"}}); loc != "/login?e=jf_wait" {
 		t.Fatalf("same account, other case: %s", loc)
 	}
 	if loc := h.redirectOf(c, "/auth/jellyfin/password", url.Values{"username": {"admin"}, "password": {"nope"}}); loc != "/login?e=jf_bad_login" {
