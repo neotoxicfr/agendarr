@@ -63,6 +63,9 @@ type Event struct {
 	Ext []Link `json:"ext,omitempty"`
 	// Followed is true when the viewer follows it by hand (set per response).
 	Followed bool `json:"followed,omitempty"`
+	// Added is when the *arr first saw the title; the release watcher uses it
+	// to announce a file that arrived before its first look (EDGE-a4-02).
+	Added time.Time `json:"-"`
 }
 
 // Media sums up one file: quality, video, audio and subtitles.
@@ -145,7 +148,7 @@ func fromMovie(instID int64, instName string, m arr.Movie) []Event {
 		Kind: "movie", Title: m.Title, Year: m.Year, Runtime: m.Runtime,
 		HasFile: m.HasFile, Monitored: m.Monitored, Overview: m.Overview, Genres: m.Genres,
 		Poster: posterURL(instID, m.ID, m.Images), Instances: []string{instName},
-		Keys: keys(m.TmdbID, 0, m.ImdbID, false),
+		Keys: keys(m.TmdbID, 0, m.ImdbID, false), Added: m.Added,
 	}
 	if m.HasFile {
 		base.Media = mediaOf(instID, instName, m.MovieFile)
@@ -192,7 +195,7 @@ func fromEpisode(instID int64, instName string, ep arr.Episode) (Event, bool) {
 		EpTitle: ep.Title, Finale: ep.FinaleType, Premiere: ep.EpisodeNumber == 1,
 		Runtime: ep.Runtime, HasFile: ep.HasFile, Monitored: ep.Monitored, Network: s.Network,
 		Overview: ep.Overview, Poster: posterURL(instID, s.ID, s.Images), Instances: []string{instName},
-		Keys: keys(s.TmdbID, s.TvdbID, s.ImdbID, true),
+		Keys: keys(s.TmdbID, s.TvdbID, s.ImdbID, true), Added: s.Added,
 	}
 	if ep.HasFile {
 		e.Media = mediaOf(instID, instName, ep.EpisodeFile)
@@ -275,10 +278,14 @@ func merge(events []Event) []Event {
 			if m.Poster == "" {
 				m.Poster = e.Poster
 			}
+			if e.Added.After(m.Added) {
+				m.Added = e.Added
+			}
 			// A month fetch also returns the other release dates of a movie,
 			// so the same instance can come twice: add each one once.
+			// Compared by id: instance names are not unique (EDGE-a4-03).
 			for _, x := range e.Media {
-				if !slices.ContainsFunc(m.Media, func(y Media) bool { return y.Instance == x.Instance }) {
+				if !slices.ContainsFunc(m.Media, func(y Media) bool { return y.InstanceID == x.InstanceID }) {
 					m.Media = append(slices.Clip(m.Media), x)
 				}
 			}

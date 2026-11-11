@@ -119,7 +119,10 @@ func (s *Server) buildCatalog(ctx context.Context) {
 	if err != nil && len(out) == 0 && c.items != nil {
 		return // keep the last good libraries
 	}
-	c.items, c.at = mergeCatalog(out), time.Now()
+	c.items = mergeCatalog(out)
+	if err == nil { // a partial build is retried after the backoff, not in 30 min (EDGE-a4-04)
+		c.at = time.Now()
+	}
 }
 
 // mergeCatalog folds the same movie or series seen by several instances.

@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -333,6 +334,142 @@ func TestDeleteNotifications(t *testing.T) {
 		t.Fatalf("all: owner %d friend %d", count(o), count(f))
 	}
 	_ = friend
+}
+
+// Two Radarr hold the same movie, the file only in the first: while the first is
+// down on a cold cache, the second's file-less view must not erase the file
+// (EDGE-a4-01).
+func TestWatcherKeepsFileWhileInstanceDown(t *testing.T) {
+	var downA atomic.Bool
+	mux := http.NewServeMux()
+	movie := func(file string) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			io.WriteString(w, `[{"id":1,"title":"Dup","tmdbId":100,"digitalRelease":"2026-10-02T00:00:00Z","monitored":true,`+file+`}]`)
+		}
+	}
+	mux.HandleFunc("GET /a/api/v3/calendar", func(w http.ResponseWriter, r *http.Request) {
+		if downA.Load() {
+			http.Error(w, "down", http.StatusInternalServerError)
+			return
+		}
+		movie(`"hasFile":true,"movieFile":{"size":1}`)(w, r)
+	})
+	mux.HandleFunc("GET /b/api/v3/calendar", movie(`"hasFile":false`))
+	up := httptest.NewServer(mux)
+	defer up.Close()
+	h := newHarness(t, config.Config{DataDir: t.TempDir()})
+	ctx := context.Background()
+	for _, i := range []store.Instance{{Kind: "radarr", Name: "A", URL: up.URL + "/a"}, {Kind: "radarr", Name: "B", URL: up.URL + "/b"}} {
+		i.APIKey, i.Enabled = h.srv.box.Seal("k"), true
+		if _, err := h.srv.store.SaveInstance(ctx, i); err != nil {
+			t.Fatal(err)
+		}
+	}
+	now := time.Date(2026, 10, 5, 12, 0, 0, 0, time.UTC)
+	pass := func() map[string]store.MediaState {
+		t.Helper()
+		h.srv.instancesChanged() // cold calendar cache
+		now = now.Add(watchEvery)
+		if err := h.srv.checkReleases(ctx, now); err != nil {
+			t.Fatal(err)
+		}
+		st, err := h.srv.store.MediaStates(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return st
+	}
+	if st := pass(); !st["movie:tmdb:100"].HasFile {
+		t.Fatalf("file not seen: %+v", st)
+	}
+	downA.Store(true)
+	if st := pass(); !st["movie:tmdb:100"].HasFile {
+		t.Fatalf("the file vanished while its instance was down: %+v", st)
+	}
+}
+
+// A title that arrives with its file between two looks is announced when the
+// *arr added it moments ago (EDGE-a4-02); a change that concerns nobody who is
+// permanently not ready is not kept pending (EDGE-a4-07).
+func TestWatcherAddedAndPermanentErrors(t *testing.T) {
+	now := time.Date(2026, 10, 5, 12, 0, 0, 0, time.UTC)
+	var second atomic.Bool
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /radarr/api/v3/calendar", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		f := func(id int, added time.Time) string {
+			return `{"id":` + strconv.Itoa(id) + `,"title":"M` + strconv.Itoa(id) + `","tmdbId":` + strconv.Itoa(id) + `,"digitalRelease":"2026-10-02T00:00:00Z","monitored":true,"hasFile":true,"movieFile":{"size":1},"added":"` + added.Format(time.RFC3339) + `"}`
+		}
+		third := `{"id":302,"title":"M302","tmdbId":302,"digitalRelease":"2026-10-02T00:00:00Z","monitored":true,"hasFile":false}`
+		if second.Load() {
+			third = f(302, now.Add(-time.Hour))
+		}
+		io.WriteString(w, "["+f(300, now.Add(-time.Minute))+","+f(301, now.Add(-24*time.Hour))+","+third+"]")
+	})
+	up := httptest.NewServer(mux)
+	defer up.Close()
+	h := newHarness(t, config.Config{DataDir: t.TempDir()})
+	owner, _ := h.signIn("owner")
+	friend, _ := h.signIn("friend")
+	ctx := context.Background()
+	i := store.Instance{Kind: "radarr", Name: "Radarr", URL: up.URL + "/radarr"}
+	i.APIKey, i.Enabled = h.srv.box.Seal("k"), true
+	if _, err := h.srv.store.SaveInstance(ctx, i); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"300", "301", "302"} {
+		req, _ := http.NewRequest(http.MethodPut, h.http.URL+"/api/follows", strings.NewReader(`{"group":"movie:tmdb:`+id+`","title":"M","on":true}`))
+		req.Header.Set("Origin", h.http.URL)
+		if res, err := owner.Do(req); err != nil || res.StatusCode != http.StatusNoContent {
+			t.Fatalf("follow %s: %v", id, err)
+		}
+	}
+	// Seerr only: with no Seerr here this source is permanently not ready.
+	req, _ := http.NewRequest(http.MethodPut, h.http.URL+"/api/notifications/sources", strings.NewReader(`{"notify":["seerr"]}`))
+	req.Header.Set("Origin", h.http.URL)
+	if res, err := friend.Do(req); err != nil || res.StatusCode != http.StatusOK {
+		t.Fatalf("sources: %v", err)
+	}
+	if err := h.srv.checkReleases(ctx, now); err != nil {
+		t.Fatal(err)
+	}
+	got, _, _ := h.srv.store.Notifications(ctx, mustUser(t, h, 1).ID, 50)
+	if len(got) != 1 || got[0].Kind != "available" || got[0].Title != "M300" {
+		t.Fatalf("recently added with a file: %+v", got)
+	}
+	// 302 gets its file: the friend (no Seerr here) is not ready for good, and
+	// must not keep the change pending.
+	second.Store(true)
+	h.srv.instancesChanged()
+	if err := h.srv.checkReleases(ctx, now.Add(watchEvery)); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(h.srv.pending[mustUser(t, h, 2).ID]); n != 0 {
+		t.Fatalf("pending for a permanent error: %d", n)
+	}
+}
+
+// The Web Push client does not follow a redirect (SEC-a4-08).
+func TestPushDoesNotFollowRedirects(t *testing.T) {
+	var hits atomic.Int32
+	target := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { hits.Add(1) }))
+	defer target.Close()
+	front := httptest.NewServer(http.RedirectHandler(target.URL, http.StatusTemporaryRedirect))
+	defer front.Close()
+	h := newHarness(t, config.Config{DataDir: t.TempDir()})
+	snd, err := h.srv.pushSender(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := snd.HTTP.Post(front.URL, "application/octet-stream", strings.NewReader("x"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.StatusCode != http.StatusTemporaryRedirect || hits.Load() != 0 {
+		t.Fatalf("status %d, target hit %d times", res.StatusCode, hits.Load())
+	}
 }
 
 // An instance whose name holds another's is still listed (Radarr 4K, Radarr).

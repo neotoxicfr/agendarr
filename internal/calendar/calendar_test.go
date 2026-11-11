@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -232,5 +233,68 @@ func TestSourceLabel(t *testing.T) {
 		if got := sourceLabel(f); got != c.want {
 			t.Errorf("%s/%s: %q, want %q", c.source, c.modifier, got, c.want)
 		}
+	}
+}
+
+// Instance names are not unique: two "Radarr" files stay two (EDGE-a4-03), and
+// the most recent "added" wins (EDGE-a4-02).
+func TestMergeSameNameInstances(t *testing.T) {
+	m := arr.Movie{ID: 1, Title: "Dune", TmdbID: 42, DigitalRelease: day("2026-11-15"), HasFile: true,
+		MovieFile: &arr.File{Size: 1}, Added: *day("2026-10-01")}
+	a := fromMovie(1, "Radarr", m)
+	m.Added = *day("2026-10-02")
+	b := fromMovie(2, "Radarr", m)
+	got := merge(append(a, b...))
+	if len(got) != 1 || len(got[0].Media) != 2 {
+		t.Fatalf("homonymous instances: %+v", got)
+	}
+	if !got[0].Added.Equal(*day("2026-10-02")) {
+		t.Fatalf("added: %v", got[0].Added)
+	}
+	ep, _ := fromEpisode(3, "Sonarr", arr.Episode{AirDateUTC: day("2026-10-01"), Series: arr.Series{Title: "x", Added: *day("2026-09-01")}})
+	if !ep.Added.Equal(*day("2026-09-01")) {
+		t.Fatalf("episode added: %v", ep.Added)
+	}
+}
+
+// A Fresh read awaits an upstream read once the month is older than TTL/2
+// (EDGE-a4-02), and months nobody reads for an hour are evicted (PERF-a4-06).
+func TestServiceFreshAndEviction(t *testing.T) {
+	now := time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC)
+	var calls atomic.Int32
+	s := New(func(context.Context) ([]Source, error) {
+		return []Source{{ID: 1, Kind: "radarr", Name: "Radarr"}}, nil
+	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	s.now = func() time.Time { return now }
+	s.fetch = func(_ context.Context, src Source, from, to time.Time) ([]Event, error) {
+		n := calls.Add(1)
+		d := from.AddDate(0, 0, 14).Format(time.DateOnly)
+		return []Event{{ID: d, Date: d, Title: strconv.Itoa(int(n)), Instances: []string{src.Name}}}, nil
+	}
+	from, to := *day("2026-10-05"), *day("2026-10-20")
+	r, _ := s.Range(Fresh(context.Background()), from, to)
+	first := r.Events[0].Title
+	now = now.Add(TTL/2 + time.Second) // fresh for a plain read, stale for the watcher
+	r, _ = s.Range(context.Background(), from, to)
+	if r.Events[0].Title != first {
+		t.Fatalf("plain read refetched: %s", r.Events[0].Title)
+	}
+	r, _ = s.Range(Fresh(context.Background()), from, to)
+	if r.Events[0].Title == first {
+		t.Fatal("a Fresh read served the stale month")
+	}
+
+	// Eviction: distant months, then two hours later one read.
+	for i := 0; i < 5; i++ {
+		y := 2030 + i
+		s.Range(context.Background(), time.Date(y, 1, 5, 0, 0, 0, 0, time.UTC), time.Date(y, 1, 20, 0, 0, 0, 0, time.UTC))
+	}
+	now = now.Add(2 * time.Hour)
+	s.Range(Fresh(context.Background()), from, to)
+	s.mu.Lock()
+	n := len(s.cache)
+	s.mu.Unlock()
+	if n > 3 {
+		t.Fatalf("cache entries after 2 h: %d", n)
 	}
 }

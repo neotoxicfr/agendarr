@@ -8,6 +8,8 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -340,6 +342,12 @@ func (s *Server) handleSeerrImport(w http.ResponseWriter, r *http.Request) {
 // instancesChanged is called after any instance change; the calendar cache
 // hooks into it.
 func (s *Server) instancesChanged() {
+	// Library and poster caches are keyed by instance: drop them with the
+	// calendar's (EDGE-a4-04, EDGE-a4-05).
+	s.catalog.mu.Lock()
+	s.catalog.at, s.catalog.tried = time.Time{}, time.Time{}
+	s.catalog.mu.Unlock()
+	_ = os.RemoveAll(filepath.Join(s.cfg.DataDir, "cache", "posters"))
 	if s.onInstancesChanged != nil {
 		s.onInstancesChanged()
 	}

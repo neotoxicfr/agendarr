@@ -17,6 +17,15 @@ import (
 // cached month is still served at once while a refresh runs in background.
 const TTL = 5 * time.Minute
 
+type freshKey struct{}
+
+// Fresh marks a context whose reads must not be served stale: a month older
+// than TTL/2 is refetched and awaited. The release watcher runs once per TTL,
+// so it would otherwise see the upstream only every other pass (EDGE-a4-02).
+func Fresh(ctx context.Context) context.Context { return context.WithValue(ctx, freshKey{}, true) }
+
+func isFresh(ctx context.Context) bool { v, _ := ctx.Value(freshKey{}).(bool); return v }
+
 // Source is an enabled Radarr or Sonarr instance with its key opened.
 type Source struct {
 	ID     int64
@@ -127,7 +136,11 @@ func (s *Service) month(ctx context.Context, src Source, month time.Time) ([]Eve
 	gen := s.gen
 	s.mu.Unlock()
 
-	fresh := ok && s.now().Sub(e.fetched) < TTL
+	ttl, strict := TTL, isFresh(ctx)
+	if strict {
+		ttl = TTL / 2
+	}
+	fresh := ok && s.now().Sub(e.fetched) < ttl
 	if fresh {
 		return e.events, e.err
 	}
@@ -140,6 +153,13 @@ func (s *Service) month(ctx context.Context, src Source, month time.Time) ([]Eve
 		if s.gen != gen {
 			return ev, err // the instance changed meanwhile: do not cache
 		}
+		// Months nobody read for an hour are dropped, or each visited month stays
+		// in memory for the life of the process (PERF-a4-06).
+		for k2, e2 := range s.cache {
+			if k2 != k && s.now().Sub(e2.fetched) > time.Hour {
+				delete(s.cache, k2)
+			}
+		}
 		if err != nil {
 			s.log.Warn("calendar fetch", "instance", src.Name, "month", k.month, "err", err)
 			// Keep serving what we had, flagged as failing; retry after TTL.
@@ -151,7 +171,7 @@ func (s *Service) month(ctx context.Context, src Source, month time.Time) ([]Eve
 		return ev, nil
 	}
 	sfKey := fmt.Sprintf("%d/%s/%d", k.inst, k.month, gen)
-	if ok {
+	if ok && !strict {
 		// Stale: answer now with the cached month, refresh behind.
 		go func() { _, _, _ = s.sf.Do(sfKey, load) }()
 		return e.events, e.err

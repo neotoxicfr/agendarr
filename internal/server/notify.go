@@ -269,7 +269,7 @@ func upgradeDiffs(prev, cur string) []diff {
 }
 
 func (s *Server) checkReleases(ctx context.Context, now time.Time) error {
-	res, err := s.cal.Range(ctx, now.Add(-watchBack), now.Add(watchAhead))
+	res, err := s.cal.Range(calendar.Fresh(ctx), now.Add(-watchBack), now.Add(watchAhead))
 	if err != nil || !res.Configured {
 		return err
 	}
@@ -290,13 +290,23 @@ func (s *Server) checkReleases(ctx context.Context, now time.Time) error {
 			continue
 		}
 		st := store.MediaState{HasFile: e.HasFile, Sig: mediaSig(e)}
-		cur[k] = st
 		p, known := prev[k]
+		// With an instance down, the one holding the file may be missing from the
+		// merge: a file does not disappear, so keep the old state (EDGE-a4-01).
+		if known && len(res.Failing) > 0 && p.HasFile && !st.HasFile {
+			continue
+		}
+		cur[k] = st
 		var kind string
 		var diffs []diff
 		switch {
 		case !known:
-			// First sight: remember it, nothing to say.
+			// First sight: remember it, nothing to say, unless the title was added
+			// moments ago and already has its file: it came and went between two
+			// looks (EDGE-a4-02).
+			if st.HasFile && !e.Added.IsZero() && now.Sub(e.Added) < 2*watchEvery {
+				kind = "available"
+			}
 		case !p.HasFile && st.HasFile:
 			kind = "available"
 		case p.HasFile && st.HasFile && p.Sig != st.Sig:
@@ -379,7 +389,14 @@ func (s *Server) deliver(ctx context.Context, changes map[string]*change, now ti
 		ready := true
 		if len(sources) > 0 {
 			pr := s.personal.Peek(ctx, u, sources)
-			keys, ready = pr.Keys, len(pr.Errors) == 0
+			keys, ready = pr.Keys, true
+			// Only a source still loading may come back; no_seerr and the like are
+			// permanent and would keep every change pending for a day (EDGE-a4-07).
+			for _, e := range pr.Errors {
+				if e == "syncing" || e == "unavailable" {
+					ready = false
+				}
+			}
 		}
 		left := map[string]pendingChange{}
 		for k, p := range todo {
@@ -520,7 +537,9 @@ func (s *Server) pushSender(ctx context.Context) (*webpush.Sender, error) {
 	if subject == "" {
 		subject = "https://github.com/neotoxicfr/agendarr"
 	}
-	s.push = &webpush.Sender{Keys: keys, Subject: subject, HTTP: &http.Client{Timeout: 20 * time.Second}}
+	s.push = &webpush.Sender{Keys: keys, Subject: subject, HTTP: &http.Client{Timeout: 20 * time.Second,
+		// A push service must not bounce the encrypted message to another host (SEC-a4-08).
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
 	return s.push, nil
 }
 

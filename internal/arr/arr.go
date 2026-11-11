@@ -56,6 +56,7 @@ type Movie struct {
 	Images          []Image    `json:"images"`
 	TitleSlug       string     `json:"titleSlug"`
 	MovieFile       *File      `json:"movieFile"`
+	Added           time.Time  `json:"added"` // when Radarr first saw it (EDGE-a4-02)
 }
 
 // File is the file Radarr or Sonarr has for a movie or an episode.
@@ -85,17 +86,18 @@ type MediaInfo struct {
 
 // Series is the series embedded in a Sonarr calendar entry.
 type Series struct {
-	ID        int64   `json:"id"`
-	Title     string  `json:"title"`
-	Year      int     `json:"year"`
-	TvdbID    int64   `json:"tvdbId"`
-	TmdbID    int64   `json:"tmdbId"`
-	ImdbID    string  `json:"imdbId"`
-	Network   string  `json:"network"`
-	TitleSlug string  `json:"titleSlug"`
-	Overview  string  `json:"overview"`
-	Runtime   int     `json:"runtime"`
-	Images    []Image `json:"images"`
+	ID        int64     `json:"id"`
+	Title     string    `json:"title"`
+	Year      int       `json:"year"`
+	TvdbID    int64     `json:"tvdbId"`
+	TmdbID    int64     `json:"tmdbId"`
+	ImdbID    string    `json:"imdbId"`
+	Network   string    `json:"network"`
+	TitleSlug string    `json:"titleSlug"`
+	Overview  string    `json:"overview"`
+	Runtime   int       `json:"runtime"`
+	Images    []Image   `json:"images"`
+	Added     time.Time `json:"added"` // when Sonarr first saw it (EDGE-a4-02)
 	// Library fields (/api/v3/series), absent from calendar entries.
 	Status     string     `json:"status"` // continuing | ended | upcoming
 	Monitored  bool       `json:"monitored"`
