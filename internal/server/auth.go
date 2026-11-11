@@ -40,6 +40,7 @@ var signInErrors = map[string]bool{
 	"no_owned_server": true, "setup_taken": true, "no_access": true,
 	"expired": true, "pending": true, "plex": true,
 	"jf_url": true, "jf_unreachable": true, "jf_bad_login": true, "jf_not_admin": true,
+	"jf_wait": true,
 }
 
 type ctxKey int
@@ -236,6 +237,11 @@ func (s *Server) checkPin(r *http.Request) (next, code string, pending bool) {
 	if id == 0 {
 		return "", "expired", false
 	}
+	// Polls are relayed to plex.tv with our client id: an empty bucket answers
+	// "pending" without an upstream call (SEC-a2-01).
+	if !s.checkLimit.allow(time.Now()) {
+		return "", "", true
+	}
 	pin, err := s.plex.CheckPin(ctx, id)
 	if errors.Is(err, plex.ErrNotFound) && time.Since(time.Unix(s.sessions.GetInt64(ctx, sessPinAt), 0)) < pinPatience {
 		// plex.tv answers 404 on some lookups of a live PIN (4 of 16
@@ -244,6 +250,8 @@ func (s *Server) checkPin(r *http.Request) (next, code string, pending bool) {
 	}
 	if err != nil {
 		s.log.Warn("check pin", "err", err)
+		// A dead PIN must not keep relaying polls from this session (SEC-a2-01).
+		s.sessions.Remove(ctx, sessPinID)
 		return "", "expired", false
 	}
 	if pin.AuthToken == "" {
@@ -288,6 +296,7 @@ func (s *Server) completeSignIn(r *http.Request, token string) (next, code strin
 		}
 		if err := s.claim(ctx, u.ID, owned[0]); err != nil {
 			s.log.Error("claim owner", "err", err)
+			_ = s.store.DeleteUser(ctx, u.ID) // lost the race: leave no stray account (EDGE-a2-06)
 			return "", "setup_taken"
 		}
 		s.signIn(r, u.ID)
@@ -404,6 +413,7 @@ func (s *Server) handleSetupServer(w http.ResponseWriter, r *http.Request) {
 		}
 		if err := s.claim(ctx, u.ID, res); err != nil {
 			s.log.Error("claim owner", "err", err)
+			_ = s.store.DeleteUser(ctx, u.ID) // abandoned or lost setup: leave no stray account (EDGE-a2-06)
 			http.Redirect(w, r, "/login?e=setup_taken", http.StatusSeeOther)
 			return
 		}

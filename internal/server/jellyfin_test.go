@@ -1,10 +1,12 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
@@ -26,6 +28,11 @@ type fakeJellyfin struct {
 	disabled map[string]bool
 	logouts  int
 	keys     int
+	connects int    // Quick Connect polls that reached this server
+	auths    int    // password sign-ins that reached this server
+	publicID string // overrides the id /System/Info/Public reports
+	keyFail  bool   // key creation is refused
+	deadCode bool   // the Quick Connect code is unknown
 }
 
 var jfUsers = map[string]struct {
@@ -49,16 +56,26 @@ func (f *fakeJellyfin) handler() http.Handler {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.Method + " " + r.URL.Path {
 		case "GET /System/Info/Public":
-			fmt.Fprintf(w, `{"Id":%q,"ServerName":"Home","Version":"12.4.0"}`, f.serverID)
+			id := f.serverID
+			if f.publicID != "" {
+				id = f.publicID
+			}
+			fmt.Fprintf(w, `{"Id":%q,"ServerName":"Home","Version":"12.4.0"}`, id)
 		case "GET /QuickConnect/Enabled":
 			io.WriteString(w, "true")
 		case "POST /QuickConnect/Initiate":
 			io.WriteString(w, `{"Code":"123456","Secret":"s3cret","Authenticated":false}`)
 		case "GET /QuickConnect/Connect":
+			f.connects++
+			if f.deadCode {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
 			fmt.Fprintf(w, `{"Code":"123456","Secret":"s3cret","Authenticated":%t}`, f.approved)
 		case "POST /Users/AuthenticateWithQuickConnect":
 			io.WriteString(w, f.auth(f.qcUser))
 		case "POST /Users/AuthenticateByName":
+			f.auths++
 			var b struct{ Username, Pw string }
 			_ = json.NewDecoder(r.Body).Decode(&b)
 			if u, ok := jfUsers[b.Username]; !ok || u.password != b.Pw {
@@ -70,7 +87,7 @@ func (f *fakeJellyfin) handler() http.Handler {
 			f.logouts++
 			w.WriteHeader(http.StatusNoContent)
 		case "POST /Auth/Keys":
-			if !strings.Contains(r.Header.Get("Authorization"), `Token="tok-admin"`) {
+			if f.keyFail || !strings.Contains(r.Header.Get("Authorization"), `Token="tok-admin"`) {
 				w.WriteHeader(http.StatusForbidden)
 				return
 			}
@@ -274,5 +291,158 @@ func TestJellyfinAddressChange(t *testing.T) {
 	}
 	if res := h.form(friend, "/admin/jellyfin", url.Values{"url": {fake.URL}}); res.StatusCode != http.StatusForbidden {
 		t.Fatalf("admin, not owner: %d", res.StatusCode)
+	}
+}
+
+func (f *fakeJellyfin) count(n *int) int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return *n
+}
+
+// Quick Connect polls are relayed within a budget, and a dead code stops
+// being relayed (SEC-a2-01).
+func TestJellyfinQCCheckIsRateLimited(t *testing.T) {
+	h, f, jf := newJellyfinHarness(t)
+	c := h.client()
+	h.redirectOf(c, "/setup/jellyfin", url.Values{"url": {jf.URL}})
+	var start, check map[string]any
+	h.post(c, "/auth/jellyfin/qc/start", &start)
+	for i := 0; i < 200; i++ {
+		h.post(c, "/auth/jellyfin/qc/check", &check)
+		if check["pending"] != true {
+			t.Fatalf("poll %d: %v", i, check)
+		}
+	}
+	if got := f.count(&f.connects); got > 22 {
+		t.Fatalf("%d upstream polls for 200", got)
+	}
+	h.srv.checkLimit = limiter{burst: 20, every: 500 * time.Millisecond}
+	f.mu.Lock()
+	f.deadCode = true
+	f.mu.Unlock()
+	h.post(c, "/auth/jellyfin/qc/check", &check)
+	if check["redirect"] != "/login?e=expired" {
+		t.Fatalf("dead code: %v", check)
+	}
+	before := f.count(&f.connects)
+	h.post(c, "/auth/jellyfin/qc/check", &check)
+	if f.count(&f.connects) != before || check["redirect"] != "/login?e=expired" {
+		t.Fatalf("dead code relayed again: %v", check)
+	}
+}
+
+// Passwords have their own slow bucket, refusals are logged, and the input is
+// bounded (SEC-a2-02).
+func TestJellyfinPasswordLimits(t *testing.T) {
+	h, f, jf := newJellyfinHarness(t)
+	var logs bytes.Buffer
+	h.srv.log = slog.New(slog.NewTextHandler(&logs, nil))
+	c := h.client()
+	h.redirectOf(c, "/setup/jellyfin", url.Values{"url": {jf.URL}})
+	bad := url.Values{"username": {"friend"}, "password": {"nope"}}
+	for i := 0; i < 5; i++ {
+		if loc := h.redirectOf(c, "/auth/jellyfin/password", bad); loc != "/login?e=jf_bad_login" {
+			t.Fatalf("try %d: %s", i, loc)
+		}
+	}
+	if loc := h.redirectOf(c, "/auth/jellyfin/password", bad); loc != "/login?e=jf_wait" {
+		t.Fatalf("6th try: %s", loc)
+	}
+	if got := f.count(&f.auths); got != 5 {
+		t.Fatalf("%d upstream sign-ins, want 5", got)
+	}
+	var start map[string]any
+	h.post(c, "/auth/jellyfin/qc/start", &start)
+	if start["code"] != "123456" {
+		t.Fatalf("quick connect starved by passwords: %v", start)
+	}
+	if !strings.Contains(logs.String(), "bad Jellyfin password") || strings.Contains(logs.String(), "nope") {
+		t.Fatalf("log: %s", logs.String())
+	}
+	// Oversized input is refused without reaching the server.
+	h.srv.pwLimit = limiter{burst: 5, every: 10 * time.Second}
+	big := url.Values{"username": {"friend"}, "password": {strings.Repeat("x", 1<<20)}}
+	if loc := h.redirectOf(c, "/auth/jellyfin/password", big); loc != "/login?e=jf_bad_login" {
+		t.Fatalf("oversized: %s", loc)
+	}
+	if got := f.count(&f.auths); got != 5 {
+		t.Fatalf("oversized reached the server: %d", got)
+	}
+}
+
+// A dead server answers at once with the real diagnosis (UX-a2-04).
+func TestJellyfinQCStartUnreachable(t *testing.T) {
+	h, _, jf := newJellyfinHarness(t)
+	c := h.client()
+	h.redirectOf(c, "/setup/jellyfin", url.Values{"url": {jf.URL}})
+	jf.Close()
+	var start map[string]any
+	h.post(c, "/auth/jellyfin/qc/start", &start)
+	if start["redirect"] != "/login?e=jf_unreachable" || start["disabled"] != nil {
+		t.Fatalf("start: %v", start)
+	}
+}
+
+// A failed first run leaves neither an API key on the server nor an account
+// (SEC-a2-05, EDGE-a2-06).
+func TestJellyfinFailedFirstRunLeavesNothing(t *testing.T) {
+	h, f, jf := newJellyfinHarness(t)
+	ctx := context.Background()
+	c := h.client()
+	h.redirectOf(c, "/setup/jellyfin", url.Values{"url": {jf.URL}})
+	admin := url.Values{"username": {"admin"}, "password": {"pw-admin"}}
+
+	f.mu.Lock()
+	f.publicID = "another"
+	f.mu.Unlock()
+	if loc := h.redirectOf(c, "/auth/jellyfin/password", admin); loc != "/login?e=jf_unreachable" {
+		t.Fatalf("other id: %s", loc)
+	}
+	if f.count(&f.keys) != 0 {
+		t.Fatal("key created before the checks")
+	}
+	f.mu.Lock()
+	f.publicID, f.keyFail = "", true
+	f.mu.Unlock()
+	if loc := h.redirectOf(c, "/auth/jellyfin/password", admin); loc != "/login?e=jf_unreachable" {
+		t.Fatalf("key refused: %s", loc)
+	}
+	if users, _ := h.srv.store.Users(ctx); len(users) != 0 {
+		t.Fatalf("stray accounts: %d", len(users))
+	}
+}
+
+// isJellyfin never caches a value read before the install was claimed
+// (EDGE-a2-07).
+func TestJellyfinKindSurvivesFirstRunRace(t *testing.T) {
+	h, f, jf := newJellyfinHarness(t)
+	ctx := context.Background()
+	c := h.client()
+	h.redirectOf(c, "/setup/jellyfin", url.Values{"url": {jf.URL}})
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+					h.srv.isJellyfin(ctx)
+				}
+			}
+		}()
+	}
+	if loc := h.redirectOf(c, "/auth/jellyfin/password", url.Values{"username": {"admin"}, "password": {"pw-admin"}}); loc != "/admin" {
+		t.Fatalf("first run: %s", loc)
+	}
+	close(stop)
+	wg.Wait()
+	_ = f
+	if !h.srv.isJellyfin(ctx) {
+		t.Fatal("install forgot it is Jellyfin")
 	}
 }

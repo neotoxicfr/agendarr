@@ -25,6 +25,8 @@ type fakePlex struct {
 	pinMiss  int               // lookups answered 404 before the PIN is found
 	accounts map[string]string // token -> user JSON
 	servers  map[string]string // token -> resources JSON
+	checks   int               // PIN lookups that reached this server
+	pinFail  bool              // PIN lookups answer 500
 }
 
 func (f *fakePlex) handler() http.Handler {
@@ -35,6 +37,11 @@ func (f *fakePlex) handler() http.Handler {
 	mux.HandleFunc("GET /api/v2/pins/1", func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
 		defer f.mu.Unlock()
+		f.checks++
+		if f.pinFail {
+			http.Error(w, "boom", http.StatusInternalServerError)
+			return
+		}
 		if f.pinMiss > 0 {
 			f.pinMiss--
 			http.Error(w, `{"errors":[{"code":1020,"message":"Code not found or expired","status":404}]}`, http.StatusNotFound)
@@ -325,5 +332,44 @@ func TestLegacySessionGuard(t *testing.T) {
 		if got != c.want {
 			t.Fatalf("pid %d: signed in %v, want %v", c.pid, got, c.want)
 		}
+	}
+}
+
+// Polls are relayed upstream only within a budget, and a dead PIN stops being
+// relayed at all (SEC-a2-01).
+func TestPinCheckIsRateLimited(t *testing.T) {
+	h := newHarness(t, config.Config{DataDir: t.TempDir()})
+	c := h.client()
+	h.post(c, "/auth/plex/start", nil)
+	for i := 0; i < 200; i++ {
+		var check map[string]any
+		h.post(c, "/auth/plex/check", &check)
+		if check["pending"] != true {
+			t.Fatalf("poll %d: %v", i, check)
+		}
+	}
+	h.fp.mu.Lock()
+	got := h.fp.checks
+	h.fp.pinFail = true
+	h.fp.mu.Unlock()
+	if got > 22 {
+		t.Fatalf("%d upstream lookups for 200 polls", got)
+	}
+	// Let the bucket refill so the failing lookup is actually made.
+	h.srv.checkLimit = limiter{burst: 20, every: 500 * time.Millisecond}
+	var check map[string]any
+	h.post(c, "/auth/plex/check", &check)
+	if check["redirect"] != "/login?e=expired" {
+		t.Fatalf("dead pin: %v", check)
+	}
+	h.fp.mu.Lock()
+	before := h.fp.checks
+	h.fp.mu.Unlock()
+	h.post(c, "/auth/plex/check", &check)
+	h.fp.mu.Lock()
+	after := h.fp.checks
+	h.fp.mu.Unlock()
+	if after != before || check["redirect"] != "/login?e=expired" {
+		t.Fatalf("dead pin relayed again: %d -> %d, %v", before, after, check)
 	}
 }

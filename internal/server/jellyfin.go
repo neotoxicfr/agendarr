@@ -34,11 +34,14 @@ func (s *Server) isJellyfin(ctx context.Context) bool {
 	if v, ok := s.mediaKind.Load().(string); ok {
 		return v == "jellyfin"
 	}
+	// Read setupDone first: a value read before the claim commits must not be
+	// cached after it (EDGE-a2-07).
+	done := s.setupDone(ctx)
 	v, err := s.store.Setting(ctx, keyMediaServer)
 	if err != nil {
 		return false
 	}
-	if s.setupDone(ctx) {
+	if done {
 		s.mediaKind.Store(v) // fixed once the install is set up
 	}
 	return v == "jellyfin"
@@ -206,16 +209,24 @@ func (s *Server) handleQCStart(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusTooManyRequests, map[string]string{"redirect": "/login?e=jf_unreachable"})
 		return
 	}
+	// Bounded so a dead server answers at once, not after two 30 s calls (UX-a2-04).
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
 	device := s.newDevice()
 	c := s.jellyfinAt(base, "", device)
-	if on, err := c.QuickConnectEnabled(r.Context()); err == nil && !on {
+	if on, err := c.QuickConnectEnabled(ctx); err == nil && !on {
 		writeJSON(w, http.StatusOK, map[string]any{"disabled": true})
 		return
 	}
-	qc, err := c.Initiate(r.Context())
-	if err != nil {
-		s.log.Warn("quick connect", "err", err)
+	qc, err := c.Initiate(ctx)
+	switch {
+	case err == nil:
+	case errors.Is(err, jellyfin.ErrNotFound) || errors.Is(err, jellyfin.ErrUnauthorized):
 		writeJSON(w, http.StatusOK, map[string]any{"disabled": true})
+		return
+	default:
+		s.log.Warn("quick connect", "err", err)
+		writeJSON(w, http.StatusOK, map[string]string{"redirect": "/login?e=jf_unreachable"})
 		return
 	}
 	s.sessions.Put(r.Context(), sessJFSecret, qc.Secret)
@@ -231,10 +242,17 @@ func (s *Server) handleQCCheck(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"redirect": "/login?e=expired"})
 		return
 	}
+	// Polls hit the household server: an empty bucket answers "pending" without
+	// an upstream call (SEC-a2-01).
+	if !s.checkLimit.allow(time.Now()) {
+		writeJSON(w, http.StatusOK, map[string]any{"pending": true})
+		return
+	}
 	c := s.jellyfinAt(base, "", device)
 	ok, err := c.Approved(ctx, secret)
 	switch {
 	case errors.Is(err, jellyfin.ErrNotFound) || errors.Is(err, jellyfin.ErrUnauthorized):
+		s.sessions.Remove(ctx, sessJFSecret) // a dead code must not keep relaying polls (SEC-a2-01)
 		writeJSON(w, http.StatusOK, map[string]string{"redirect": "/login?e=expired"})
 		return
 	case err != nil:
@@ -267,15 +285,26 @@ func (s *Server) handleJFPassword(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
 	}
-	if !s.pinLimit.allow(time.Now()) {
-		http.Redirect(w, r, "/login?e=jf_unreachable", http.StatusSeeOther)
+	// Passwords get their own slow bucket, so guessing cannot drain the others
+	// and is not worth Internet-side brute force (SEC-a2-02).
+	if !s.pwLimit.allow(time.Now()) {
+		http.Redirect(w, r, "/login?e=jf_wait", http.StatusSeeOther)
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 4<<10)
+	// An over-long body fails to parse: refuse it rather than send blanks.
+	err := r.ParseForm()
+	user, pass := r.PostFormValue("username"), r.PostFormValue("password")
+	if err != nil || len(user) > 128 || len(pass) > 256 {
+		http.Redirect(w, r, "/login?e=jf_bad_login", http.StatusSeeOther)
 		return
 	}
 	device := s.newDevice()
-	a, err := s.jellyfinAt(base, "", device).AuthByName(r.Context(), r.PostFormValue("username"), r.PostFormValue("password"))
+	a, err := s.jellyfinAt(base, "", device).AuthByName(r.Context(), user, pass)
 	var next, code string
 	switch {
 	case errors.Is(err, jellyfin.ErrUnauthorized):
+		s.log.Info("sign-in refused: bad Jellyfin password", "user", user[:min(len(user), 64)])
 		code = "jf_bad_login"
 	case err != nil:
 		s.log.Warn("jellyfin password sign-in", "err", err)
@@ -310,11 +339,8 @@ func (s *Server) completeJellyfinSignIn(r *http.Request, base, device string, a 
 		if !a.User.Policy.IsAdministrator {
 			return "", "jf_not_admin"
 		}
-		key, err := c.CreateKey(ctx, "Agendarr")
-		if err != nil {
-			s.log.Error("jellyfin api key", "err", err)
-			return "", "jf_unreachable"
-		}
+		// Every check runs before the key exists, so a failure leaves none on the
+		// server (SEC-a2-05).
 		info, err := c.PublicInfo(ctx)
 		if err != nil || info.ID != a.ServerID {
 			s.log.Error("jellyfin server", "err", err)
@@ -325,10 +351,17 @@ func (s *Server) completeJellyfinSignIn(r *http.Request, base, device string, a 
 			s.log.Error("sign in", "err", err)
 			return "", "jf_unreachable"
 		}
+		key, err := c.CreateKey(ctx, "Agendarr")
+		if err != nil {
+			s.log.Error("jellyfin api key", "err", err)
+			_ = s.store.DeleteUser(ctx, u.ID) // (EDGE-a2-06)
+			return "", "jf_unreachable"
+		}
 		settings := map[string]string{keyMediaServer: "jellyfin", keyServerID: info.ID, keyServerName: info.Name,
 			keyJFURL: base, keyJFPublic: s.sessions.GetString(ctx, sessJFPublic), keyJFKey: s.box.Seal(key)}
 		if err := s.store.ClaimOwner(ctx, u.ID, settings); err != nil {
 			s.log.Error("claim owner", "err", err)
+			_ = s.store.DeleteUser(ctx, u.ID) // lost the race: leave no stray account (EDGE-a2-06)
 			return "", "setup_taken"
 		}
 		s.ownerKnown.Store(true)
