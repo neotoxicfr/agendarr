@@ -35,13 +35,17 @@ function poller(url, say) {
     timer = null;
     document.removeEventListener("visibilitychange", onVisible);
   };
+  // Never two checks in flight: the second would redeem the same secret (EDGE-a5-03).
+  let busy = false;
   const check = async () => {
+    if (busy) return;
     if (Date.now() > deadline) { stop(); say(t("login.timeout")); return; }
+    busy = true;
     try {
       const res = await fetch(url, { method: "POST" });
       const body = await res.json();
       if (body.redirect) { stop(); window.location.assign(body.redirect); }
-    } catch { /* network blip: keep polling */ }
+    } catch { /* network blip: keep polling */ } finally { busy = false; }
   };
   const onVisible = () => { if (document.visibilityState === "visible" && timer) check(); };
   return {
@@ -102,8 +106,9 @@ if (loginBtn) {
 const jfBtn = document.querySelector("[data-jf-login]");
 if (jfBtn) {
   const status = document.querySelector("[data-jf-status]");
-  const say = (msg) => { status.textContent = msg; };
   const codeBox = document.querySelector("[data-jf-code]");
+  // An expired code is no use on screen next to the timeout message (UX-a5-06).
+  const say = (msg) => { status.textContent = msg; if (msg === t("login.timeout")) codeBox.hidden = true; };
   const poll = poller("/auth/jellyfin/qc/check", say);
   let busy = false;
   jfBtn.addEventListener("click", async () => {
@@ -444,9 +449,11 @@ if (settings) {
     status = group && (group.querySelector("[data-group-status]") ||
       group.appendChild(h("p", { class: "settings-status", role: "status", "data-group-status": "" })));
     if (x.matches("[data-pref-formats]")) {
-      await save("/api/prefs", "PUT", { formats: x.value }, () => { settings.querySelector(`[data-pref-formats]:not([value="${x.value}"])`).checked = true; });
-      window.AgFormats?.setMode(x.value);
-      try { localStorage.setItem("agendarr.formats", JSON.stringify(x.value)); } catch { /* private mode */ }
+      // A mode the server refused is not applied on this device either (UX-a5-07).
+      if (await save("/api/prefs", "PUT", { formats: x.value }, () => { settings.querySelector(`[data-pref-formats]:not([value="${x.value}"])`).checked = true; })) {
+        window.AgFormats?.setMode(x.value);
+        try { localStorage.setItem("agendarr.formats", JSON.stringify(x.value)); } catch { /* private mode */ }
+      }
     } else if (x.matches("[data-pref-site]")) {
       const sites = [...settings.querySelectorAll("[data-pref-site]:checked")].map((c) => c.dataset.prefSite);
       if (await save("/api/prefs", "PUT", { sites }, () => { x.checked = !x.checked; })) {

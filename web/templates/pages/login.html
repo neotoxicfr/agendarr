@@ -19,7 +19,7 @@
       <output class="jf-code-value" data-jf-code-value aria-live="polite"></output>
     </div>
     <p class="auth-status" data-jf-status aria-live="polite"></p>
-    <details class="jf-password" data-jf-password>
+    <details class="jf-password" data-jf-password{{if or (eq .Data.Error "err.jf_bad_login") (eq .Data.Error "err.jf_wait")}} open{{end}}>
       <summary>{{index .T "login.jf_password_toggle"}}</summary>
       <form method="post" action="/auth/jellyfin/password">
         <div class="field"><label for="jf-user">{{index .T "login.jf_username"}}</label>

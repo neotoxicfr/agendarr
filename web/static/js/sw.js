@@ -62,7 +62,8 @@ self.addEventListener("fetch", (e) => {
     e.respondWith(caches.open(IMG).then((c) => c.match(req)).then((hit) => {
       if (hit && Date.now() - Date.parse(hit.headers.get("Date")) < 86400e3) return hit;
       const net = fetch(req).then((res) => {
-        if (res.ok) e.waitUntil(put(IMG, req, res.clone(), 300));
+        // A redirected answer is never a poster: it is the login page (EDGE-a5-01).
+        if (res.ok && !res.redirected) e.waitUntil(put(IMG, req, res.clone(), 300));
         return res;
       });
       if (hit) { e.waitUntil(net.catch(() => {})); return hit; }

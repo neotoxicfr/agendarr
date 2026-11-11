@@ -474,7 +474,10 @@
     }
     syncInstanceFilters(data.events);
     lastEvents = data.events;
-    const events = data.events.filter(visible);
+    // The server sends a margin day each side; it must not count for the empty message or the announcement (EDGE-a5-05).
+    const lo = keyOf(from), hi = keyOf(to);
+    const shown = data.events.filter((e) => dayOf(e) >= lo && dayOf(e) <= hi);
+    const events = shown.filter(visible);
     let view;
     if (state.view === "month") view = renderMonth(events, from, to);
     else if (state.view === "week") view = renderWeek(events, from);
@@ -486,7 +489,7 @@
     if (events.length === 0 && !(state.view === "month" && !wide.matches)) {
       // "For me" filters apply on the server: an empty answer then means
       // nothing matches them, not nothing scheduled.
-      nodes.unshift(el("p", { class: "cal-empty-inline", text: t(data.events.length || state.mine.length ? "cal.empty_filtered" : "cal.empty") }));
+      nodes.unshift(el("p", { class: "cal-empty-inline", text: t(shown.length || state.mine.length ? "cal.empty_filtered" : "cal.empty") }));
     }
     // Screen readers hear what a filter change left on screen (CAL-05).
     if (keepScroll) announce(t("cal.shown_n", { n: events.length }));
