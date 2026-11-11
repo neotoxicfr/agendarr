@@ -47,3 +47,29 @@ func (l *limiter) allow(now time.Time) bool {
 	l.tokens--
 	return true
 }
+
+// keyed holds one bucket per key (a pending sign-in, a username), so that one
+// client draining its own does not lock everyone else out. The map is dropped
+// when it grows past keyedMax: a flood of keys buys a fresh burst, no more.
+type keyed struct {
+	mu    sync.Mutex
+	m     map[string]*limiter
+	burst float64
+	every time.Duration
+}
+
+const keyedMax = 1024
+
+func (k *keyed) allow(key string, now time.Time) bool {
+	k.mu.Lock()
+	l := k.m[key]
+	if l == nil {
+		if k.m == nil || len(k.m) >= keyedMax {
+			k.m = map[string]*limiter{}
+		}
+		l = &limiter{burst: k.burst, every: k.every}
+		k.m[key] = l
+	}
+	k.mu.Unlock()
+	return l.allow(now)
+}

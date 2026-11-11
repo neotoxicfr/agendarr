@@ -243,8 +243,9 @@ func (s *Server) handleQCCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Polls hit the household server: an empty bucket answers "pending" without
-	// an upstream call (SEC-a2-01).
-	if !s.checkLimit.allow(time.Now()) {
+	// an upstream call (SEC-a2-01). Each code has its own, so a client looping
+	// on its check does not stall the other sign-ins.
+	if now := time.Now(); !s.checkOne.allow(secret, now) || !s.checkLimit.allow(now) {
 		writeJSON(w, http.StatusOK, map[string]any{"pending": true})
 		return
 	}
@@ -285,18 +286,19 @@ func (s *Server) handleJFPassword(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
 	}
-	// Passwords get their own slow bucket, so guessing cannot drain the others
-	// and is not worth Internet-side brute force (SEC-a2-02).
-	if !s.pwLimit.allow(time.Now()) {
-		http.Redirect(w, r, "/login?e=jf_wait", http.StatusSeeOther)
-		return
-	}
 	r.Body = http.MaxBytesReader(w, r.Body, 4<<10)
 	// An over-long body fails to parse: refuse it rather than send blanks.
 	err := r.ParseForm()
 	user, pass := r.PostFormValue("username"), r.PostFormValue("password")
 	if err != nil || len(user) > 128 || len(pass) > 256 {
 		http.Redirect(w, r, "/login?e=jf_bad_login", http.StatusSeeOther)
+		return
+	}
+	// Passwords get slow buckets of their own, so guessing is not worth an
+	// Internet-side brute force and cannot drain Quick Connect's. One per
+	// username: guesses on an account do not lock the others out (SEC-a2-02).
+	if now := time.Now(); !s.pwLimit.allow(strings.ToLower(user), now) || !s.pwAll.allow(now) {
+		http.Redirect(w, r, "/login?e=jf_wait", http.StatusSeeOther)
 		return
 	}
 	device := s.newDevice()

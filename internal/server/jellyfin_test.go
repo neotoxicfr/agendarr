@@ -314,10 +314,10 @@ func TestJellyfinQCCheckIsRateLimited(t *testing.T) {
 			t.Fatalf("poll %d: %v", i, check)
 		}
 	}
-	if got := f.count(&f.connects); got > 22 {
+	if got := f.count(&f.connects); got > 15 {
 		t.Fatalf("%d upstream polls for 200", got)
 	}
-	h.srv.checkLimit = limiter{burst: 20, every: 500 * time.Millisecond}
+	h.srv.checkOne = keyed{burst: 10, every: time.Second}
 	f.mu.Lock()
 	f.deadCode = true
 	f.mu.Unlock()
@@ -352,6 +352,14 @@ func TestJellyfinPasswordLimits(t *testing.T) {
 	if got := f.count(&f.auths); got != 5 {
 		t.Fatalf("%d upstream sign-ins, want 5", got)
 	}
+	// Guesses on one account do not lock the others out, whatever the case of
+	// the name they are typed in.
+	if loc := h.redirectOf(c, "/auth/jellyfin/password", url.Values{"username": {"FRIEND"}, "password": {"nope"}}); loc != "/login?e=jf_wait" {
+		t.Fatalf("same account, other case: %s", loc)
+	}
+	if loc := h.redirectOf(c, "/auth/jellyfin/password", url.Values{"username": {"admin"}, "password": {"nope"}}); loc != "/login?e=jf_bad_login" {
+		t.Fatalf("another account is locked out: %s", loc)
+	}
 	var start map[string]any
 	h.post(c, "/auth/jellyfin/qc/start", &start)
 	if start["code"] != "123456" {
@@ -361,12 +369,11 @@ func TestJellyfinPasswordLimits(t *testing.T) {
 		t.Fatalf("log: %s", logs.String())
 	}
 	// Oversized input is refused without reaching the server.
-	h.srv.pwLimit = limiter{burst: 5, every: 10 * time.Second}
-	big := url.Values{"username": {"friend"}, "password": {strings.Repeat("x", 1<<20)}}
+	big := url.Values{"username": {"admin"}, "password": {strings.Repeat("x", 1<<20)}}
 	if loc := h.redirectOf(c, "/auth/jellyfin/password", big); loc != "/login?e=jf_bad_login" {
 		t.Fatalf("oversized: %s", loc)
 	}
-	if got := f.count(&f.auths); got != 5 {
+	if got := f.count(&f.auths); got != 6 {
 		t.Fatalf("oversized reached the server: %d", got)
 	}
 }

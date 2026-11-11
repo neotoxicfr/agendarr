@@ -56,8 +56,10 @@ type Server struct {
 	mediaKind  atomic.Value // keyMediaServer once set up (string)
 
 	pinLimit           limiter
-	checkLimit         limiter // PIN / Quick Connect polls (SEC-a2-01)
-	pwLimit            limiter // Jellyfin passwords (SEC-a2-02)
+	checkLimit         limiter // PIN / Quick Connect polls, whole install (SEC-a2-01)
+	checkOne           keyed   // the same, per pending sign-in
+	pwLimit            keyed   // Jellyfin passwords, per username (SEC-a2-02)
+	pwAll              limiter // the same, whole install
 	onInstancesChanged func()
 	cal                *calendar.Service
 	personal           *personal.Service
@@ -75,8 +77,9 @@ type Server struct {
 // New builds a Server and parses the templates.
 func New(cfg config.Config, st *store.Store, box *secret.Box, log *slog.Logger) (*Server, error) {
 	s := &Server{cfg: cfg, store: st, box: box, log: log, started: time.Now(),
-		checkLimit: limiter{burst: 20, every: 500 * time.Millisecond},
-		pwLimit:    limiter{burst: 5, every: 10 * time.Second}}
+		checkLimit: limiter{burst: 60, every: 50 * time.Millisecond},
+		checkOne:   keyed{burst: 10, every: time.Second},
+		pwLimit:    keyed{burst: 5, every: 10 * time.Second}}
 	var err error
 	if s.static, err = fs.Sub(web.FS, "static"); err != nil {
 		return nil, err

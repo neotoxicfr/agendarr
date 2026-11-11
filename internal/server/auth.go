@@ -238,8 +238,9 @@ func (s *Server) checkPin(r *http.Request) (next, code string, pending bool) {
 		return "", "expired", false
 	}
 	// Polls are relayed to plex.tv with our client id: an empty bucket answers
-	// "pending" without an upstream call (SEC-a2-01).
-	if !s.checkLimit.allow(time.Now()) {
+	// "pending" without an upstream call (SEC-a2-01). Each PIN has its own, so
+	// a client looping on its check does not stall the other sign-ins.
+	if now := time.Now(); !s.checkOne.allow(strconv.FormatInt(id, 10), now) || !s.checkLimit.allow(now) {
 		return "", "", true
 	}
 	pin, err := s.plex.CheckPin(ctx, id)

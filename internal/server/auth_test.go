@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -352,11 +353,11 @@ func TestPinCheckIsRateLimited(t *testing.T) {
 	got := h.fp.checks
 	h.fp.pinFail = true
 	h.fp.mu.Unlock()
-	if got > 22 {
+	if got > 15 {
 		t.Fatalf("%d upstream lookups for 200 polls", got)
 	}
 	// Let the bucket refill so the failing lookup is actually made.
-	h.srv.checkLimit = limiter{burst: 20, every: 500 * time.Millisecond}
+	h.srv.checkOne = keyed{burst: 10, every: time.Second}
 	var check map[string]any
 	h.post(c, "/auth/plex/check", &check)
 	if check["redirect"] != "/login?e=expired" {
@@ -371,5 +372,24 @@ func TestPinCheckIsRateLimited(t *testing.T) {
 	h.fp.mu.Unlock()
 	if after != before || check["redirect"] != "/login?e=expired" {
 		t.Fatalf("dead pin relayed again: %d -> %d, %v", before, after, check)
+	}
+}
+
+// One key running dry leaves the others their bucket, and the map does not
+// grow without bound.
+func TestKeyedLimiter(t *testing.T) {
+	k := keyed{burst: 2, every: time.Minute}
+	now := time.Now()
+	if got := []bool{k.allow("a", now), k.allow("a", now), k.allow("a", now)}; !got[0] || !got[1] || got[2] {
+		t.Fatalf("key a: %v, want two tokens then none", got)
+	}
+	if !k.allow("b", now) {
+		t.Fatal("key b starved by key a")
+	}
+	for i := 0; i < 2*keyedMax; i++ {
+		k.allow(strconv.Itoa(i), now)
+	}
+	if len(k.m) > keyedMax {
+		t.Fatalf("%d keys kept", len(k.m))
 	}
 }
