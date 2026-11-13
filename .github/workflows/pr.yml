@@ -31,7 +31,7 @@ jobs:
       github.event.pull_request.user.login == github.repository_owner &&
       github.base_ref == 'dev')
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 30
     permissions:
       contents: write
       pull-requests: write
@@ -51,27 +51,19 @@ jobs:
       # CodeRabbit skips Dependabot (.coderabbit.yaml). For the owner, only a
       # `success` check means the head commit was reviewed: a skipped, rate-limited
       # (neutral), failed or cancelled review is not one, and neither is a check
-      # that never comes. Without a review, it is asked for once more an hour
-      # later; still none, the pull request stays open.
+      # that has not come after 20 minutes. Without a review the job fails and the
+      # pull request stays open: comment `@coderabbitai full review` as the owner
+      # (CodeRabbit ignores it from github-actions[bot]), then re-run this job.
       - name: Wait for CodeRabbit's review
         if: github.event.pull_request.user.login != 'dependabot[bot]'
         run: |
-          # Sets $c to "<id> <end> <conclusion>" of the finished check once it is
-          # not $1; after 20 minutes without one, leaves $c as it is.
-          check() {
-            for _ in $(seq 60); do
-              c=$(gh api "repos/$GH_REPO/commits/$SHA/check-runs?check_name=CodeRabbit" --jq \
-                '.check_runs | select(length > 0 and all(.status == "completed")) | max_by(.id) | "\(.id) \(.completed_at) \(.conclusion)"') &&
-                [ -n "$c" ] && [ "$c" != "$1" ] && return
-              sleep 20
-            done
-          }
-          check ""
-          [ "${c##* }" = success ] && exit 0
-          sleep 3600
-          gh pr comment "$PR" --body "@coderabbitai full review"
-          check "$c"
-          [ "${c##* }" = success ] || { echo "::error::CodeRabbit did not review $SHA: not merged"; exit 1; }
+          for _ in $(seq 60); do
+            c=$(gh api "repos/$GH_REPO/commits/$SHA/check-runs?check_name=CodeRabbit" --jq \
+              '.check_runs | select(length > 0 and all(.status == "completed")) | max_by(.id).conclusion') &&
+              [ -n "$c" ] && break
+            sleep 20
+          done
+          [ "$c" = success ] || { echo "::error::CodeRabbit did not review $SHA: not merged"; exit 1; }
 
       - name: Squash-merge
         run: gh pr merge "$PR" --squash --match-head-commit "$SHA"
