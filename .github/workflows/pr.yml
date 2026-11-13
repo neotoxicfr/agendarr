@@ -1,8 +1,8 @@
 name: Pull request
 
 # Every pull request runs ci.yml. One from the owner or from Dependabot is
-# squash-merged into dev as soon as it passes; a draft is left alone, and so
-# is anything that fails. Nothing is ever merged into main from here.
+# squash-merged into dev once it passes and CodeRabbit has reviewed it; a
+# draft is left alone, and so is anything that fails. Nothing is ever merged into main from here.
 on:
   pull_request:
     branches: [dev, main]
@@ -30,11 +30,12 @@ jobs:
       github.event.pull_request.user.login == github.repository_owner &&
       github.base_ref == 'dev')
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 30
     permissions:
       contents: write
       pull-requests: write
       actions: write
+      checks: read
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
@@ -45,6 +46,13 @@ jobs:
       - name: Retarget to dev
         if: github.base_ref != 'dev'
         run: gh api -X PATCH "repos/$GH_REPO/pulls/$PR" -f base=dev --silent
+
+      # Its check is required on dev: a merge asked for earlier is refused.
+      - name: Wait for the end of CodeRabbit's review
+        run: |
+          until gh api "repos/$GH_REPO/commits/$SHA/check-runs?check_name=CodeRabbit" \
+            --jq '.check_runs | length > 0 and all(.status == "completed")' | grep -qx true
+          do sleep 20; done
 
       - name: Squash-merge
         run: gh pr merge "$PR" --squash --match-head-commit "$SHA"
