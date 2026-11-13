@@ -1,25 +1,13 @@
 name: CI
 
-# Pull requests run it here; pushes to dev and release tags run it through
-# docker-publish.yml, which publishes nothing unless it passes.
+# The checks, called by pr.yml on every pull request and by docker-publish.yml
+# before an image is published. The names of these jobs are the required
+# status checks of dev ("CI / <name>"): do not rename them.
 on:
-  pull_request:
-    branches: [main, dev]
-    paths-ignore:
-      - "**.md"
-      - "LICENSE"
-      - "docs/**"
-      - ".github/dependabot.yml"
-      - ".github/ISSUE_TEMPLATE/**"
   workflow_call:
 
 permissions:
   contents: read
-
-# Cancel superseded runs on the same ref (saves CI minutes on rapid pushes)
-concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   test:
@@ -40,6 +28,13 @@ jobs:
 
       - name: Test
         run: go test -race -timeout 120s ./...
+
+      # modernc.org/sqlite only supports the exact modernc.org/libc it pins;
+      # another bump (goose) can raise it and still build.
+      - name: libc is the one sqlite pins
+        run: |
+          v() { go list -m -f '{{.Version}}' "$1"; }
+          go mod graph | grep -qxF "modernc.org/sqlite@$(v modernc.org/sqlite) modernc.org/libc@$(v modernc.org/libc)"
 
       - name: Lint
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
@@ -73,3 +68,19 @@ jobs:
           ghcr.io/aquasecurity/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb
           fs --scanners vuln,secret,misconfig --severity CRITICAL,HIGH
           --ignore-unfixed --exit-code 1 /src
+
+  gitleaks:
+    name: Gitleaks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # the whole history, not only the tree Trivy reads
+
+      - name: Run gitleaks
+        run: >-
+          docker run --rm -v "$PWD:/src:ro"
+          ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
+          git --no-banner --redact /src

@@ -1,0 +1,54 @@
+name: Pull request
+
+# Every pull request runs ci.yml. One from the owner or from Dependabot is
+# squash-merged into dev as soon as it passes; a draft is left alone, and so
+# is anything that fails. Nothing is ever merged into main from here.
+on:
+  pull_request:
+    branches: [dev, main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: CI
+    uses: ./.github/workflows/ci.yml
+
+  # No checkout: this job never runs the code of the pull request.
+  merge:
+    name: Merge into dev
+    needs: ci
+    if: >-
+      !github.event.pull_request.draft && (
+      github.event.pull_request.user.login == 'dependabot[bot]' ||
+      github.event.pull_request.user.login == github.repository_owner &&
+      github.base_ref == 'dev')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      PR: ${{ github.event.pull_request.number }}
+      SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      # A Dependabot security update opens against main, the default branch.
+      - name: Retarget to dev
+        if: github.base_ref != 'dev'
+        run: gh api -X PATCH "repos/$GH_REPO/pulls/$PR" -f base=dev --silent
+
+      - name: Squash-merge
+        run: gh pr merge "$PR" --squash --match-head-commit "$SHA"
+
+      # A merge made with GITHUB_TOKEN raises no push event.
+      - name: Publish the dev image
+        run: gh workflow run docker-publish.yml --ref dev

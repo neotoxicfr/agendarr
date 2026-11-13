@@ -1,0 +1,65 @@
+name: Vulnerability watch
+
+# govulncheck and Trivy on dev, every day. A finding opens or refreshes one
+# issue and the run stays green: no failure mailed day after day.
+on:
+  schedule:
+    - cron: "37 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  watch:
+    name: Scan dev
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TITLE: Vulnerability to fix on dev
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: dev
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      # Same tools and versions as ci.yml: bump both together.
+      - name: Scan
+        id: scan
+        continue-on-error: true
+        run: |
+          s=0
+          go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
+          govulncheck ./... > "$RUNNER_TEMP/report" 2>&1 || s=1
+          docker run --rm -v "$PWD:/src:ro" \
+            ghcr.io/aquasecurity/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb \
+            fs --scanners vuln --severity CRITICAL,HIGH --ignore-unfixed --exit-code 1 /src \
+            >> "$RUNNER_TEMP/report" 2>&1 || s=1
+          cat "$RUNNER_TEMP/report"
+          exit "$s"
+
+      - name: Open, refresh or close the issue
+        env:
+          OUTCOME: ${{ steps.scan.outcome }}
+        run: |
+          n=$(gh issue list --state open --json number,title \
+            --jq 'map(select(.title == env.TITLE))[0].number // empty')
+          if [ "$OUTCOME" = success ]; then
+            [ -z "$n" ] || gh issue close "$n" --comment "Clean on dev."
+            exit 0
+          fi
+          { echo '```'; tail -c 60000 "$RUNNER_TEMP/report"; echo '```'; } > "$RUNNER_TEMP/body"
+          if [ -n "$n" ]; then
+            gh issue edit "$n" --body-file "$RUNNER_TEMP/body"
+          else
+            gh issue create --title "$TITLE" --body-file "$RUNNER_TEMP/body"
+          fi
