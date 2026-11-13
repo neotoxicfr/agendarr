@@ -83,3 +83,4 @@ Les comportements abusifs peuvent être signalés au mainteneur du projet sur **
 ## Attributions
 
 Ce code de conduite est adapté du [Contributor Covenant](https://www.contributor-covenant.org), version 2.1.
+
