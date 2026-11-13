@@ -1,7 +1,8 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 #
-# CodeRabbit advises; CI and the maintainer decide. Nothing in this file lets it
-# approve, block or merge a pull request.
+# CodeRabbit reviews every pull request, Dependabot's included, and the merge
+# into dev waits for the end of its review (pr.yml). It never approves a pull
+# request, and its findings do not block one.
 
 language: fr-FR
 tone_instructions: >-
@@ -13,7 +14,9 @@ reviews:
   # `request_changes_workflow` is the legacy alias of this key.
   auto_approvals:
     enabled: false
-  # A review that stops on an error never turns the commit status red.
+  # The `CodeRabbit` check run is a required check of dev: do not turn it off.
+  review_progress: true
+  # A review that stops on an error ends neutral, which does not block a merge.
   fail_commit_status: false
 
   high_level_summary: true
@@ -29,9 +32,6 @@ reviews:
     # The default branch is always reviewed; day-to-day pull requests target `dev`.
     base_branches:
       - "^dev$"
-    # Dependabot's bumps merge on their own once CI passes: nothing to review.
-    ignore_usernames:
-      - "dependabot[bot]"
 
   # Images, fonts, `go.sum` and other lock files are already left out by default.
   # Test fixtures stay in: they are anonymised upstream responses, see below.

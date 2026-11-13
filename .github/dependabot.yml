@@ -5,6 +5,9 @@ updates:
     target-branch: "dev"
     schedule:
       interval: "daily"
+    # No waiting period: without this, a release waits 3 days by default.
+    cooldown:
+      exclude: ["*"]
     commit-message:
       prefix: "chore(deps)"
     groups:
@@ -17,6 +20,9 @@ updates:
     target-branch: "dev"
     schedule:
       interval: "daily"
+    # No waiting period: without this, a release waits 3 days by default.
+    cooldown:
+      exclude: ["*"]
     commit-message:
       prefix: "chore(deps)"
     groups:
@@ -29,6 +35,9 @@ updates:
     target-branch: "dev"
     schedule:
       interval: "daily"
+    # No waiting period: without this, a release waits 3 days by default.
+    cooldown:
+      exclude: ["*"]
     open-pull-requests-limit: 5
     # One pull request for the routine bumps; a major version gets its own.
     groups:
