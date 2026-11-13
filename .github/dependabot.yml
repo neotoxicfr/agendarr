@@ -19,6 +19,10 @@ updates:
       interval: "daily"
     commit-message:
       prefix: "chore(deps)"
+    groups:
+      docker:
+        patterns:
+          - "*"
 
   - package-ecosystem: "gomod"
     directory: "/"
@@ -30,5 +34,12 @@ updates:
     groups:
       go-modules:
         update-types: ["minor", "patch"]
+        # goose can raise modernc.org/libc past the version sqlite pins (ci.yml
+        # checks it): on its own, it waits without holding back the others.
+        exclude-patterns: ["github.com/pressly/goose/v3"]
+    ignore:
+      # Untagged sub-module, kept at a pseudo-version: Dependabot resolves a
+      # tag of the parent module and its run fails every day.
+      - dependency-name: "github.com/alexedwards/scs/sqlite3store"
     commit-message:
       prefix: "chore(deps)"

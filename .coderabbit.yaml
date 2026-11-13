@@ -20,16 +20,18 @@ reviews:
   changed_files_summary: true
   poem: false
   in_progress_fortune: false
-  # One maintainer, and CODEOWNERS already requests the review.
+  # One maintainer: nobody to suggest.
   suggested_reviewers: false
 
   auto_review:
     enabled: true
     drafts: false
-    # The default branch is always reviewed; day-to-day pull requests, Dependabot's
-    # included (no `ignore_usernames`), target `dev`.
+    # The default branch is always reviewed; day-to-day pull requests target `dev`.
     base_branches:
       - "^dev$"
+    # Dependabot's bumps merge on their own once CI passes: nothing to review.
+    ignore_usernames:
+      - "dependabot[bot]"
 
   # Images, fonts, `go.sum` and other lock files are already left out by default.
   # Test fixtures stay in: they are anonymised upstream responses, see below.

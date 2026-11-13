@@ -16,7 +16,6 @@ on:
       - "Makefile"
       - "docs/**"
       - "deploy/**"
-      - ".github/CODEOWNERS"
       - ".github/dependabot.yml"
       - ".github/ISSUE_TEMPLATE/**"
     tags: ["v*.*.*"]
