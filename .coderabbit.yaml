@@ -1,0 +1,219 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+#
+# CodeRabbit advises; CI and the maintainer decide. Nothing in this file lets it
+# approve, block or merge a pull request.
+
+language: fr-FR
+tone_instructions: >-
+  Direct et concis : le constat, sa preuve (fichier, ligne, scénario) et le correctif.
+  Ni compliments ni remplissage. Ne signale que ce qui est vérifié dans le code.
+
+reviews:
+  profile: chill
+  # `request_changes_workflow` is the legacy alias of this key.
+  auto_approvals:
+    enabled: false
+  # A review that stops on an error never turns the commit status red.
+  fail_commit_status: false
+
+  high_level_summary: true
+  changed_files_summary: true
+  poem: false
+  in_progress_fortune: false
+  # One maintainer, and CODEOWNERS already requests the review.
+  suggested_reviewers: false
+
+  auto_review:
+    enabled: true
+    drafts: false
+    # The default branch is always reviewed; day-to-day pull requests, Dependabot's
+    # included (no `ignore_usernames`), target `dev`.
+    base_branches:
+      - "^dev$"
+
+  # Images, fonts, `go.sum` and other lock files are already left out by default.
+  # Test fixtures stay in: they are anonymised upstream responses, see below.
+  path_filters:
+    - "!LICENSE"
+    - "!CODE_OF_CONDUCT.md"
+    - "!**/LICENSE.md"
+
+  path_instructions:
+    - path: "**"
+      instructions: |
+        No secret (password, token, API key), personal e-mail address, private host
+        name or IP address in a tracked file: examples use `example.com` and obviously
+        fake values. Flag any that looks real.
+        Keep the change small: reuse what exists, no new abstraction, no new
+        dependency and no configuration option for a rare case.
+        CONTRIBUTING.md and SECURITY.md are the reference for conventions and for the
+        security model; do not re-open a decision they state.
+
+    - path: "**/*.go"
+      instructions: |
+        Errors are wrapped with context: `fmt.Errorf("context: %w", err)`.
+        Configuration is `AGENDARR_*` environment variables validated in
+        `config.Load()`; a new one also goes in `Dockerfile` (if it has a default),
+        `README.md` and `deploy/compose.yml.example`.
+        CI already blocks on golangci-lint (`.golangci.yml`), `go test -race` and
+        govulncheck: do not repeat what those report. gosec is left out on purpose
+        (`IN (?,?)` placeholder lists built from a count are not SQL injection).
+
+    - path: "internal/server/**"
+      instructions: |
+        Security headers are set once in `middleware.go`. The CSP is `'self'` only
+        for scripts and styles, with no inline script, inline style or `unsafe-*`;
+        `frame-ancestors 'none'`, `nosniff` and `Referrer-Policy: same-origin` stay.
+        Flag anything that loosens them.
+        A new route goes through the existing session and admin guards. Request
+        bodies are size-bounded (`http.MaxBytesReader`, `io.LimitReader`).
+        Media-server tokens, API keys, iCal tokens and passwords never reach the
+        browser or the logs; posters go through the server-side proxy.
+        Jellyfin: a typed password is passed on, never stored; the Jellyfin session
+        is signed out at once and no per-user token is kept.
+        Sign-in limiters are token buckets keyed by pending sign-in and by username,
+        under installation-wide caps. Never by client IP: the app runs behind a
+        reverse proxy. Do not suggest IP-based limiting.
+        Accepted, do not re-flag: the first owner or administrator to finish the
+        first run becomes the admin; an admin may point an instance at any URL;
+        removing a user does not ban them (access is revoked on the media server);
+        who requested a title is visible to every user; a flood of password
+        attempts can stall password sign-in for everyone while Quick Connect stays up.
+
+    - path: "internal/{plex,jellyfin,seerr,arr,httpx,webpush}/**"
+      instructions: |
+        Every HTTP client has a timeout and never follows redirects
+        (`CheckRedirect` returns `http.ErrUseLastResponse`). TLS verification is
+        never disabled. An error or log line must not carry a URL with a token or
+        an API key.
+        Web Push is a deliberate standard-library implementation (RFC 8291, RFC 8292)
+        with an allow-list of push services: do not suggest a library.
+
+    - path: "internal/store/**"
+      instructions: |
+        SQLite through the pure-Go driver, no cgo. Schema changes are new goose
+        files in `migrations/`; a shipped migration is never edited. Queries are
+        parameterised. Tokens and API keys are sealed with `internal/secret` before
+        they are stored.
+
+    - path: "web/**"
+      instructions: |
+        No framework, no npm, no build step: `html/template`, vanilla JS and one
+        stylesheet, embedded in the binary. Do not suggest React, Tailwind,
+        TypeScript or a bundler.
+        The CSP forbids inline scripts, `style=` attributes, inline event handlers
+        and `eval`; no `innerHTML` with data that is not a constant. The i18n JSON
+        in `<script type="application/json">` is data and is not executed.
+        No script, style or font is loaded from a third party (no CDN).
+        Desktop and mobile are two designed layouts, neither a scaled copy of the
+        other: a change must hold on both.
+        Accessibility is WCAG 2.2 AA: keyboard path, visible focus, accessible
+        names, state carried by ARIA attributes, contrast in dark and light themes.
+        Accepted, do not re-flag: dark theme by default; bottom tab bar on mobile;
+        the service worker does not cache `/` (shared devices).
+
+    - path: "web/locales/**"
+      instructions: |
+        `fr.json` and `en.json` carry the same keys: a key added, renamed or
+        removed in one is changed in the other. French addresses the user as "tu"
+        everywhere. A `jf:<key>` entry overrides `<key>` on a Jellyfin installation.
+        One word per notion across the interface, without Radarr/Sonarr jargon.
+
+    - path: "**/*_test.go"
+      instructions: |
+        Tests are table-driven and never reach the network: upstream APIs are faked
+        with `httptest` from the anonymised responses in `testdata/`.
+
+    - path: "**/testdata/**"
+      instructions: |
+        Fixtures are real upstream responses, anonymised. Review only that: no real
+        e-mail address, user name, account id, host name, IP address, token or key.
+
+    - path: ".github/workflows/**"
+      instructions: |
+        Every `uses:` is pinned to a full commit SHA with the version in a comment.
+        `permissions` are least-privilege. Nothing is published on a red run.
+        Release notes are written by hand: `generate_release_notes` stays false.
+
+    - path: "{Dockerfile,deploy/**}"
+      instructions: |
+        Base images are pinned by digest. The runtime image is `distroless/static`,
+        non-root, with no shell; the example compose keeps `read_only`,
+        `cap_drop: [ALL]` and `no-new-privileges`. Do not suggest UPX or another
+        base image. Docker image tags are `X.Y.Z` without a leading `v`; git tags
+        and release titles are `vX.Y.Z`.
+
+  pre_merge_checks:
+    title:
+      mode: warning
+      requirements: >-
+        Pull requests are squash-merged, so the title becomes the commit subject:
+        Conventional Commits, in English, imperative, without a trailing period
+        (`fix(auth): …`, `chore(deps): …`).
+
+  # Only what fits a Go monolith with vanilla JS, a Dockerfile and GitHub Actions.
+  # Linters for other languages never run here, and those that need a
+  # configuration file the repository does not have (ESLint, Semgrep, TruffleHog)
+  # skip themselves.
+  tools:
+    gitleaks:
+      enabled: true
+    presidio:
+      enabled: true
+    opengrep:
+      enabled: true
+    actionlint:
+      enabled: true
+    zizmor:
+      enabled: true
+    hadolint:
+      enabled: true
+    biome:
+      enabled: true
+    yamllint:
+      enabled: true
+    markdownlint:
+      enabled: true
+    checkmake:
+      enabled: true
+    github-checks:
+      enabled: true
+    # Already blocking in CI, with the repository's own settings.
+    golangci-lint:
+      enabled: false
+    trivy:
+      enabled: false
+    # govulncheck, Trivy and Dependabot already watch the dependencies.
+    osvScanner:
+      enabled: false
+    # Trivy's misconfiguration scan and hadolint cover the same files.
+    checkov:
+      enabled: false
+    # Biome already reads the JavaScript and the stylesheet.
+    oxc:
+      enabled: false
+    stylelint:
+      enabled: false
+    # The templates are Go `html/template`, not plain HTML.
+    htmlhint:
+      enabled: false
+    # Interface strings and documentation are proofread by hand, in two languages.
+    languagetool:
+      enabled: false
+
+chat:
+  art: false
+
+knowledge_base:
+  # A public repository: what CodeRabbit learns here stays with this repository.
+  learnings:
+    scope: local
+  issues:
+    scope: local
+  pull_requests:
+    scope: local
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "CONTRIBUTING.md"
+      - "SECURITY.md"
