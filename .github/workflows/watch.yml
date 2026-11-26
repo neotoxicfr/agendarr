@@ -32,15 +32,19 @@ jobs:
         with:
           go-version-file: go.mod
 
-      # Same tools and versions as ci.yml: bump both together.
+      # Same tools and versions as ci.yml: bump both together. A failed install
+      # is a red run, not a finding.
+      - name: Install the scanners
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
+          go install github.com/google/osv-scanner/v2/cmd/osv-scanner@v2.7.1
+
       - name: Scan
         id: scan
         continue-on-error: true
         run: |
           s=0
-          go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
           govulncheck ./... > "$RUNNER_TEMP/report" 2>&1 || s=1
-          go install github.com/google/osv-scanner/v2/cmd/osv-scanner@v2.7.1
           osv-scanner scan source . >> "$RUNNER_TEMP/report" 2>&1 || s=1
           docker run --rm -v "$PWD:/src:ro" \
             ghcr.io/aquasecurity/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb \

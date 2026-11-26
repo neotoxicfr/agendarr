@@ -4,7 +4,8 @@
 
 - **Go 1.27+** (the version in `go.mod` is authoritative; CI installs it from there)
 - **golangci-lint v2.15+**, built with a Go version ≥ the one in `go.mod`
-- **staticcheck 2026.2.2**, **govulncheck** and **osv-scanner v2.7.1**, for `make check`
+- **staticcheck 2026.2.2**, **govulncheck** and **osv-scanner v2.7.1**, for `make check`;
+  staticcheck too is built with a Go version ≥ the one in `go.mod`
 - **A C toolchain** (gcc/clang), only for `go test -race`
 - **lefthook** *(optional)*: installs the git hooks in `lefthook.yml`
 - **actionlint** *(optional)*: validates workflow changes
