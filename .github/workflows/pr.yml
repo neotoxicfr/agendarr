@@ -65,8 +65,11 @@ jobs:
           done
           [ "$c" = success ] || { echo "::error::CodeRabbit did not review $SHA: not merged"; exit 1; }
 
+      # The merge endpoint itself, which applies the rules of dev and says why
+      # when it refuses. `gh pr merge` reads a merge state first and refused
+      # #27 on it three times, its three required checks passed.
       - name: Squash-merge
-        run: gh pr merge "$PR" --squash --match-head-commit "$SHA"
+        run: gh api -X PUT "repos/$GH_REPO/pulls/$PR/merge" -f merge_method=squash -f sha="$SHA" --jq .message
 
       # A merge made with GITHUB_TOKEN raises no push event.
       - name: Publish the dev image
