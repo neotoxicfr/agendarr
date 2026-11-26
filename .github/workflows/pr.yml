@@ -65,8 +65,13 @@ jobs:
           done
           [ "$c" = success ] || { echo "::error::CodeRabbit did not review $SHA: not merged"; exit 1; }
 
+      # The merge endpoint itself, which says why when it refuses; `gh pr merge`
+      # only said "the base branch policy prohibits the merge". GITHUB_TOKEN
+      # cannot have the `workflows` permission: a pull request that changes a
+      # workflow file may be refused here (403, seen on #27), and is then merged
+      # by its author.
       - name: Squash-merge
-        run: gh pr merge "$PR" --squash --match-head-commit "$SHA"
+        run: gh api -X PUT "repos/$GH_REPO/pulls/$PR/merge" -f merge_method=squash -f sha="$SHA" --jq .message
 
       # A merge made with GITHUB_TOKEN raises no push event.
       - name: Publish the dev image

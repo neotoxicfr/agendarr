@@ -44,7 +44,7 @@ package manager) running as a non-root user. The example compose adds
 
 - Every GitHub Action is pinned to a full commit SHA, and the repository
   *enforces* SHA pinning, so a hijacked tag cannot alter a workflow.
-- CI runs `govulncheck` and a Trivy filesystem scan (vulnerabilities, secrets, misconfigurations)
+- CI runs `govulncheck`, `osv-scanner` and a Trivy filesystem scan (vulnerabilities, secrets, misconfigurations)
   on every push to `dev`, every pull request and every release tag, and fails on a fixable
   `CRITICAL`/`HIGH`. No image is published unless it passes.
 - Dependabot alerts and security updates are enabled.
