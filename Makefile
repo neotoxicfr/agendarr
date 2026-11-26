@@ -17,9 +17,11 @@ test-race:
 
 lint:
 	golangci-lint run
+	staticcheck ./...
 
 vuln:
 	govulncheck ./...
+	osv-scanner scan source .
 
 # What CI runs, before pushing.
 check: build test-race lint vuln

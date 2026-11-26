@@ -1,7 +1,7 @@
 name: Vulnerability watch
 
-# govulncheck and Trivy on dev, every day. A finding opens or refreshes one
-# issue and the run stays green: no failure mailed day after day.
+# govulncheck, osv-scanner and Trivy on dev, every day. A finding opens or
+# refreshes one issue and the run stays green: no failure mailed day after day.
 on:
   schedule:
     - cron: "37 4 * * *"
@@ -40,6 +40,8 @@ jobs:
           s=0
           go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
           govulncheck ./... > "$RUNNER_TEMP/report" 2>&1 || s=1
+          go install github.com/google/osv-scanner/v2/cmd/osv-scanner@v2.7.1
+          osv-scanner scan source . >> "$RUNNER_TEMP/report" 2>&1 || s=1
           docker run --rm -v "$PWD:/src:ro" \
             ghcr.io/aquasecurity/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb \
             fs --scanners vuln --severity CRITICAL,HIGH --ignore-unfixed --exit-code 1 /src \

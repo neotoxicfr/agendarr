@@ -4,6 +4,7 @@
 
 - **Go 1.27+** (the version in `go.mod` is authoritative; CI installs it from there)
 - **golangci-lint v2.15+**, built with a Go version ≥ the one in `go.mod`
+- **staticcheck 2026.2.2**, **govulncheck** and **osv-scanner v2.7.1**, for `make check`
 - **A C toolchain** (gcc/clang), only for `go test -race`
 - **lefthook** *(optional)*: installs the git hooks in `lefthook.yml`
 - **actionlint** *(optional)*: validates workflow changes
@@ -53,7 +54,8 @@ At release time, `dev` is squash-merged into `main` and the tag is pushed.
 
 ## CI
 
-- `ci.yml`: build, race tests, golangci-lint, govulncheck and a Trivy scan, on
+- `ci.yml`: build, race tests, golangci-lint, staticcheck, govulncheck,
+  osv-scanner and a Trivy scan, on
   every pull request.
 - `docker-publish.yml`: on a push to `dev` it runs `ci.yml`, then publishes
   `:dev` (amd64). On a `v*` tag it runs `ci.yml`, publishes `X.Y.Z` and
