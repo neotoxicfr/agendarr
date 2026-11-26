@@ -65,9 +65,11 @@ jobs:
           done
           [ "$c" = success ] || { echo "::error::CodeRabbit did not review $SHA: not merged"; exit 1; }
 
-      # The merge endpoint itself, which applies the rules of dev and says why
-      # when it refuses. `gh pr merge` reads a merge state first and refused
-      # #27 on it three times, its three required checks passed.
+      # The merge endpoint itself, which says why when it refuses; `gh pr merge`
+      # only said "the base branch policy prohibits the merge". GITHUB_TOKEN
+      # cannot have the `workflows` permission: a pull request that changes a
+      # workflow file may be refused here (403, seen on #27), and is then merged
+      # by its author.
       - name: Squash-merge
         run: gh api -X PUT "repos/$GH_REPO/pulls/$PR/merge" -f merge_method=squash -f sha="$SHA" --jq .message
 
